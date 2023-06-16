@@ -15,37 +15,71 @@ class Order:
 
     async def batch_orders(self, orders: list):
         """
-        Orders is a list that contain tuples | struct (side: string, price: float, qty: float)\n
-        Keep in mind, rate limits are at 10 orders per sec so don't send too many!
+        Orders is a list that contain tuples | struct (side: string, price: float, qty: float) \n
+        For optimal order submission, list should be in order of what needs to be sent first
         """
+        
+        batch_endpoint = '/unified/v3/private/order/create-batch'
+        # overflow_endpoint = '/v5/order/create'
 
-        endpoint = '/v5/order/create'
+        n = len(orders)
 
-        try:
-            batchOrders = []
+        if n < 10: 
+            
+            try:
+                batch = []
 
-            for order in orders:
-
-                payload = {
-                    "category": "linear",
-                    "symbol": self.symbol,
-                    "side": order[0],
-                    "orderType": "Limit",
-                    "price": order[1],
-                    "qty": order[2],
-                    "timeInForce": "PostOnly"
-                } 
+                for order in orders:
+                    batch.append({
+                        "category": "linear",
+                        "symbol": self.symbol,
+                        "side": order[0],
+                        "orderType": "Limit",
+                        "price": order[1],
+                        "qty": order[2],
+                        "timeInForce": "PostOnly"
+                    })
                 
-                _order = batchOrders.append(asyncio.create_task(
-                    HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", endpoint, payload)
-                    )
+                payload = {"category": "linear", "request": batch}
+                
+                _submit = asyncio.create_task(
+                    HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", batch_endpoint, payload)
                 )
-                     
-            _results = await asyncio.gather(*batchOrders)
 
-        except Exception as e:
-            # Enter error handling here \
-            print(e)
+            except Exception as e:
+                print(e)
+
+        else:
+            
+            i = 0
+
+            while i <= n:
+
+                try:
+                    batch = []
+
+                    for order in orders[i:i+10]:
+                        batch.append({
+                            "category": "linear",
+                            "symbol": self.symbol,
+                            "side": order[0],
+                            "orderType": "Limit",
+                            "price": order[1],
+                            "qty": order[2],
+                            "timeInForce": "PostOnly"
+                        })
+                    
+                    payload = {"category": "linear", "request": batch}
+                    
+                    _submit = asyncio.create_task(
+                        HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", batch_endpoint, payload)
+                    )
+
+                    i += 10
+                    
+                except Exception as e:
+                    print(e)
+
 
 
     async def taker_twap(self, side: str, duration: int, num: int, qty: float, \
