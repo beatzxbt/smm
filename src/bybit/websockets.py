@@ -2,6 +2,7 @@ import json
 import time
 import hmac
 import hashlib
+import pandas as pd
 
 
 class PrivateWs:
@@ -54,6 +55,33 @@ class PrivateWs:
 
         return req, topiclist
 
+
+
+class PrivateWsHandler:
+
+
+    def __init__(self) -> None:
+        pass
+
+
+    def print_order_updates(self, data: json):
+
+        symbol = data[0]['symbol']
+
+        for i in data:
+            orderstatus = str(i['orderStatus'])
+            orderside = str(i['side']).upper()
+            orderqty = float(i['qty'])
+            ordertime = pd.to_datetime(float(i['updatedTime']), unit='ms')
+            ordertype = str(i['orderType']).upper()
+            ordersymbol = f"{symbol}@{float(i['price'])}"
+            
+            if orderstatus == 'PartiallyFilled':
+                remaining_qty = f"{orderqty-float(i['leavesQty'])}/{orderqty}"
+                print(f"{ordertime}: Partial {orderside} {ordertype} fill of {remaining_qty} units on {ordersymbol}")
+
+            elif orderstatus == 'Filled':
+                print(f"{ordertime}: Full {orderside} {ordertype} fill of {orderqty} units on {ordersymbol}")
 
 
 class PublicWs:
