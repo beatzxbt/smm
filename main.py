@@ -60,9 +60,9 @@ async def account_stats_feed(symbol: str):
 
     async with websockets.connect(websocket_stream) as websocket:
         
-        req, topics = PrivateWs(Config().api_key(), Config().api_key()).multi_stream_request(['Position', 'Order'])
+        req, topics = PrivateWs(Config().api_key(), Config().api_secret()).multi_stream_request(['Position', 'Order'])
 
-        _auth = await websocket.send(PrivateWs(Config().api_key(), Config().api_key()).auth())
+        _auth = await websocket.send(PrivateWs(Config().api_key(), Config().api_secret()).auth())
         print('Successfully authenticated to account private feed...')
 
         _sub = await websocket.send(req)
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     inventory_delta = 0.0
     volatility_value = 1.0
     
-    _run = asyncio.run(main('BUSDUSDT'))
+    _run = asyncio.run(main('USDCUSDT'))
 
 
 
