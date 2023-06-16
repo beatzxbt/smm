@@ -8,15 +8,15 @@ account_size: 25  # In $
 
 # Offsets for Market Maker function \
 quote_offset: 0.
-size_offset: 10
+size_offset: 0.
 
 # Settings for Market Maker function \
 target_spread: 0.0001 # In quote asset unit
-volatility_offset: 0. # Increases quote range in quote asset unit
-minimum_order_size: 15  # In base asset unit
-maximum_order_size: 100  # In base asset unit
+number_of_orders: 20 # Total number of orders quoted
+volatility_offset: 0.0 # Increases quote range in quote asset unit
+minimum_order_size: 17.5  # In base asset unit
+maximum_order_size: 90  # In base asset unit
 
 # Boundaries for inventory delta \
 inventory_neutral: 0.0  # Baseline value, can be used to add bias 
 inventory_extreme: 0.5  # Will trigger a TWAP to offload inventory
-
