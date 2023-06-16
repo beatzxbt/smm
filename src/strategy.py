@@ -43,13 +43,13 @@ class Inventory:
 class Strategy:
 
 
-    def __init__(self, tick_size: float, lot_size: float, target_spread: float, 
+    def __init__(self, tick_size: float, lot_size: float, num_orders: int, target_spread: float, 
                  minimum_order_size: float, maximum_order_size: float, quote_offset: float, \
                  size_offset: float) -> None:
         
         self.tick_size = float(tick_size)
         self.lot_size = float(lot_size)
-        self.max_orders = int(10)  # Adjust if you are above VIP0, otherwise ok
+        self.max_orders = int(num_orders)  
         self.target_spread = float(target_spread)
         self.quote_offset = float(quote_offset)
         self.size_offset = float(size_offset)
@@ -82,7 +82,7 @@ class Strategy:
     def quotes_price_range(self, mark_price: float, volatility: float, bid_skew: float, \
                            ask_skew: float, bba: tuple) -> np.array:
         """
-        Generates bid/ask price quotes 
+        Generates bid/ask prices
 
         _______________________________________________________________
 
@@ -223,8 +223,7 @@ class Strategy:
                 orders.append(['Buy', str(bid_p), str(bid_q)])
                 orders.append(['Sell', str(ask_p), str(ask_q)])   
 
-        return orders
-        
+        return orders     
         
 
 
