@@ -15,37 +15,140 @@ class Order:
 
     async def batch_orders(self, orders: list):
         """
-        Orders is a list that contain tuples | struct (side: string, price: float, qty: float)\n
-        Keep in mind, rate limits are at 10 orders per sec so don't send too many!
+        Orders is a list that contain tuples | struct (side: string, price: float, qty: float) \n
+        For optimal order submission, list should be in order of what needs to be sent first \n
         """
+        
+        batch_endpoint = '/unified/v3/private/order/create-batch'
+        # batch_max_sec = 2
 
-        endpoint = '/v5/order/create'
+        singles_endpoint = '/v5/order/create'
+        # singles_max_sec = 10
+        
+        n = len(orders)
+        orders_submitted = 0
+        
+        if n > 26:
+            # This will send over a longer time, as ~26 orders a second hits rate limits for VIP0 \
+            # True limit is 30 but this provides a little room for other potential API requests \
+            # ABOVE 26 ORDERS STILL NEEDS TO BE IMPLEMENTED! #
+            try:
+                tasks = []
 
-        try:
-            batchOrders = []
+                # These will send 6 singles, near BBA first \
+                for order in orders[:6]:
 
-            for order in orders:
+                    payload = {
+                        "category": "linear",
+                        "symbol": self.symbol,
+                        "side": order[0],
+                        "orderType": "Limit",
+                        "price": order[1],
+                        "qty": order[2],
+                        "timeInForce": "PostOnly"
+                    } 
 
-                payload = {
-                    "category": "linear",
-                    "symbol": self.symbol,
-                    "side": order[0],
-                    "orderType": "Limit",
-                    "price": order[1],
-                    "qty": order[2],
-                    "timeInForce": "PostOnly"
-                } 
-                
-                _order = batchOrders.append(asyncio.create_task(
-                    HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", endpoint, payload)
+                    _order = tasks.append(asyncio.create_task(
+                        HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", singles_endpoint, payload)
+                        )
                     )
-                )
-                     
-            _results = await asyncio.gather(*batchOrders)
+                
+                # These will send 20 in batches, still closest to BBA first \
+                for i in range(2):
+                    
+                    singles_local = []
 
-        except Exception as e:
-            # Enter error handling here \
-            print(e)
+                    for order in orders[4+(10*i):4+(10*(i+1))]:
+
+                        singles_local.append({
+                            "category": "linear",
+                            "symbol": self.symbol,
+                            "side": order[0],
+                            "orderType": "Limit",
+                            "price": order[1],
+                            "qty": order[2],
+                            "timeInForce": "PostOnly"
+                        })
+                    
+                    payload = {"category": "linear", "request": singles_local}
+
+                    _order = tasks.append(asyncio.create_task(
+                        HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", batch_endpoint, payload)
+                    ))
+
+                _batchresult = await asyncio.gather(*tasks)
+            
+            except Exception as e:
+                print(e)
+
+            pass
+
+        else:
+            # These will send 4 singles, near BBA first \
+            try:
+                singles_task = []
+
+                for order in orders[:4]:
+
+                    payload = {
+                        "category": "linear",
+                        "symbol": self.symbol,
+                        "side": order[0],
+                        "orderType": "Limit",
+                        "price": order[1],
+                        "qty": order[2],
+                        "timeInForce": "PostOnly"
+                    } 
+
+                    _order = singles_task.append(asyncio.create_task(
+                        HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", singles_endpoint, payload)
+                        )
+                    )
+
+                    orders_submitted += 1
+                
+                _singlesresult = await asyncio.gather(*singles_task)
+            
+            except Exception as e:
+                print(e)
+
+
+            # If there are orders remaining, send them through batch orders \
+            if n - orders_submitted > 0:
+                
+                try:
+                    batches_to_send = int(np.ceil((n-orders_submitted)/10))
+                    batches_task = []
+
+                    for i in range(batches_to_send):
+                        
+                        singles_local = []
+
+                        for order in orders[4+(10*i):4+(10*(i+1))]:
+
+                            singles_local.append({
+                                "category": "linear",
+                                "symbol": self.symbol,
+                                "side": order[0],
+                                "orderType": "Limit",
+                                "price": order[1],
+                                "qty": order[2],
+                                "timeInForce": "PostOnly"
+                            })
+
+                            orders_submitted += 1
+                        
+                        payload = {"category": "linear", "request": singles_local}
+
+                        _order = batches_task.append(asyncio.create_task(
+                            HTTP_PrivateRequests(self.api_key, self.api_secret, 5000).send("POST", batch_endpoint, payload)
+                        ))
+
+                    _batchresult = await asyncio.gather(*batches_task)
+
+                except Exception as e:
+                    print(e)
+
 
 
     async def taker_twap(self, side: str, duration: int, num: int, qty: float, \
