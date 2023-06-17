@@ -2,6 +2,7 @@
 # Defaults for the symbol, currently set for XRPUSDT \
 tick_size: 0.0001 # Get from contract details 
 lot_size: 0.1  # Get from contract details 
+buffer_multiplier: 4 # A multiple of the tick size, prevents hitting rate limits from a 'ping-pong' mark price
 
 # Account info \
 account_size: 25  # In $
@@ -11,11 +12,11 @@ quote_offset: 0.
 size_offset: 0.
 
 # Settings for Market Maker function \
-target_spread: 0.0001 # In quote asset unit
-number_of_orders: 20 # Total number of orders quoted
-volatility_offset: 0.0 # Increases quote range in quote asset unit
-minimum_order_size: 17.5  # In base asset unit
-maximum_order_size: 90  # In base asset unit
+target_spread: 0.0002 # In quote asset unit
+number_of_orders: 10 # Total number of orders quoted
+volatility_offset: 0.001 # Increases quote range in quote asset unit
+minimum_order_size: 10  # In base asset unit
+maximum_order_size: 75  # In base asset unit
 
 # Boundaries for inventory delta \
 inventory_neutral: 0.0  # Baseline value, can be used to add bias 
