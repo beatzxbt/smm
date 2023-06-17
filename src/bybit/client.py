@@ -68,7 +68,7 @@ class HTTP_PrivateRequests:
 
                 recv = json.loads(await _req.text())
 
-                if recv['retMsg'] == "OK":
+                if recv['retMsg'] == "OK" or recv['retMsg'] == "success":
                     pass
 
                 else:
