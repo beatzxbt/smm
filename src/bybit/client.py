@@ -66,15 +66,19 @@ class HTTP_PrivateRequests:
                     print("Invalid request method!, select either 'GET' or 'POST'")
 
 
-                recv = json.dumps(await _req.text())
+                recv = json.loads(await _req.text())
 
-                if recv['RetMsg'] == "Too many visits!":
-                    print('Rate limits hit, cooling off...')
-                    return 'RATELIMITS'
+                if recv['retMsg'] == "OK":
+                    pass
+
+                else:
+                    if recv['retMsg'] == "Too many visits!":
+                        print('Rate limits hit, cooling off...')
+                        return 'RATELIMITS'
                 
-                else:            
-                    # Enter error handling here \
-                    print(recv['RetMsg'])
+                    else:            
+                        # Enter error handling here \
+                        print(recv['retMsg'])
                     
             except Exception as e:
                 print(e)
