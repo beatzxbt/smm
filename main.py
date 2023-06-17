@@ -18,6 +18,7 @@ async def refresh_parameters(dir: str, sleep_duration: int):
 
     global tick_size
     global lot_size
+    global buffer_multiplier
     global account_size
     global quote_offset
     global size_offset
@@ -37,6 +38,7 @@ async def refresh_parameters(dir: str, sleep_duration: int):
         # Update parameters \
         tick_size = config['tick_size']
         lot_size = config['lot_size']
+        buffer_multiplier = config['buffer_multiplier']
         account_size = config['account_size']
         quote_offset = config['quote_offset']
         size_offset = config['size_offset']
@@ -91,7 +93,6 @@ async def account_stats_feed(symbol: str):
 
                     # Printing live order information to terminal \
                     if recv['topic'] == topics[1]:
-
                         _print = PrivateWsHandler().print_order_updates(data)
 
         except websockets.ConnectionClosed:
@@ -163,6 +164,7 @@ async def main(symbol: str):
 
     global tick_size
     global lot_size
+    global buffer_multiplier
     global account_size
     global quote_offset
     global size_offset
@@ -212,7 +214,7 @@ async def main(symbol: str):
                         best_ask_price = float(ticker_data['ask1Price'])
 
                     if 'markPrice' in ticker_data:
-                        new_mark_price = round_step_size(float(ticker_data['markPrice']), tick_size)
+                        new_mark_price = round_step_size(float(ticker_data['markPrice']), tick_size * buffer_multiplier)
                         
                         # Run the strategy and refresh quotes if the mark price has changed \
                         if new_mark_price == mark_price:
@@ -259,6 +261,7 @@ if __name__ == "__main__":
     # Global parameters \
     tick_size = config['tick_size']
     lot_size = config['lot_size']
+    buffer_multiplier = config['buffer_multiplier']
     account_size = config['account_size']
     quote_offset = config['quote_offset']
     size_offset = config['size_offset']
