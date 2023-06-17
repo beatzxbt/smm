@@ -179,6 +179,7 @@ class Strategy:
         {mark_price}: central value, which quotes will be placed around \n
         {volatility}: directly effects range & size of quotes \n
         {inventory_delta}: normalized value between -1 and 1 of current inventory \n
+        {inventory_extreme}: value at which quotes are skewed/removed to try reduce inventory \n
 
         This function outputs a list that contains tuples | struct (side: str, price: str, qty: str) \n
         """
