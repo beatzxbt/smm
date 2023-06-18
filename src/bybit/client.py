@@ -72,7 +72,7 @@ class HTTP_PrivateRequests:
                     pass
 
                 else:
-                    if recv['retMsg'] == "Too many visits!":
+                    if recv['retMsg'] == "too many visit":
                         print('Rate limits hit, cooling off...')
                         return 'RATELIMITS'
                 
