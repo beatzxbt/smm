@@ -18,7 +18,10 @@ def nsqrt(value: float, n: int) -> float:
 
 
 @njit((float64, float64, int64))
-def linspace(start, end, n):
+def linspace(start: float, end: float, n: int) -> np.array:
+    """
+    Return np.linspace (first 3 args)
+    """
     return np.linspace(start, end, n)
 
 
