@@ -30,7 +30,7 @@ Fixes/Improvements
 ---------------
 
 * Implementation of TWAP (func already exists in /src/bybit/orders/) to aid in reducing one-sided inventory
-* Execption handling for orders (rate limits, high latency etc)
+* Exception handling for orders (rate limits, high latency etc)
   
 
 Upcoming features
