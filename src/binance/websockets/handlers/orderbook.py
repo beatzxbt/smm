@@ -3,7 +3,7 @@ import numpy as np
 
 
 class LocalOrderBook:
-
+    
 
     def __init__(self):
         self.asks = np.empty((0, 2), float)
@@ -60,6 +60,9 @@ class BinanceBBAHandler:
 
     
     def process(self):
+        """
+        Realtime BBA updates
+        """
 
         bb_price = float(self.data['b'])
         ba_price = float(self.data['a'])
@@ -68,4 +71,3 @@ class BinanceBBAHandler:
         ba_qty = float(self.data['A'])
 
         self.ss.binance_bba = np.array([[bb_price, bb_qty], [ba_price, ba_qty]])
-
