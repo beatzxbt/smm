@@ -27,10 +27,4 @@ def npower(value: float, n: int) -> float:
 
 @njit((float64, float64, int64))
 def linspace(start: float, end: float, n: int) -> np.array:
-<<<<<<< Updated upstream
-    """
-    Return np.linspace (first 3 args)
-    """
-=======
->>>>>>> Stashed changes
     return np.linspace(start, end, n)
