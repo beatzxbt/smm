@@ -1,23 +1,44 @@
 
-# Defaults for the symbol, currently set for XRPUSDT \
-tick_size: 0.0001 # Get from contract details 
-lot_size: 0.1  # Get from contract details 
-buffer_multiplier: 4 # A multiple of the tick size, prevents hitting rate limits from a 'ping-pong' mark price
+### CREATE MARKET DATA FUNCTIONS TO OBTAIN THE BELOW AUTOMATICALLY ###
+
+# Futures symbols from Binance/Bybit 
+binance_symbol: XMRUSDT # Spot symbol from binance 
+binance_tick_size: 0.1 # Get from contract details 
+binance_lot_size: 0.01  # Get from contract details 
+
+bybit_symbol: XMRUSDT # Futures symbol from Bybit
+bybit_tick_size: 0.05 # Get from contract details 
+bybit_lot_size: 0.01  # Get from contract details 
+
+# Primary data feed (BYBIT or BINANCE) # 
+# Check README.md for more info regarding this #
+primary_data_feed: BINANCE # This cannot be changed after script is started
+
+
+buffer_multiplier: 1 # A multiple of the tick size, prevents a 'ping-pong' effect
+
 
 # Account info \
-account_size: 25  # In $
+account_size: 200  # In $
 
-# Offsets for Market Maker function \
-quote_offset: 0.
-size_offset: 0.
+
+# Settings for volatility indicator \
+bollinger_band_length: 13
+bollinger_band_std: 2
+
+
+# Master offsets \
+quote_offset: 0.0 # Increases quote price in base units
+size_offset: -0.35  # Increases quote size in quote units
+volatility_offset: 0.0 # Increases quote range in base units
+
 
 # Settings for Market Maker function \
-target_spread: 0.0002 # In quote asset unit
-number_of_orders: 10 # Total number of orders quoted
-volatility_offset: 0.001 # Increases quote range in quote asset unit
-minimum_order_size: 10  # In base asset unit
-maximum_order_size: 75  # In base asset unit
+target_spread: 0.05 # In quote asset unit
+number_of_orders: 14 # Total number of orders quoted
+minimum_order_size: 0.8  # In base asset unit
+maximum_order_size: 2.5  # In base asset unit
 
-# Boundaries for inventory delta \
-inventory_neutral: 0.0  # Baseline value, can be used to add bias 
+
+# Extreme values for alpha & inventory \
 inventory_extreme: 0.5  # Will trigger a TWAP to offload inventory
