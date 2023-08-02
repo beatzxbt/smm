@@ -253,8 +253,8 @@ class Main:
 if __name__ == "__main__":
 
     # Copy the directory of the param .yaml file and paste it below \
-    param_dir = "/Users/vishva/Documents/GitHub/bybit-smm/src/parameters.yaml"
-    config_dir = "/Users/vishva/Documents/GitHub/bybit-smm/config/bybit.yaml"
+    param_dir = ""
+    config_dir = ""
     
     _run = asyncio.run(Main('BTCUSDT', config_dir, param_dir).strategy())
 

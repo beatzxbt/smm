@@ -8,7 +8,7 @@ Getting Started
 ---------------
 
 1. Assuming you already have a Bybit account, generate API keys and secrets using [this guide](https://learn.bybit.com/bybit-guide/how-to-create-a-bybit-api-key/)
-2. Swap your key/secret into the config file found in /src/bybit/
+2. Swap your key/secret into the config file found in /config/bybit.yaml/
 3. Install all packages required by running 'pip install -r requirements.txt' 
 4. Adjust the contract settings in the parameters.yaml file (tick size/lot size) according to the symbol you want to make
 5. Alter the spreads, order sizes, offsets (anything in the .yaml file!) as you wish, even whilst the bot is live!
@@ -30,9 +30,7 @@ Fixes/Improvements
 ---------------
 
 * Implementation of TWAP (func already exists in /src/bybit/orders/) to aid in reducing one-sided inventory
-* Execption handling for orders (rate limits, incorrect rounding, high latency etc)
-* Reconnection logic for websockets
-* Improved security for API Keys/Secrets
+* Exception handling for orders (rate limits, high latency etc)
   
 
 Upcoming features
