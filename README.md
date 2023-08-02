@@ -1,7 +1,7 @@
 Bybit Simple Market Maker
 ===================
 
-This is a sample market making bot for use with [Bybit](https://www.bybit.com/en-US/).
+This is a sample market making bot for [Bybit](https://www.bybit.com/en-US/).
 
 
 Getting Started
@@ -10,33 +10,51 @@ Getting Started
 1. Assuming you already have a Bybit account, generate API keys and secrets using [this guide](https://learn.bybit.com/bybit-guide/how-to-create-a-bybit-api-key/)
 2. Swap your key/secret into the config file found in /config/bybit.yaml/
 3. Install all packages required by running 'pip install -r requirements.txt' 
-4. Adjust the contract settings in the parameters.yaml file (tick size/lot size) according to the symbol you want to make
-5. Alter the spreads, order sizes, offsets (anything in the .yaml file!) as you wish, even whilst the bot is live!
+4. Input the contract details in the parameters.yaml file (tick size/lot size) according to the symbol you want to make
+5. Alter the spreads, order sizes, offsets (any setting in the .yaml file!) as you wish, even whilst the bot is live!
+
+** Note, changing the primary data feed between Binance <-> Bybit will require a restart to the script **
 
 
-Strategy
+Strategy Design/Overview
 ---------------
 
-* It tracks mark price, and quotes both sides (range is defined by volatility, sizing by your preference)
-  * The volatility indicator in use is simply adding the absolute(high-low) of x-candles in the past
-  * The indicator can be found [here](https://www.tradingview.com/script/p5sEaH9V-Simple-Range-Volatility/) and contains a short explanation on how to manipulate it's parameters.
-  * You can change these parameters once you're comfortable in the .yaml file 
-* Under normal conditions, both sides have equal quote distances and sizing
-* If too much inventory is accumulated (extreme value can be altered in the .yaml file), it will kill quotes on one side
-* There is room to add bias by offsetting quote prices in the .yaml file
-
-
-Fixes/Improvements
----------------
-
-* Implementation of TWAP (func already exists in /src/bybit/orders/) to aid in reducing one-sided inventory
-* Exception handling for orders (rate limits, high latency etc)
+1. Prices from Bybit (and optionally Binance) are streamed into a common shared class
+2. A market maker function generates quotes, with bias based on price based features
+  * The price based feature (more can be added!) works on comparing a benchmark (fair) price to the current price
+  * Prices and quantities are generated, with prices within a volatility range, and min/max quantity defined manually
+  * The above is skewed using various features, leading to behaviour shown in examples below:
+    * (Ex) If binance price is lower than then bybit price -> skew is negative -> asks are more concentrated near mid price than bids
+    * (Ex) If binance price is higher than then bybit price -> skew is positive -> bids have more qty than asks
+    * (Ex) If inventory is extremely long, quotes are killed on the long side to try neutralize the position
+3. Orders are sent to the exchange
   
 
-Upcoming features
+New upgrades
 ---------------
-* Option to add oscillating indiactors (RSI/Stoch) as a bias for pricing/sizing
-* Binance market data integration, providing the option to track either Bybit's Mark Price, Binance Spot Price or a mixture of both
-* Limit chasing TWAP
-* Smart order submission (https://twitter.com/BeatzXBT/status/1668322708986163203)
-* Easier integration of custom volatility indicators/metrics
+
+- Fast local orderbooks for both Binance & Bybit, useful for creating [orderbook based features](https://twitter.com/BeatzXBT/status/1680152557388197888)
+- Highly abstracted code (add/remove features with ease)
+- Access to Binance data feeds (LOB/Trades) 
+
+
+Fixes/Improvements Required
+---------------
+
+- Sanity checks for market/private websockets and clients {High Priority}
+- Simpler execution and order feed handlers (reworked for time-based and orderId based indexing) {Medium Priority}
+- Customized rounding for [bid/ask](https://twitter.com/kursatcalk/status/1686685226028666880) {Low Priority}
+
+
+Upcoming upgrades
+---------------
+
+- Optional TWAP to reduce inventory (alongside purging quotes)
+- BBA weighted midprices (replaces simple midprice)
+- Improved inventory management system (reaching neutral position faster and cheaper)
+
+
+If you have any questions or suggestions regarding the repo, or just want to have a chat, my handles are below:
+
+Twitter: [@beatzXBT](https://twitter.com/BeatzXBT)
+Discord: gamingbeatz
