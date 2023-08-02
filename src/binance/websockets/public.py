@@ -20,6 +20,7 @@ class PublicWs:
 
         Current supported topics are: \n
         -> Trades \n
+        -> BBA \n
         -> Orderbook (Requires {depth: int} kwarg) \n
         -> Kline (Requires {interval: int} kwarg)
         """
