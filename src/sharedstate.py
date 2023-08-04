@@ -54,23 +54,23 @@ class SharedState:
 
             self.inventory_extreme = float(settings['inventory_extreme'])
 
-        self.binance_trades = []
-        self.binance_bba = np.array([[1., 1.], [1., 1.]]) # [Bid[P, Q], Ask[P, Q]
+        self.binance_trades = list()
+        self.binance_bba = np.array([[float(), float()], [float(), float()]]) # [Bid[P, Q], Ask[P, Q]
         self.binance_book = BinanceBook()
-        self.binance_last_price = 1.
+        self.binance_last_price = float()
 
-        self.bybit_trades = []
-        self.bybit_bba = np.array([[1., 1.], [1., 1.]]) # [Bid[P, Q], Ask[P, Q]
+        self.bybit_trades = list()
+        self.bybit_bba = np.array([[float(), float()], [float(), float()]]) # [Bid[P, Q], Ask[P, Q]
         self.bybit_book = BybitBook()
-        self.bybit_mark_price = 1.
-        self.bybit_klines = []
+        self.bybit_mark_price = float()
+        self.bybit_klines = list()
 
-        self.position_feed = []
-        self.execution_feed = {}
+        self.position_feed = list()
+        self.execution_feed = dict()
 
-        self.volatility_value = 1.
-        self.alpha_value = 0.
-        self.inventory_delta = 0.
+        self.volatility_value = float()
+        self.alpha_value = float()
+        self.inventory_delta = float()
 
     
     async def refresh_parameters(self):
