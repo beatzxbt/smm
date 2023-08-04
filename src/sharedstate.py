@@ -65,7 +65,7 @@ class SharedState:
         self.bybit_mark_price = float()
         self.bybit_klines = list()
 
-        self.position_feed = list()
+        # self.position_feed = list()
         self.execution_feed = dict()
 
         self.volatility_value = float()
