@@ -31,17 +31,6 @@ async def main():
 
 
 if __name__ == "__main__":
-<<<<<<< Updated upstream
-
-    # Copy the directory of the param .yaml file and paste it below \
-    param_dir = ""
-    config_dir = ""
-    
-    _run = asyncio.run(Main('BTCUSDT', config_dir, param_dir).strategy())
-
-
-=======
     asyncio.run(main())
->>>>>>> Stashed changes
 
 
