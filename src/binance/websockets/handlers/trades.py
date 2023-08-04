@@ -16,11 +16,11 @@ class BinanceTradesHandler:
         price = float(self.data['p'])
         qty = float(self.data['q'])
 
-        if self.data['s'] == 'Buy':
-            side = 0.
+        if self.data['m'] is not True:
+            side = float(0)
 
         else:
-            side = 1.
+            side = float(1)
 
         # Update last price \
         self.ss.binance_last_price = price

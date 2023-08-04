@@ -3,16 +3,17 @@ import numpy as np
 
 
 class LocalOrderBook:
-    
+
 
     def __init__(self):
         self.asks = np.empty((0, 2), float)
         self.bids = np.empty((0, 2), float)
 
 
-    def process_snapshot(self, asks, bids):
-        self.asks = np.array(asks, float)
-        self.bids = np.array(bids, float)
+    def process_snapshot(self, snapshot):
+        self.asks = np.array(snapshot['asks'], dtype=float)
+        self.bids = np.array(snapshot['bids'], dtype=float)
+
         self.sort_book()
 
 
@@ -39,16 +40,12 @@ class LocalOrderBook:
 
 
     def process_data(self, recv):
-        
-        asks = np.array(recv['data']['a'], dtype=float)
-        bids = np.array(recv['data']['b'], dtype=float)
+        recv = recv['data']
+        asks = np.array(recv['a'], dtype=float)
+        bids = np.array(recv['b'], dtype=float)
 
-        if recv["type"] == "snapshot":
-            self.process_snapshot(asks, bids)
-
-        elif recv["type"] == "delta":
-            self.process_update(asks, bids)
-
+        self.process_update(asks, bids)
+            
 
 
 class BinanceBBAHandler:

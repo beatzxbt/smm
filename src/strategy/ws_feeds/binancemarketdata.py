@@ -6,7 +6,7 @@ from src.utils.misc import Misc
 
 from src.binance.websockets.handlers.orderbook import BinanceBBAHandler
 from src.binance.websockets.handlers.trades import BinanceTradesHandler
-
+from src.binance.public.client import PublicClient
 
 
 class BinanceMarketData:
@@ -18,8 +18,12 @@ class BinanceMarketData:
 
     async def binance_data_feed(self):
         
+        # Initialize the local orderbook with data \ 
+        init_ob = await PublicClient(self.ss).orderbook_snapshot(500)
+        self.ss.binance_book.process_snapshot(init_ob)
+
         streams = ['Orderbook', 'BBA', 'Trades']
-        url, topics = PublicWs(self.ss.binance_symbol).multi_stream_request(streams, depth=500)
+        url, topics = PublicWs(self.ss).multi_stream_request(streams)
         
         async for websocket in websockets.connect(url):
             

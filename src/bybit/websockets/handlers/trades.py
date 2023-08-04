@@ -19,14 +19,13 @@ class BybitTradesHandler:
             price = float(trade['p'])
             qty = float(trade['v'])
 
-            if trade['s'] == 'Buy':
-                side = 0.
+            if trade['S'] == 'Buy':
+                side = float(0)
 
             else:
-                side = 1.
+                side = float(1)
 
             indv_trade = np.array([time, side, price, qty])
-
             self.ss.bybit_trades.append(indv_trade)
 
             # Limit list size to 1000 trades \

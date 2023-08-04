@@ -1,12 +1,13 @@
-import json
 from src.binance.websockets.endpoints import WsStreamLinks
 
 
 class PublicWs:
 
 
-    def __init__(self, symbol: str) -> None:
-        self.symbol = symbol.lower()
+    def __init__(self, sharedstate) -> None:
+        self.ss = sharedstate
+        self.symbol = str(self.ss.binance_symbol).lower()
+        
         self.spot_base = WsStreamLinks.spot_public_stream()
         self.futures_base = WsStreamLinks.futures_public_stream()
     
@@ -21,7 +22,7 @@ class PublicWs:
         Current supported topics are: \n
         -> Trades \n
         -> BBA \n
-        -> Orderbook (Requires {depth: int} kwarg) \n
+        -> Orderbook (Returns all levels in orderbook by default) \n
         -> Kline (Requires {interval: int} kwarg)
         """
 
@@ -34,8 +35,8 @@ class PublicWs:
             if topic == 'Trades':
                 stream = '{}@trade/'.format(self.symbol)
 
-            if topic == 'Orderbook' and kwargs['depth'] is not None:
-                stream = '{}@{}@100ms/'.format(self.symbol, kwargs['depth'])
+            if topic == 'Orderbook':
+                stream = '{}@depth@100ms/'.format(self.symbol)
 
             if topic == 'BBA':
                 stream = '{}@bookTicker/'.format(self.symbol)
