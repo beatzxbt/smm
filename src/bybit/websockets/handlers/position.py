@@ -1,4 +1,3 @@
-import json
 
 from src.strategy.inventory import Inventory
 
@@ -6,11 +5,9 @@ from src.strategy.inventory import Inventory
 class BybitPositionHandler:
 
 
-    def __init__(self, sharedstate, data: json) -> None:
+    def __init__(self, sharedstate, data: list) -> None:
         self.ss = sharedstate
         self.data = data
-
-        self.inventory_delta = self.ss.inventory_delta
 
     
     def process(self):
@@ -19,6 +16,6 @@ class BybitPositionHandler:
         Add checker so many TWAPs dont activate accidentally! \n
         """
         
-        self.inventory_delta = Inventory(self.ss).calculate_delta()
+        Inventory(self.ss).calculate_delta(self.data)
 
         
