@@ -54,7 +54,6 @@ Upcoming upgrades
 - Improved inventory management system (reaching neutral position faster and cheaper)
 
 
-If you have any questions or suggestions regarding the repo, or just want to have a chat, my handles are below:
+If you have any questions or suggestions regarding the repo, or just want to have a chat, my handles are below 👇🏼
 
-Twitter: [@beatzXBT](https://twitter.com/BeatzXBT)
-Discord: gamingbeatz
+Twitter: [@beatzXBT](https://twitter.com/BeatzXBT) | Discord: gamingbeatz
