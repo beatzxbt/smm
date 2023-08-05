@@ -22,13 +22,13 @@ class DataFeeds:
         tasks = []
 
         # Start all ws feeds as tasks, updating the sharedstate in the background \
+        bybit_priv_data = BybitPrivateData(self.ss).start_feed()
         bin_pub_data = BinanceMarketData(self.ss).start_feed()
         bybit_pub_data = BybitMarketData(self.ss).start_feed()
-        bybit_priv_data = BybitPrivateData(self.ss).start_feed()
 
+        tasks.append(asyncio.create_task(bybit_priv_data, name="BybitPrivateData"))
         tasks.append(asyncio.create_task(bin_pub_data, name="BinanceMarketData"))
         tasks.append(asyncio.create_task(bybit_pub_data, name="BybitMarketData"))
-        tasks.append(asyncio.create_task(bybit_priv_data, name="BybitPrivateData"))
 
         # Run strategy #
         await asyncio.gather(*tasks)
