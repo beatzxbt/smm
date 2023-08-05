@@ -81,14 +81,14 @@ class MarketMaker:
             best_ask_price = self.binance_mid + self.ss.target_spread
 
         # If inventory is too high, pull quotes from one side entirely \
-        if self.bid_skew > 1:
-            bid_lower = best_bid_price - (base_range * (1 - self.bid_skew))
+        if self.bid_skew >= 1:
+            bid_lower = best_bid_price - (self.ss.bybit_tick_size * self.max_orders)
             bid_prices = linspace(best_bid_price, bid_lower, self.max_orders)
 
             return bid_prices, None
 
-        elif self.ask_skew > 1:
-            ask_upper = best_ask_price + (base_range * (1 - self.ask_skew))
+        elif self.ask_skew >= 1:
+            ask_upper = best_ask_price + (self.ss.bybit_tick_size * self.max_orders)
             ask_prices = linspace(best_ask_price, ask_upper, self.max_orders)
 
             return None, ask_prices
