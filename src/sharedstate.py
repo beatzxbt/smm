@@ -6,8 +6,8 @@ from src.binance.websockets.handlers.orderbook import LocalOrderBook as BinanceB
 from src.bybit.websockets.handlers.orderbook import LocalOrderBook as BybitBook
 
 
-config_dir = "/Users/vishva/Documents/GitHub/bybit-smm/config/bybit.yaml"
-param_dir = "/Users/vishva/Documents/GitHub/bybit-smm/src/parameters.yaml"
+config_dir = "" # Put the bybit.yaml file directory here
+param_dir = "" # Put the config.yaml file directory here
 
 
 class SharedState:
@@ -65,8 +65,7 @@ class SharedState:
         self.bybit_mark_price = float()
         self.bybit_klines = list()
 
-        # self.position_feed = list()
-        self.execution_feed = dict()
+        self.execution_feed = list()
 
         self.volatility_value = float()
         self.alpha_value = float()
