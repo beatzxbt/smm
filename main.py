@@ -23,7 +23,7 @@ async def main():
         tasks.append(asyncio.create_task(BybitStrategy(sharedstate).run()))
 
     else:
-        print('Invalid exchange selected, refer to README.md for correct names!')
+        print("Invalid exchange selected, choices are 'Binance' or 'Bybit'")
         raise
 
     # Run tasks \
