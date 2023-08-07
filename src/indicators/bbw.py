@@ -3,7 +3,7 @@ from numba import njit, prange
 from src.indicators.ema import ema
 
 
-@njit(parallel=True, nogil=True)
+@njit(parallel=True, fastmath=True)
 def bbw(arr_in: np.array, length: int, std: int) -> np.array:
     """
     Hyper-fast Bollinger Band Width implementation \n
@@ -11,15 +11,15 @@ def bbw(arr_in: np.array, length: int, std: int) -> np.array:
     """
 
     n = len(arr_in)
-    close = np.empty(n, dtype=np.float64)
+    close = np.empty(n, dtype=float)
 
     for i in prange(n):
         close[i] = arr_in[i][4]
 
-    basis = ema(close, length)
+    basis = ema(close, length)[-1]
     dev = std * np.std(close[-length:])
-    upper = basis[-1] + dev
-    lower = basis[-1] - dev
-    bbw = np.sqrt(upper-lower)
+    upper = basis + dev
+    lower = basis - dev
+    bbw = upper - lower
         
     return bbw
