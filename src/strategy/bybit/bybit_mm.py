@@ -28,26 +28,22 @@ class MarketMaker:
         -> However if its are outside bounds, it skews the opposite side to help reduce inventory
         """
 
-        self.bid_skew = float()
-        self.ask_skew = float()
+        delta = np.log(self.bybit_mark / self.bybit_mid) * 100
 
-        # Compare binance mid price with the bybit mid price \
-        delta = np.log(self.bybit_mark/self.bybit_mid) * 100
+        # Calculate bid skew using conditional vectorization
+        bid_skew = np.where(delta >= 0, np.clip(delta, 0, 1), 0)
 
-        if delta >= 0:
-            self.bid_skew += np.clip(delta, 0, 1)
+        # Calculate ask skew using conditional vectorization
+        ask_skew = np.where(delta < 0, np.clip(delta, -1, 0), 0)
 
-        if delta < 0: 
-            self.ask_skew += np.clip(delta, -1, 0)
+        # Handle extreme inventory cases using conditional assignment
+        bid_skew[self.ss.inventory_delta < -self.ss.inventory_extreme] = 1
+        ask_skew[self.ss.inventory_delta > self.ss.inventory_extreme] = 1
 
-        # If inventory is at an extreme value, skew quotes hard for it \
-        if self.ss.inventory_delta < -self.ss.inventory_extreme:
-            self.bid_skew = 1
-        
-        if self.ss.inventory_delta > self.ss.inventory_extreme:
-            self.ask_skew = 1
+        self.bid_skew = bid_skew
+        self.ask_skew = ask_skew
 
-        return self.bid_skew, self.ask_skew
+        return bid_skew, ask_skew
         
 
     def quotes_price_range(self) -> np.array:
