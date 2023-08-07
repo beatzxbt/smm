@@ -7,7 +7,7 @@ from src.bybit.websockets.handlers.orderbook import LocalOrderBook as BybitBook
 
 
 config_dir = "" # Put the bybit.yaml file directory here
-param_dir = "" # Put the config.yaml file directory here
+param_dir = "" # Put the parameters.yaml file directory here
 
 
 class SharedState:
