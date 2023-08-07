@@ -109,6 +109,10 @@ class SharedState:
 
         return float((best_ask - best_bid) + best_bid)
 
+    @property
+    def binance_weighted_mid_price(self):
+        imb = self.binance_bba[0][1] / (self.binance_bba[0][1] + self.binance_bba[1][1])
+        return float(self.binance_bba[1][0] * imb + self.binance_bba[0][0] * (1 - imb))
 
     @property
     def bybit_mid_price(self):
@@ -117,3 +121,7 @@ class SharedState:
 
         return float((best_ask - best_bid) + best_bid)
 
+    @property
+    def bybit_weighted_mid_price(self):
+        imb = self.bybit_bba[0][1] / (self.bybit_bba[0][1] + self.bybit_bba[1][1])
+        return float(self.bybit_bba[1][0] * imb + self.bybit_bba[0][0] * (1 - imb))
