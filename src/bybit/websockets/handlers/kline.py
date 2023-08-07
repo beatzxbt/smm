@@ -18,8 +18,7 @@ class BybitKlineInit:
         Used to attain close values and calculate volatility \n
         """
 
-        titles = ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Turnover']
-        df = pd.DataFrame(self.data, columns=titles)[::-1]
+        df = pd.DataFrame(self.data)[::-1]
 
         self.ss.bybit_klines = df.to_numpy(dtype=float)
 
