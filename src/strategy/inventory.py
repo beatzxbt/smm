@@ -15,6 +15,10 @@ class Inventory:
         for position_data in data:
 
             side = position_data['side']
+
+            if side == '':
+                continue
+
             value = float(position_data['positionValue'])
             lev = float(position_data['leverage'])
 
@@ -26,6 +30,4 @@ class Inventory:
             elif side == 'Sell':
                 self.ss.inventory_delta = -value / acc_max
 
-            else:
-                self.ss.inventory_delta = float()
 
