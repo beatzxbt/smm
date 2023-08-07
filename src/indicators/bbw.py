@@ -10,16 +10,12 @@ def bbw(arr_in: np.array, length: int, std: int) -> np.array:
     Be careful with the data type in the array! 
     """
 
-    n = len(arr_in)
-    close = np.empty(n, dtype=float)
-
-    for i in prange(n):
-        close[i] = arr_in[i][4]
+    close = arr_in[:, 4] 
 
     basis = ema(close, length)[-1]
     dev = std * np.std(close[-length:])
     upper = basis + dev
     lower = basis - dev
     bbw = upper - lower
-        
+
     return bbw
