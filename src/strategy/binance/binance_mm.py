@@ -64,7 +64,19 @@ class MarketMaker:
 
         best_bid_price = self.ss.bybit_bba[0][0]
         best_ask_price = self.ss.bybit_bba[1][0]
-        base_range = self.ss.volatility_value/2
+
+        # If inventory is too high, pull quotes from one side entirely \
+        if self.bid_skew >= 1:
+            bid_lower = best_bid_price - (self.ss.bybit_tick_size * self.max_orders)
+            bid_prices = linspace(best_bid_price, bid_lower, self.max_orders)
+
+            return bid_prices, None
+
+        if self.ask_skew >= 1:
+            ask_upper = best_ask_price + (self.ss.bybit_tick_size * self.max_orders)
+            ask_prices = linspace(best_ask_price, ask_upper, self.max_orders)
+
+            return None, ask_prices
 
         # If quoted best bid is higher than actual best ask, then fallback to actual best ask - 1 tick \
         if self.binance_mid - self.ss.target_spread > best_ask_price:
@@ -80,28 +92,16 @@ class MarketMaker:
         else:
             best_ask_price = self.binance_mid + self.ss.target_spread
 
-        # If inventory is too high, pull quotes from one side entirely \
-        if self.bid_skew >= 1:
-            bid_lower = best_bid_price - (self.ss.bybit_tick_size * self.max_orders)
-            bid_prices = linspace(best_bid_price, bid_lower, self.max_orders)
-
-            return bid_prices, None
-
-        elif self.ask_skew >= 1:
-            ask_upper = best_ask_price + (self.ss.bybit_tick_size * self.max_orders)
-            ask_prices = linspace(best_ask_price, ask_upper, self.max_orders)
-
-            return None, ask_prices
+        base_range = self.ss.volatility_value/2
 
         # If inventory is within bounds, then quote both sides as usual \
-        else:
-            bid_lower = best_bid_price - (base_range * (1 - self.bid_skew))
-            ask_upper = best_ask_price + (base_range * (1 - self.ask_skew))
-            
-            bid_prices = linspace(best_bid_price, bid_lower, self.max_orders) + self.ss.quote_offset
-            ask_prices = linspace(best_ask_price, ask_upper, self.max_orders) + self.ss.quote_offset
+        bid_lower = best_bid_price - (base_range * (1 - self.bid_skew))
+        ask_upper = best_ask_price + (base_range * (1 - self.ask_skew))
+        
+        bid_prices = linspace(best_bid_price, bid_lower, self.max_orders) + self.ss.quote_offset
+        ask_prices = linspace(best_ask_price, ask_upper, self.max_orders) + self.ss.quote_offset
 
-            return bid_prices, ask_prices
+        return bid_prices, ask_prices
 
 
     def quotes_size_range(self) -> np.array:
@@ -117,13 +117,13 @@ class MarketMaker:
 
         # If inventory is too high, pull quotes from one side entirely \
         if self.bid_skew >= 1:
-            bid_const = np.median([self.ss.minimum_order_size, self.ss.maximum_order_size])
+            bid_const = np.median([self.ss.minimum_order_size, self.ss.maximum_order_size]) / 2
             bid_quantities = np.array([bid_const] * self.max_orders)
 
             return bid_quantities, None
 
         elif self.ask_skew >= 1:
-            ask_const = np.median([self.ss.minimum_order_size, self.ss.maximum_order_size])
+            ask_const = np.median([self.ss.minimum_order_size, self.ss.maximum_order_size]) / 2
             ask_quantities = np.array([ask_const] * self.max_orders)
 
             return None, ask_quantities
@@ -134,10 +134,10 @@ class MarketMaker:
             bid_upper = self.ss.maximum_order_size / (1 - self.ask_skew) 
             ask_upper = self.ss.maximum_order_size / (1 - self.bid_skew) 
 
-            bid_quantities = linspace(self.ss.minimum_order_size, bid_upper, self.max_orders) + self.ss.size_offset
-            ask_quantities = linspace(self.ss.minimum_order_size, ask_upper, self.max_orders) + self.ss.size_offset
+            bid_quantities = linspace(self.ss.minimum_order_size, bid_upper, self.max_orders) 
+            ask_quantities = linspace(self.ss.minimum_order_size, ask_upper, self.max_orders) 
 
-            return bid_quantities, ask_quantities
+            return bid_quantities + self.ss.size_offset, ask_quantities + self.ss.size_offset
 
 
     def market_maker(self) -> list:
