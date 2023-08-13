@@ -50,9 +50,10 @@ Upcoming upgrades
 ---------------
 
 - Optional TWAP to reduce inventory (alongside purging quotes)
-- BBA weighted midprices (replaces simple midprice)
 - Improved inventory management system (reaching neutral position faster and cheaper)
+- Avellaneda and Stoikov's basic market making model 
 
+---------------
 
 If you have any questions or suggestions regarding the repo, or just want to have a chat, my handles are below 👇🏼
 
