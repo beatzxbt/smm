@@ -3,14 +3,17 @@ import aiohttp
 import json
 import numpy as np
 
-from src.bybit.order.client import Client
-from src.bybit.order.types import OrderTypesSpot, OrderTypesFutures
+from src.exchanges.bybit.order.client import Client
+from src.exchanges.bybit.order.types import OrderTypesFutures
+from src.exchanges.bybit.order.endpoints import OrderEndpoints
+
+from src.sharedstate import SharedState
 
 
 class Order:
 
 
-    def __init__(self, sharedstate):
+    def __init__(self, sharedstate: SharedState):
         
         self.ss = sharedstate
 
@@ -20,6 +23,7 @@ class Order:
         self.api_secret = self.ss.api_secret
         self.client = Client(self.api_key, self.api_secret)
         self.session = aiohttp.ClientSession()
+        self.endpoints = OrderEndpoints
 
 
     async def submit_market(self, order: tuple) -> json:
@@ -29,14 +33,12 @@ class Order:
         Returns a JSON with the orderId & latency
         """
 
-        side = str(order[0])
-        qty = str(order[2])
-
         async with self.session:
 
-            payload = self.order_market.market(side, qty)
+            payload = self.order_market.market(order)
+            endpoint = self.endpoints.CREATE_ORDER
 
-            response = await self.client.order(self.session, payload)
+            response = await self.client.submit(self.session, endpoint, payload)
 
             return response
 
@@ -50,13 +52,10 @@ class Order:
 
         async with self.session:
 
-            side = str(order[0])
-            price = str(order[1])
-            qty = str(order[2])
+            payload = self.order_market.limit(order)
+            endpoint = self.endpoints.CREATE_ORDER
 
-            payload = self.order_market.limit(side, price, qty)
-
-            response = await self.client.order(self.session, payload)
+            response = await self.client.submit(self.session, endpoint, payload)
 
             return response
 
@@ -66,23 +65,21 @@ class Order:
         {orders}: List containing tuples of struct (side: string, price: float, qty: float) \n
 
         For optimal order submission, list should be organized in the following order: \n
-            -> 5 orders closest to BBA (what wants to be filled faster) \n
+            -> 4 orders closest to BBA (what wants to be sent faster) \n
             -> 10 orders (if existing) on the side with majority orders \n
             -> Reminder of the orders \n
         """
+        
+        single_endpoint = self.endpoints.CREATE_ORDER
+        batch_endpoint = self.endpoints.CREATE_BATCH
 
         async def submit_sessionless_limit(session, order):
             """
             Prevent session from closing without the use of 'async with'
             """
 
-            side = str(order[0])
-            price = str(order[1])
-            qty = str(order[2])
-
-            payload = self.order_market.limit(side, price, qty)
-
-            response = await self.client.order(session, payload)
+            payload = self.order_market.limit(order)
+            response = await self.client.submit(session, single_endpoint, payload)
 
             return response
 
@@ -91,19 +88,19 @@ class Order:
         
         async with self.session:
 
-            if num_orders <= 25:
+            if num_orders <= 24:
                 
                 tasks = []
 
-                # These will send the 5 singles at the start \
-                for order in orders[:5]:
+                # These will send the 4 singles at the start \
+                for order in orders[:4]:
 
                     task = asyncio.create_task(submit_sessionless_limit(self.session, order))
                     tasks.append(task)
 
                     orders_submitted += 1
 
-                bba = await asyncio.gather(*tasks)
+                await asyncio.gather(*tasks)
                         
                 # If there are orders remaining, send them through batch orders \
                 if (num_orders - orders_submitted) > 0:
@@ -116,22 +113,17 @@ class Order:
                         
                         batch = []
 
-                        for order in orders[5+(10*i):5+(10*(i+1))]:
+                        for order in orders[4+(10*i):4+(10*(i+1))]:
 
-                            side = str(order[0])
-                            price = str(order[1])
-                            qty = str(order[2])
-
-                            single_payload = self.order_market.limit(side, price, qty)
-
+                            single_payload = self.order_market.limit(order)
                             batch.append(single_payload)
                         
                         batch_payload = {"category": "linear", "request": batch}
 
-                        batch_task = asyncio.create_task(self.client.batch_order(self.session, batch_payload))
+                        batch_task = asyncio.create_task(self.client.submit(self.session, batch_endpoint, batch_payload))
                         overflow.append(batch_task)
 
-                    rest = await asyncio.gather(*overflow)
+                    await asyncio.gather(*overflow)
 
 
     async def amend(self, order: tuple) -> json:
@@ -144,10 +136,31 @@ class Order:
         async with self.session:
 
             payload = self.order_market.amend(order)
+            endpoint = self.endpoints.AMEND_ORDER
 
-            response = await self.client.amend(self.session, payload)
+            response = await self.client.submit(self.session, endpoint, payload)
 
             return response
+
+
+    async def amend_batch(self, orders: list) -> json:
+        """
+        {orders}: List containing tuples of struct (orderId: string, price: float, qty: float) \n
+        """
+
+        batch_endpoint = self.endpoints.AMEND_BATCH
+
+        async with self.session:
+            
+            batch = []
+
+            for order in orders:
+                payload = self.order_market.amend(order)
+                batch.append(payload)
+            
+            batch_payload = {"category": "linear", "request": batch}
+
+            await self.client.submit(self.session, batch_endpoint, batch_payload)
 
 
     async def cancel(self, orderId: str):
@@ -160,10 +173,31 @@ class Order:
         async with self.session:
 
             payload = self.order_market.cancel(orderId)
-
-            response = await self.client.cancel(self.session, payload)
+            endpoint = self.endpoints.CANCEL_SINGLE
+            
+            response = await self.client.submit(self.session, endpoint, payload)
 
             return response
+
+        
+    async def cancel_batch(self, orderIds: list):
+        """
+        {orderIds}: List containing orderIds \n
+        """
+
+        batch_endpoint = self.endpoints.CANCEL_BATCH
+
+        async with self.session:
+            
+            batch = []
+
+            for id in orderIds:
+                payload = self.order_market.cancel(id)
+                batch.append(payload)
+            
+            batch_payload = {"category": "linear", "request": batch}
+
+            await self.client.submit(self.session, batch_endpoint, batch_payload)
 
 
     async def cancel_all(self):
@@ -176,7 +210,8 @@ class Order:
         async with self.session:
 
             payload = self.order_market.cancel_all()
-
-            response = await self.client.cancel_all(self.session, payload)
+            endpoint = self.endpoints.CANCEL_ALL
+            
+            response = await self.client.submit(self.session, endpoint, payload)
 
             return response

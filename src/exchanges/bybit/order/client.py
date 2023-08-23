@@ -4,15 +4,14 @@ import hashlib
 import hmac
 import asyncio
 
-from src.bybit.order.endpoints import BaseEndpoints, OrderEndpoints
-
+from src.exchanges.bybit.order.endpoints import BaseEndpoints
 
 
 class Client:
 
 
     def __init__(self, api_key: str, api_secret: str) -> None:
-        self.base_endpoint = BaseEndpoints.mainnet1()
+        self.base_endpoint = BaseEndpoints.MAINNET1
         self.api_key = api_key
         self.api_secret = api_secret
         self.recvWindow = str(5000)
@@ -35,11 +34,11 @@ class Client:
         return header
 
 
-    async def order(self, session, payload: dict):
+    async def submit(self, session, endpoint: str, payload: dict):
 
         payload = json.dumps(payload)
         signed_header = self.sign(payload)
-        endpoint = self.base_endpoint + OrderEndpoints.create_order()
+        endpoint = self.base_endpoint + endpoint
 
         max_retries = 3  
         
@@ -56,7 +55,7 @@ class Client:
                 if response['retMsg'] == "OK" or response['retMsg'] == "success":
 
                     ret = {
-                        "orderId" : response['result']['orderId'],
+                        "return" : response['result'],
                         "latency": int(response['time']) - int(self.timestamp)
                     }
 
@@ -64,150 +63,22 @@ class Client:
 
                 # Error handling \
                 else:
+                    code = response['retCode']
+                    msg = response['retMsg']
+
                     # If rate limits hit, close session \
-                    if response['retMsg'] == "too many visit":
-
+                    if msg == "too many visit":
                         print('Rate limits hit, cooling off...')
+                        break
 
-                        await asyncio.sleep(1)
-
-                        self.timestamp = str(int(time.time()*1000))
-                        signed_header = self.sign(payload)
-                        
-                        continue
+                    # If order doesnt exist anymore \
+                    elif code == "110001":       
+                        print(f"Msg: {msg}, Payload: {payload}")
+                        break
                 
                     else:            
                         # Enter other error handling here \
-                        print(response['retMsg'])
-
-
-            except Exception as e:
-
-                print(f'Error at {endpoint}: {e}')
-                
-                # Resign the payload and retry the request after sleeping for 1s \
-                if attempt < max_retries - 1:  
-
-                    await asyncio.sleep(1)  
-
-                    self.timestamp = str(int(time.time()*1000))
-                    signed_header = self.sign(payload)
-
-                else:
-                    raise  # Re-raise the last exception if all retries failed \
-
-
-    async def batch_order(self, session, payload: dict):
-
-        payload = json.dumps(payload)
-        signed_header = self.sign(payload)
-        endpoint = self.base_endpoint + OrderEndpoints.create_batch()
-
-        max_retries = 3  
-        
-        for attempt in range(max_retries):
-
-            try:
-                # Submit request to the session \
-                req = await session.request("POST", endpoint, headers=signed_header, data=payload)
-
-                # Error handling & latency measurement \
-                response = json.loads(await req.text())
-
-                # If submission is successful, return orderId and latency \
-                if response['retMsg'] == "OK" or response['retMsg'] == "success":
-
-                    n = []
-
-                    for order in response['result']['list']:
-                        n.append(order['orderId'])
-
-                    ret = {
-                        "orderId" : n,
-                        "latency": int(response['time']) - int(self.timestamp)
-                    }
-
-                    return ret
-
-                # Error handling \
-                else:
-                    # If rate limits hit, close session \
-                    if response['retMsg'] == "too many visit":
-
-                        print('Rate limits hit, cooling off...')
-
-                        await asyncio.sleep(1)
-
-                        self.timestamp = str(int(time.time()*1000))
-                        signed_header = self.sign(payload)
-                        
-                        continue
-                
-                    else:            
-                        # Enter other error handling here \
-                        print(response['retMsg'])
-
-
-            except Exception as e:
-
-                print(f'Error at {endpoint}: {e}')
-                
-                # Resign the payload and retry the request after sleeping for 1s \
-                if attempt < max_retries - 1:  
-
-                    await asyncio.sleep(1)  
-
-                    self.timestamp = str(int(time.time()*1000))
-                    signed_header = self.sign(payload)
-
-                else:
-                    raise  # Re-raise the last exception if all retries failed \
-    
-    
-    async def amend(self, session, payload: dict):
-
-        payload = json.dumps(payload)
-        signed_header = self.sign(payload)
-        endpoint = self.base_endpoint + OrderEndpoints.amend_order()
-
-        max_retries = 3  
-        
-        for attempt in range(max_retries):
-
-            try:
-                # Submit request to the session \
-                req = await session.request("POST", endpoint, headers=signed_header, data=payload)
-
-                # Error handling & latency measurement \
-                response = json.loads(await req.text())
-
-                # If submission is successful, return orderId and latency \
-                if response['retMsg'] == "OK" or response['retMsg'] == "success":
-
-                    ret = {
-                        "orderId" : response['result']['orderId'],
-                        "latency": int(response['time']) - int(self.timestamp)
-                    }
-
-                    return ret
-
-                # Error handling \
-                else:
-                    # If rate limits hit, close session \
-                    if response['retMsg'] == "too many visit":
-
-                        print('Rate limits hit, cooling off...')
-
-                        await asyncio.sleep(1)
-
-                        self.timestamp = str(int(time.time()*1000))
-                        signed_header = self.sign(payload)
-                        
-                        continue
-                    
-                    # If order doesnt exist anymore \
-                    elif response['retCode'] == "110001":            
-                        print(response['retMsg'])
+                        print(f"Msg: {msg}, Payload: {payload}")
                         break
 
 
@@ -218,143 +89,10 @@ class Client:
                 # Resign the payload and retry the request after sleeping for 1s \
                 if attempt < max_retries - 1:  
 
-                    await asyncio.sleep(1)  
+                    await asyncio.sleep(attempt)  
 
                     self.timestamp = str(int(time.time()*1000))
                     signed_header = self.sign(payload)
 
                 else:
-                    raise  # Re-raise the last exception if all retries failed \
-
-
-    async def cancel(self, session, payload: dict):
-
-        payload = json.dumps(payload)
-        signed_header = self.sign(payload)
-        endpoint = self.base_endpoint + OrderEndpoints.cancel_single()
-
-        max_retries = 3  
-        
-        for attempt in range(max_retries):
-
-            try:
-                # Submit request to the session \
-                req = await session.request("POST", endpoint, headers=signed_header, data=payload)
-
-                # Error handling & latency measurement \
-                response = json.loads(await req.text())
-
-                # If submission is successful, return orderId and latency \
-                if response['retMsg'] == "OK" or response['retMsg'] == "success":
-
-                    ret = {
-                        "orderId" : response['result']['orderId'],
-                        "latency": int(response['time']) - int(self.timestamp)
-                    }
-
-                    return ret
-
-                # Error handling \
-                else:
-                    # If rate limits hit, close session \
-                    if response['retMsg'] == "too many visit":
-
-                        print('Rate limits hit, cooling off...')
-
-                        await asyncio.sleep(1)
-
-                        self.timestamp = str(int(time.time()*1000))
-                        signed_header = self.sign(payload)
-                        
-                        continue
-                
-                    # If order doesnt exist anymore \
-                    elif response['retCode'] == "110001":            
-                        print(response['retMsg'])
-                        break
-
-
-            except Exception as e:
-
-                print(f'Error at {endpoint}: {e}')
-                
-                # Resign the payload and retry the request after sleeping for 1s \
-                if attempt < max_retries - 1:  
-
-                    await asyncio.sleep(1)  
-
-                    self.timestamp = str(int(time.time()*1000))
-                    signed_header = self.sign(payload)
-
-                else:
-                    raise  # Re-raise the last exception if all retries failed \
-
-
-    async def cancel_all(self, session, payload: dict):
-
-        payload = json.dumps(payload)
-        signed_header = self.sign(payload)
-        endpoint = self.base_endpoint + OrderEndpoints.cancel_all()
-
-        max_retries = 3  
-        
-        for attempt in range(max_retries):
-
-            try:
-                # Submit request to the session \
-                req = await session.request("POST", endpoint, headers=signed_header, data=payload)
-
-                # Error handling & latency measurement \
-                response = json.loads(await req.text())
-
-                # If submission is successful, return orderId and latency \
-                if response['retMsg'] == "OK" or response['retMsg'] == "success":
-                    
-                    n = []
-
-                    for order in response['result']['list']:
-                        n.append(order['orderId'])
-
-                    ret = {
-                        "orderId" : n,
-                        "latency": int(response['time']) - int(self.timestamp)
-                    }
-
-                    return ret
-
-                # Error handling \
-                else:
-                    # If rate limits hit, close session \
-                    if response['retMsg'] == "too many visit":
-                        
-                        print('Rate limits hit, cooling off...')
-
-                        await asyncio.sleep(1)
-
-                        self.timestamp = str(int(time.time()*1000))
-                        signed_header = self.sign(payload)
-                        
-                        continue
-                
-                    # If order doesnt exist anymore \
-                    elif response['retCode'] == "110001":            
-                        print(response['retMsg'])
-                        break
-
-
-            except Exception as e:
-
-                print(f'Error at {endpoint}: {e}')
-                
-                # Resign the payload and retry the request after sleeping for 1s \
-                if attempt < max_retries - 1:  
-
-                    await asyncio.sleep(1)  
-
-                    self.timestamp = str(int(time.time()*1000))
-                    signed_header = self.sign(payload)
-
-                else:
-                    raise  # Re-raise the last exception if all retries failed \
-
-    
+                    raise e # Re-raise the last exception if all retries failed \

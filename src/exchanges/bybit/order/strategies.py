@@ -1,8 +1,6 @@
 import asyncio
-import json
 
-from src.bybit.order.core import Order
-
+from src.exchanges.bybit.order.core import Order
 
 
 class OrderStrategies:
@@ -14,7 +12,7 @@ class OrderStrategies:
         self.symbol = self.ss.bybit_symbol
 
 
-    async def limit_chase(self, side: str, qty) -> json:
+    async def limit_chase(self, side: str, qty):
 
         curr_orderId = None
         

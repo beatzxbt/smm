@@ -1,4 +1,3 @@
-from typing import Dict
 
 
 class OrderTypesSpot:
@@ -14,7 +13,7 @@ class OrderTypesSpot:
             self.margin = 0
 
     
-    def limit(self, side: str, price: str, qty: str) -> Dict:
+    def limit(self, side: str, price: str, qty: str):
 
         payload = {
             "category": "spot",
@@ -30,7 +29,7 @@ class OrderTypesSpot:
         return payload
 
     
-    def market(self, side: str, qty: str) -> Dict:
+    def market(self, side: str, qty: str):
 
         payload = {
             "category": "spot",
@@ -44,7 +43,7 @@ class OrderTypesSpot:
         return payload
 
 
-    def cancel(self, orderId: str) -> Dict:
+    def cancel(self, orderId: str):
 
         payload = {
             "category": "spot",
@@ -63,48 +62,48 @@ class OrderTypesFutures:
         self.symbol = symbol
 
     
-    def limit(self, side: str, price: str, qty: str) -> Dict:
+    def limit(self, order):
 
         payload = {
             "category": "linear",
             "symbol": self.symbol,
-            "side": side,
+            "side": str(order[0]),
             "orderType": "Limit",
-            "price": price,
-            "qty": qty,
+            "qty": str(order[2]),
+            "price": str(order[1]),
             "timeInForce": "PostOnly"
         }
 
         return payload
 
     
-    def market(self, side: str, qty: str) -> Dict:
+    def market(self, order):
 
         payload = {
             "category": "linear",
             "symbol": self.symbol,
-            "side": side,
+            "side": str(order[0]),
             "orderType": "Market",
-            "qty": qty,
+            "qty": str(order[1]),
         }
 
         return payload
 
 
-    def amend(self, order) -> Dict:
+    def amend(self, order):
         
         payload = {
             "category": "linear",
             "symbol": self.symbol,
-            "orderId": order[0],
-            "qty": order[2],
-            "price": order[1]
+            "orderId": str(order[0]),
+            "qty": str(order[2]),
+            "price": str( order[1])
         }
 
         return payload
 
 
-    def cancel(self, orderId: str) -> Dict:
+    def cancel(self, orderId: str):
 
         payload = {
             "category": "linear",
@@ -115,7 +114,7 @@ class OrderTypesFutures:
         return payload
 
 
-    def cancel_all(self) -> Dict:
+    def cancel_all(self):
 
         payload = {
             "category": "linear",
