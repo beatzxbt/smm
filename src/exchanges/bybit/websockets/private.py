@@ -1,8 +1,8 @@
+
 import json
 import time
 import hmac
 import hashlib
-
 
 
 class PrivateWs:

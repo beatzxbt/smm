@@ -1,12 +1,13 @@
-import json
 
+import json
 
 
 class PublicWs:
 
 
-    def __init__(self, symbol: str) -> None:
-        self.symbol = symbol.upper()
+    def __init__(self, sharedstate) -> None:
+        self.ss = sharedstate
+        self.symbol = str(self.ss.bybit_symbol).upper()
     
 
     def multi_stream_request(self, topics: list, **kwargs) -> tuple:
