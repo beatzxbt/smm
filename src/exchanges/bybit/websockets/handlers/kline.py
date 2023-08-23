@@ -1,14 +1,16 @@
-import json
+
 import numpy as np
 import pandas as pd
 
 from src.indicators.bbw import bbw
 
+from src.sharedstate import SharedState
+
 
 class BybitKlineInit:
 
 
-    def __init__(self, sharedstate, recv: json) -> None:
+    def __init__(self, sharedstate: SharedState, recv) -> None:
         self.ss = sharedstate
         self.data = recv['result']['list']
 
@@ -18,7 +20,8 @@ class BybitKlineInit:
         Used to attain close values and calculate volatility \n
         """
 
-        df = pd.DataFrame(self.data)[::-1]
+        titles = ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Turnover']
+        df = pd.DataFrame(self.data, columns=titles)[::-1]
 
         self.ss.bybit_klines = df.to_numpy(dtype=float)
 
@@ -35,11 +38,9 @@ class BybitKlineInit:
 class BybitKlineHandler:
 
 
-    def __init__(self, sharedstate, data: json) -> None:
+    def __init__(self, sharedstate: SharedState, data) -> None:
         self.ss = sharedstate
         self.data = data
-
-        self.klines = self.ss.bybit_klines
 
     
     def process(self):
@@ -62,13 +63,13 @@ class BybitKlineHandler:
             new = np.array([time, open, high, low, close, volume, turnover], dtype=float)
 
             if candle['confirm'] == True:
-                self.klines = np.append(arr=self.klines[1:], values=new.reshape(1, 7), axis=0)
+                self.ss.bybit_klines = np.append(arr=self.ss.bybit_klines[1:], values=new.reshape(1, 7), axis=0)
 
             else:
-                self.klines[-1] = new
+                self.ss.bybit_klines[-1] = new
             
             self.ss.volatility_value = bbw(
-                arr_in = self.klines, 
+                arr_in = self.ss.bybit_klines, 
                 length = self.ss.bb_length, 
                 std = self.ss.bb_std
             )

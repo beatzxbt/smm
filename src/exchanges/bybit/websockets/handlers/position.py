@@ -1,11 +1,12 @@
 
 from src.strategy.inventory import Inventory
+from src.sharedstate import SharedState
 
 
 class BybitPositionHandler:
 
 
-    def __init__(self, sharedstate, data: list) -> None:
+    def __init__(self, sharedstate: SharedState, data: list) -> None:
         self.ss = sharedstate
         self.data = data
 

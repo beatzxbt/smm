@@ -1,33 +1,58 @@
-import json
+
 import numpy as np
+from src.sharedstate import SharedState
+
+
+class BybitTradesInit:
+
+
+    def __init__(self, sharedstate: SharedState, data) -> None:
+        self.ss = sharedstate
+        self.data = data['result']['list']
+
+    
+    def process(self):
+
+        for row in self.data:
+
+            time = row['time']
+            price = row['price']
+            qty = row['size']
+
+            if row['side'] == 'Buy':
+                side = 0
+                
+            else:
+                side = 1
+
+            new_trade = np.array([[time, side, price, qty]], dtype=float)
+
+            self.ss.bybit_trades.append(new_trade)
 
 
 
 class BybitTradesHandler:
 
 
-    def __init__(self, sharedstate, data: json) -> None:
+    def __init__(self, sharedstate: SharedState, data) -> None:
         self.ss = sharedstate
-        self.data = data
+        self.data = data[0]
 
     
     def process(self):
 
-        for trade in self.data:
-            
-            time = float(trade['T'])
-            price = float(trade['p'])
-            qty = float(trade['v'])
+        time = self.data['T']
+        price = self.data['p']
+        qty = self.data['v']
 
-            if trade['S'] == 'Buy':
-                side = float(0)
+        if self.data['S'] == 'Buy':
+            side = 0
 
-            else:
-                side = float(1)
+        else:
+            side = 1
 
-            indv_trade = np.array([time, side, price, qty])
-            self.ss.bybit_trades.append(indv_trade)
+        # New trade \
+        new_trade = np.array([[time, side, price, qty]], dtype=float)
 
-            # Limit list size to 1000 trades \
-            if len(self.ss.bybit_trades) > 1000:
-                self.ss.bybit_trades.pop(0)
+        # Append to array, ring buffer handles maxlen and overwrite \
+        self.ss.bybit_trades.append(new_trade)

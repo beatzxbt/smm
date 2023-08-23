@@ -1,10 +1,11 @@
-import json
+
+from src.sharedstate import SharedState
 
 
 class BybitExecutionHandler:
 
 
-    def __init__(self, sharedstate, data: json) -> None:
+    def __init__(self, sharedstate: SharedState, data) -> None:
         self.ss = sharedstate
         self.data = data
     
