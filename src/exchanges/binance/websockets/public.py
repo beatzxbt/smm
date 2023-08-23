@@ -1,4 +1,5 @@
-from src.binance.websockets.endpoints import WsStreamLinks
+
+from src.exchanges.binance.websockets.endpoints import WsStreamLinks
 
 
 class PublicWs:
@@ -8,8 +9,8 @@ class PublicWs:
         self.ss = sharedstate
         self.symbol = str(self.ss.binance_symbol).lower()
         
-        self.spot_base = WsStreamLinks.spot_public_stream()
-        self.futures_base = WsStreamLinks.futures_public_stream()
+        self.spot_base = WsStreamLinks.SPOT_PUBLIC_STREAM
+        self.futures_base = WsStreamLinks.FUTURES_PUBLIC_STREAM
     
 
     def multi_stream_request(self, topics: list, **kwargs) -> tuple:

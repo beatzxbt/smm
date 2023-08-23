@@ -1,3 +1,4 @@
+
 from binance.client import Client
 
 
@@ -22,9 +23,19 @@ class PublicClient:
     
     async def klines_snapshot(self, limit, interval):
                     
-        data = await self.client.get_klines(
+        data = self.client.get_klines(
             symbol=self.symbol,
             interval=interval, 
+            limit=limit
+        )
+
+        return data
+
+    
+    async def trades_snapshot(self, limit):
+                    
+        data = self.client.get_recent_trades(
+            symbol=self.symbol,
             limit=limit
         )
 
