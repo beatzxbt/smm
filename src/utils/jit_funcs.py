@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit, prange, float64, int64
+from numba import njit, float64, int64
 
 
 @njit((float64, int64))
@@ -20,9 +20,17 @@ def nsqrt(value: float, n: int) -> float:
 @njit((float64, int64))
 def npower(value: float, n: int) -> float:
     """
-    Return the n'th square of a value
+    Return the n'th power of a value
     """
     return np.power(value, n)
+
+
+@njit
+def nabs(value: float) -> float:
+    """
+    Return the absolute of a value
+    """
+    return np.abs(value)
 
 
 @njit((float64, float64, int64))
