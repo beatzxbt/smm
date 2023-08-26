@@ -1,33 +1,43 @@
-import asyncio
 import websockets
 import orjson
 
-from src.bybit.public.client import Client as PublicClient
-from src.bybit.websockets.endpoints import WsStreamLinks
-from src.bybit.websockets.public import PublicWs
 from src.utils.misc import Misc
+from src.exchanges.bybit.get.public import BybitPublicClient
 
-from src.bybit.websockets.handlers.orderbook import BybitBBAHandler
-from src.bybit.websockets.handlers.kline import BybitKlineHandler, BybitKlineInit
-from src.bybit.websockets.handlers.ticker import BybitTickerHandler
-from src.bybit.websockets.handlers.trades import BybitTradesHandler
+from src.exchanges.bybit.websockets.endpoints import WsStreamLinks
+from src.exchanges.bybit.websockets.public import PublicWs
+from src.exchanges.bybit.websockets.handlers.orderbook import BybitBBAHandler
+from src.exchanges.bybit.websockets.handlers.kline import BybitKlineHandler, BybitKlineInit
+from src.exchanges.bybit.websockets.handlers.ticker import BybitTickerHandler
+from src.exchanges.bybit.websockets.handlers.trades import BybitTradesHandler, BybitTradesInit
 
+from src.sharedstate import SharedState
 
 
 class BybitMarketData:
 
 
-    def __init__(self, sharedstate) -> None:
+    def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
+
+
+    async def initialize_data(self):
+        
+        # Initialize the klines data with a snapshot of 200 candles of M1 \
+        init_kline_data = await BybitPublicClient(self.ss).klines(1)
+        BybitKlineInit(self.ss, init_kline_data).process()
+
+        # Initialize the trades feed to full capacity \ 
+        init_trades = await BybitPublicClient(self.ss).trades(1000)
+        BybitTradesInit(self.ss, init_trades).process()
 
 
     async def bybit_data_feed(self):
         
-        init_kline_data = await PublicClient('Futures').klines(self.ss.bybit_symbol, 15)
-        init_kline_ss = BybitKlineInit(self.ss, init_kline_data).process()
+        await self.initialize_data()
 
         streams = ['Orderbook', 'BBA', 'Trades', 'Ticker', 'Kline']
-        req, topics = PublicWs(self.ss.bybit_symbol).multi_stream_request(streams, depth=500, interval=15)
+        req, topics = PublicWs(self.ss).multi_stream_request(streams, depth=500, interval=1)
         
         async for websocket in websockets.connect(WsStreamLinks.futures_public_stream()):
             
