@@ -8,6 +8,7 @@ def ema(arr_in: np.array, window: int) -> np.array:
     Hyper-fast EMA implementation \n
     Be careful with the data type in the array! 
     """
+    
     n = arr_in.shape[0]
     ewma = np.empty(n, dtype=float)
     alpha = 2 / float(window + 1)
