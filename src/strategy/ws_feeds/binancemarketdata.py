@@ -1,12 +1,12 @@
 import websockets
 import orjson
 
-from src.binance.websockets.public import PublicWs
+from src.exchanges.binance.websockets.public import PublicWs
 from src.utils.misc import Misc
 
-from src.binance.websockets.handlers.orderbook import BinanceBBAHandler
-from src.binance.websockets.handlers.trades import BinanceTradesHandler
-from src.binance.public.client import PublicClient
+from src.exchanges.binance.websockets.handlers.orderbook import BinanceBBAHandler
+from src.exchanges.binance.websockets.handlers.trades import BinanceTradesHandler
+from src.exchanges.binance.public.client import PublicClient
 
 
 class BinanceMarketData:
