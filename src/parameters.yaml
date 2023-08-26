@@ -2,14 +2,14 @@
 ### CREATE MARKET DATA FUNCTIONS TO OBTAIN THE BELOW AUTOMATICALLY ###
 
 # Spot symbol from Binance 
-binance_symbol: XMRUSDT 
-binance_tick_size: 0.0005
-binance_lot_size: 0.01 
+binance_symbol: BTCUSDT 
+binance_tick_size: 0.1
+binance_lot_size: 0.001 
 
 # Futures symbol from Bybit
-bybit_symbol: XMRUSDT 
-bybit_tick_size: 0.0005
-bybit_lot_size: 0.01 
+bybit_symbol: BTCUSDT 
+bybit_tick_size: 0.1
+bybit_lot_size: 0.001 
 
 # Primary data feed (BYBIT or BINANCE) 
 # Check README.md for more info regarding this 
@@ -17,25 +17,25 @@ primary_data_feed: BINANCE
 
 # A multiple of the tick size
 # Prevents a 'ping-pong' effect
-buffer_multiplier: 5 
+buffer: 50
 
 # Account info ($)
-account_size: 50  
+account_size: 100
 
 # Settings for volatility indicator 
-bollinger_band_length: 13
-bollinger_band_std: 2
+bollinger_band_length: 20
+bollinger_band_std: 4
 
 # Master offsets 
 quote_offset: +0.0 # Increases quote price in base units
 size_offset: +0.0  # Increases quote size in quote units
-volatility_offset: +1.0 # Increases quote range in base units
+volatility_offset: +100 # Increases quote range in base units
 
 # Settings for Market Maker function 
-target_spread: 0.1 # In quote asset unit
+target_spread: 5 # In quote asset unit
 number_of_orders: 10 # Total number of orders
-minimum_order_size: 1.0  # In base asset unit
-maximum_order_size: 7.5  # In base asset unit
+minimum_order_size: 0.005  # In base asset unit
+maximum_order_size: 0.03  # In base asset unit
 
 # Extreme value for inventory
 # Check README.md for more info regarding this 
