@@ -1,13 +1,14 @@
 import yaml
 import asyncio
 import numpy as np
+from numpy_ringbuffer import RingBuffer
 
-from src.binance.websockets.handlers.orderbook import LocalOrderBook as BinanceBook
-from src.bybit.websockets.handlers.orderbook import LocalOrderBook as BybitBook
+from src.exchanges.binance.websockets.handlers.orderbook import OrderBookBinance 
+from src.exchanges.bybit.websockets.handlers.orderbook import OrderBookBybit
 
 
-config_dir = "" # Put the bybit.yaml file directory here
-param_dir = "" # Put the parameters.yaml file directory here
+config_dir = ""
+param_dir = ""
 
 
 class SharedState:
@@ -34,11 +35,9 @@ class SharedState:
             self.bybit_tick_size = float(settings['bybit_tick_size'])
             self.bybit_lot_size = float(settings['bybit_lot_size'])
 
-            # Primary data feed #
-            self.primary_data_feed = settings['primary_data_feed']
-
-            self.buffer_multiplier = int(settings['buffer_multiplier']) * self.bybit_tick_size
             self.account_size = float(settings['account_size'])
+
+            self.buffer = int(settings['buffer']) * self.bybit_tick_size
 
             self.bb_length = int(settings['bollinger_band_length'])
             self.bb_std = int(settings['bollinger_band_std'])
@@ -54,22 +53,23 @@ class SharedState:
 
             self.inventory_extreme = float(settings['inventory_extreme'])
 
-        self.binance_trades = list()
-        self.binance_bba = np.array([[float(), float()], [float(), float()]]) # [Bid[P, Q], Ask[P, Q]
-        self.binance_book = BinanceBook()
-        self.binance_last_price = float()
+        self.binance_trades = RingBuffer(capacity=1000, dtype=(float, 4))
+        self.binance_bba = np.zeros((2, 2)) # [Bid[P, Q], Ask[P, Q]
+        self.binance_book = OrderBookBinance()
+        self.binance_last_price = 0.
 
-        self.bybit_trades = list()
-        self.bybit_bba = np.array([[float(), float()], [float(), float()]]) # [Bid[P, Q], Ask[P, Q]
-        self.bybit_book = BybitBook()
-        self.bybit_mark_price = float()
-        self.bybit_klines = list()
+        self.bybit_trades = RingBuffer(capacity=1000, dtype=(float, 4))
+        self.bybit_bba = np.zeros((2, 2)) # [Bid[P, Q], Ask[P, Q]
+        self.bybit_book = OrderBookBybit()
+        self.bybit_mark_price = 0.
+        self.bybit_klines = []
+        
+        self.current_orders = {}
+        self.execution_feed = []
 
-        self.execution_feed = list()
-
-        self.volatility_value = float()
-        self.alpha_value = float()
-        self.inventory_delta = float()
+        self.volatility_value = 0.
+        self.alpha_value = 0.
+        self.inventory_delta = 0.
 
     
     async def refresh_parameters(self):
@@ -81,8 +81,9 @@ class SharedState:
                 settings = yaml.safe_load(f)
 
                 # Update parameters \
-                self.buffer_multiplier = int(settings['buffer_multiplier']) * self.bybit_tick_size
                 self.account_size = float(settings['account_size'])
+
+                self.buffer = int(settings['buffer']) * self.bybit_tick_size
 
                 self.bb_length = int(settings['bollinger_band_length'])
                 self.bb_std = int(settings['bollinger_band_std'])
@@ -109,10 +110,12 @@ class SharedState:
 
         return float((best_ask - best_bid) + best_bid)
 
+
     @property
     def binance_weighted_mid_price(self):
         imb = self.binance_bba[0][1] / (self.binance_bba[0][1] + self.binance_bba[1][1])
         return float(self.binance_bba[1][0] * imb + self.binance_bba[0][0] * (1 - imb))
+
 
     @property
     def bybit_mid_price(self):
@@ -121,7 +124,9 @@ class SharedState:
 
         return float((best_ask - best_bid) + best_bid)
 
+
     @property
     def bybit_weighted_mid_price(self):
         imb = self.bybit_bba[0][1] / (self.bybit_bba[0][1] + self.bybit_bba[1][1])
         return float(self.bybit_bba[1][0] * imb + self.bybit_bba[0][0] * (1 - imb))
+
