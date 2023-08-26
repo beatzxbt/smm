@@ -19,12 +19,12 @@ async def main():
     if sharedstate.primary_data_feed == 'BINANCE':
         tasks.append(asyncio.create_task(BinanceStrategy(sharedstate).run()))
 
-    if sharedstate.primary_data_feed == 'BYBIT':
+    elif sharedstate.primary_data_feed == 'BYBIT':
         tasks.append(asyncio.create_task(BybitStrategy(sharedstate).run()))
 
     else:
-        print("Invalid exchange selected, choices are 'Binance' or 'Bybit'")
-        raise
+        print("Invalid exchange selected, choices are 'BINANCE' or 'BYBIT'")
+        raise NotImplementedError
 
     # Run tasks \
     await asyncio.gather(*tasks)

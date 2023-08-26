@@ -39,7 +39,7 @@ class BybitMarketData:
         streams = ['Orderbook', 'BBA', 'Trades', 'Ticker', 'Kline']
         req, topics = PublicWs(self.ss).multi_stream_request(streams, depth=500, interval=1)
         
-        async for websocket in websockets.connect(WsStreamLinks.futures_public_stream()):
+        async for websocket in websockets.connect(WsStreamLinks.FUTURES_PUBLIC_STREAM):
             
             print(f"{Misc.current_datetime()}: Subscribed to BYBIT {topics} feed...")
 

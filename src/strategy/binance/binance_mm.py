@@ -15,6 +15,8 @@ class CalculateFeatures:
     def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
 
+        self.depths = np.array([10, 25, 50, 100, 200])
+
 
     def momentum_klines(self):
         klines = self.ss.bybit_klines

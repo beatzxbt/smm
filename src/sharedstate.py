@@ -7,8 +7,6 @@ from src.exchanges.binance.websockets.handlers.orderbook import OrderBookBinance
 from src.exchanges.bybit.websockets.handlers.orderbook import OrderBookBybit
 
 
-config_dir = ""
-param_dir = ""
 
 
 class SharedState:
@@ -36,6 +34,8 @@ class SharedState:
             self.bybit_lot_size = float(settings['bybit_lot_size'])
 
             self.account_size = float(settings['account_size'])
+            
+            self.primary_data_feed = str(settings['primary_data_feed']).upper()
 
             self.buffer = int(settings['buffer']) * self.bybit_tick_size
 

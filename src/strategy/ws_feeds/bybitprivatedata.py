@@ -78,7 +78,7 @@ class BybitPrivateData:
 
         print(f"{Misc.current_datetime()}: Subscribed to BYBIT {topics} feeds...")
         
-        async for websocket in websockets.connect(WsStreamLinks.combined_private_stream()):
+        async for websocket in websockets.connect(WsStreamLinks.COMBINED_PRIVATE_STREAM):
             
             try:
                 await websocket.send(self.private_ws.auth())
