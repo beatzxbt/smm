@@ -41,6 +41,7 @@ New upgrades
 Fixes/Improvements Required
 ---------------
 
+- Setting up logger {High Priority}
 - Testing for order generation, get/post clients and websocket feeds {High Priority}
 - Simpler execution and order feed handlers (reworked for time-based and orderId based indexing) {Medium Priority}
 - Customized rounding for [bid/ask](https://twitter.com/kursatcalk/status/1686685226028666880) {Low Priority}
