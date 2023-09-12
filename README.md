@@ -11,7 +11,7 @@ Getting Started
 2. Swap your key/secret into the config file found in /config/bybit.yaml/
 3. Install all packages required by running 'pip install -r requirements.txt' 
 4. Input the contract details in the parameters.yaml file (tick size/lot size) according to the symbol you want to make
-5. Alter the spreads, order sizes, offsets (any setting in the .yaml file!) as you wish, even whilst the bot is live!
+5. Alter the spreads, order sizes, offsets (any setting in the .yaml file) as you wish, even whilst the bot is live!
 
 ** Note, changing the primary data feed between Binance <-> Bybit will require a restart to the script **
 
@@ -21,13 +21,13 @@ Strategy Design/Overview
 
 1. Prices from Bybit (and optionally Binance) are streamed into a common shared class
 2. A market maker function generates quotes, with bias based on price based features
-  * The price based feature (more can be added!) works on comparing a benchmark (fair) price to the current price
+  * Multiple features work on comparing orderbook, trades & price behaviours to calculate skew
   * Prices and quantities are generated, with prices within a volatility range, and min/max quantity defined manually
-  * The above is skewed using various features, leading to behaviour shown in examples below:
-    * (Ex) If binance price is lower than then bybit price -> skew is negative -> asks are more concentrated near mid price than bids
+  * The above leads to behaviour shown in examples below:
+    * (Ex) If binance mid price is lower than then bybit mid price -> skew is negative -> asks are more concentrated near mid price than bids
     * (Ex) If binance price is higher than then bybit price -> skew is positive -> bids have more qty than asks
     * (Ex) If inventory is extremely long, quotes are killed on the long side to try neutralize the position
-3. Orders are sent to the exchange
+3. Orders are sent to the exchange via diff function, which minimizes rate limit usage to shift between order states
   
 
 New upgrades
@@ -41,7 +41,7 @@ New upgrades
 Fixes/Improvements Required
 ---------------
 
-- Sanity checks for market/private websockets and clients {High Priority}
+- Testing for order generation, get/post clients and websocket feeds {High Priority}
 - Simpler execution and order feed handlers (reworked for time-based and orderId based indexing) {Medium Priority}
 - Customized rounding for [bid/ask](https://twitter.com/kursatcalk/status/1686685226028666880) {Low Priority}
 
@@ -50,8 +50,8 @@ Upcoming upgrades
 ---------------
 
 - Optional TWAP to reduce inventory (alongside purging quotes)
-- Improved inventory management system (reaching neutral position faster and cheaper)
-- Avellaneda and Stoikov's basic market making model 
+- Avellaneda and Stoikov's basic market making model
+- More advanced orderbook & trades features
 
 ---------------
 
