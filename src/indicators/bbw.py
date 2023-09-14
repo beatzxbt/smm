@@ -1,19 +1,18 @@
+
 import numpy as np
-from numba import njit, prange
+from numba import njit
 from src.indicators.ema import ema
 
 
-@njit(parallel=True, fastmath=True)
-def bbw(arr_in: np.array, length: int, std: int) -> np.array:
+@njit
+def bbw(klines: np.ndarray, length: int, multiplier: int) -> np.ndarray:
     """
-    Hyper-fast Bollinger Band Width implementation \n
-    Be careful with the data type in the array! 
+    Hyper-fast Bollinger Band Width implementation
     """
 
-    close = arr_in[:, 4] 
-
-    basis = ema(close, length)[-1]
-    dev = std * np.std(close[-length:])
+    closes = klines[:, 4] 
+    basis = ema(closes, length)[-1]
+    dev = multiplier * np.std(closes[-length:])
     upper = basis + dev
     lower = basis - dev
     bbw = upper - lower

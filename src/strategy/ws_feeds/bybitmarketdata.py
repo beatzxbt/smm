@@ -1,16 +1,15 @@
-import websockets
+
 import orjson
+import websockets
 
-from src.utils.misc import Misc
+from src.utils.misc import curr_dt
 from src.exchanges.bybit.get.public import BybitPublicClient
-
-from src.exchanges.bybit.websockets.endpoints import WsStreamLinks
-from src.exchanges.bybit.websockets.public import PublicWs
+from src.exchanges.bybit.endpoints import WsStreamLinks
+from src.exchanges.bybit.websockets.handlers.kline import BybitKlineHandler
 from src.exchanges.bybit.websockets.handlers.orderbook import BybitBBAHandler
-from src.exchanges.bybit.websockets.handlers.kline import BybitKlineHandler, BybitKlineInit
 from src.exchanges.bybit.websockets.handlers.ticker import BybitTickerHandler
-from src.exchanges.bybit.websockets.handlers.trades import BybitTradesHandler, BybitTradesInit
-
+from src.exchanges.bybit.websockets.handlers.trades import BybitTradesHandler
+from src.exchanges.bybit.websockets.public import BybitPublicWs
 from src.sharedstate import SharedState
 
 
@@ -20,63 +19,51 @@ class BybitMarketData:
     def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
 
+        self.public_ws = BybitPublicWs(self.ss)
+
+        self.ws_req, self.ws_topics = self.public_ws.multi_stream_request(
+            topics=["Orderbook", "BBA", "Trades", "Ticker", "Kline"], 
+            depth=500, 
+            interval=1
+        )
+
+        # Dictionary to map topics to their respective handlers
+        self.topic_handler_map = {
+            self.ws_topics[0]: self.ss.bybit_book.process,
+            self.ws_topics[1]: BybitBBAHandler(self.ss).process,
+            self.ws_topics[2]: BybitTradesHandler(self.ss).process,
+            self.ws_topics[3]: BybitTickerHandler(self.ss).process,
+            self.ws_topics[4]: BybitKlineHandler(self.ss).process,
+        }
+
 
     async def initialize_data(self):
-        
-        # Initialize the klines data with a snapshot of 200 candles of M1 \
-        init_kline_data = await BybitPublicClient(self.ss).klines(1)
-        BybitKlineInit(self.ss, init_kline_data).process()
+        init_klines = await BybitPublicClient(self.ss).klines(1, 500)
+        BybitKlineHandler(self.ss)._init(init_klines["result"]["list"])
 
-        # Initialize the trades feed to full capacity \ 
         init_trades = await BybitPublicClient(self.ss).trades(1000)
-        BybitTradesInit(self.ss, init_trades).process()
+        BybitTradesHandler(self.ss)._init(init_trades["result"]["list"])
 
 
     async def bybit_data_feed(self):
-        
         await self.initialize_data()
 
-        streams = ['Orderbook', 'BBA', 'Trades', 'Ticker', 'Kline']
-        req, topics = PublicWs(self.ss).multi_stream_request(streams, depth=500, interval=1)
-        
         async for websocket in websockets.connect(WsStreamLinks.FUTURES_PUBLIC_STREAM):
-            
-            print(f"{Misc.current_datetime()}: Subscribed to BYBIT {topics} feed...")
+            print(f"{curr_dt()}: Subscribing to BYBIT {self.ws_topics} feeds...")
 
             try:
-                # Subscribe to the stream \
-                await websocket.send(req)
+                await websocket.send(self.ws_req)
 
                 while True:
-
                     recv = orjson.loads(await websocket.recv())
-                    
-                    if 'success' in recv:
-                        pass
-                    
-                    else:
-                        data = recv['data']
 
-                        # Orderbook update \
-                        if recv['topic'] == topics[0]:
-                            self.ss.bybit_book.process_data(recv)
+                    if "success" in recv:
+                        continue
 
-                        # Realtime BBA update \
-                        if recv['topic'] == topics[1]:
-                            BybitBBAHandler(self.ss, data).process()
+                    handler = self.topic_handler_map.get(recv["topic"])
 
-                        # Realtime trades update \
-                        if recv['topic'] == topics[2]:
-                            BybitTradesHandler(self.ss, data).process()
-
-                        # Ticker update \
-                        if recv['topic'] == topics[3]:
-                            BybitTickerHandler(self.ss, data).process()
-
-                        # Klines update \
-                        if recv['topic'] == topics[4]:
-                            BybitKlineHandler(self.ss, data).process()
-
+                    if handler:
+                        handler(recv)
 
             except websockets.ConnectionClosed:
                 continue

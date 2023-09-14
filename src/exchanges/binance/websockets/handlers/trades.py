@@ -4,59 +4,39 @@ from src.sharedstate import SharedState
 
 
 
-class BinanceTradesInit:
-
-
-    def __init__(self, sharedstate: SharedState, recv) -> None:
-        self.ss = sharedstate
-        self.data = recv
-
-
-    def process(self):
-
-        for row in self.data:
-            
-            time = row['time']
-            price = row['price']
-            qty = row['qty']
-
-            if row['isBuyerMaker']:
-                side = 1
-                
-            else:
-                side = 0
-
-            new_trade = np.array([[time, side, price, qty]], dtype=float)
-
-            self.ss.binance_trades.append(new_trade)
-
-
-
 class BinanceTradesHandler:
 
 
-    def __init__(self, sharedstate: SharedState, recv) -> None:
+    def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
-        self.data = recv['data']
 
-    
-    def process(self):
 
-        time = self.data['T']
-        price = self.data['p']
-        qty = self.data['q']
+    def _init(self, data: dict):
 
-        if self.data['m']:
-            side = 1
+        for row in data:
+            time = row["time"]
+            price = row["price"]
+            qty = row["qty"]
+            side = 1 if row["isBuyerMaker"] else 0
+                
+            new_trade = np.array([[time, side, price, qty]], dtype=float)
+            self.ss.binance_trades.append(new_trade)
 
-        else:
-            side = 0
 
-        # Update last price \
+    def process(self, recv: dict):
+        data = recv["data"]
+        
+        time = data["T"]
+        price = data["p"]
+        qty = data["q"]
+        side = 1 if data["m"] else 0
+
+        # Update last price
         self.ss.binance_last_price = float(price)
 
-        # New trade \
+        # New trade
         new_trade = np.array([[time, side, price, qty]], dtype=float)
 
-        # Append to array, ring buffer handles maxlen and overwrite \
+        # Append to array, ring buffer handles maxlen and overwrite
         self.ss.binance_trades.append(new_trade)
+        

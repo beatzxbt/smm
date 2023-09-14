@@ -7,27 +7,24 @@ class Inventory:
         self.ss = sharedstate
 
 
-    def calculate_delta(self, data) -> float:
+    def position_delta(self, side: str, value: float, leverage: int) -> None:
         """
         Calculates the current position delta relative to account size
         """
         
-        for position_data in data:
+        try:
+            if side:
+                acc_max = (self.ss.account_size * leverage) / 2.05
 
-            side = position_data['side']
+                if side == 'Buy':
+                    self.ss.inventory_delta = value / acc_max
 
-            if side == '':
-                continue
+                elif side == 'Sell':
+                    self.ss.inventory_delta = -value / acc_max
 
-            value = float(position_data['positionValue'])
-            lev = float(position_data['leverage'])
+        except Exception as e:
+            print(e)
+            print(side, value, leverage)
 
-            acc_max = (self.ss.account_size * lev) / 2
-
-            if side == 'Buy':
-                self.ss.inventory_delta = value / acc_max
-
-            elif side == 'Sell':
-                self.ss.inventory_delta = -value / acc_max
 
 

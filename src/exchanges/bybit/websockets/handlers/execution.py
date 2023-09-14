@@ -5,30 +5,20 @@ from src.sharedstate import SharedState
 class BybitExecutionHandler:
 
 
-    def __init__(self, sharedstate: SharedState, data) -> None:
+    def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
-        self.data = data
-    
+        self.symbol = self.ss.bybit_symbol
 
-    def process(self):
 
-        for execution in self.data:
-            
-            symbol = execution['symbol']
+    def process(self, data):
 
-            if symbol == self.ss.bybit_symbol:
+        for execution in data:
+
+            if execution["symbol"] == self.symbol:
                 
-                orderId = execution['orderId']
-                side = execution['side']
-                price = float(execution['execPrice'])
-                qty = float(execution['execQty'])
-
                 self.ss.execution_feed.append({
-                    orderId: {
-                        'side': side, 'price': price, 'qty': qty
-                    }
-                })
-
-                if len(self.ss.execution_feed) > 100:
-                    self.ss.execution_feed.pop(1)
-
+                    execution["orderId"]: {
+                        "side": execution["side"],
+                        "price": float(execution["execPrice"]),
+                        "qty": float(execution["execQty"]),
+                    }})

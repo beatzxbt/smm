@@ -13,9 +13,9 @@ class OrderBookBybit(BaseOrderBook):
         self.sort_book()
 
 
-    def process_data(self, recv):
-        asks = np.array(recv['data']['a'], dtype=float)
-        bids = np.array(recv['data']['b'], dtype=float)
+    def process(self, recv):
+        asks = np.array(recv["data"]["a"], dtype=float)
+        bids = np.array(recv["data"]["b"], dtype=float)
 
         if recv["type"] == "snapshot":
             self.process_snapshot(asks, bids)
@@ -31,23 +31,20 @@ class OrderBookBybit(BaseOrderBook):
 class BybitBBAHandler:
 
 
-    def __init__(self, sharedstate, data) -> None:
+    def __init__(self, sharedstate) -> None:
         self.ss = sharedstate
-        self.data = data
 
-    
-    def process(self):
 
-        best_bid = self.data['b']
-        best_ask = self.data['a']
+    def process(self, recv):
+        data = recv["data"]
+        best_bid = data["b"]
+        best_ask = data["a"]
 
         if len(best_bid) != 0:
-            bb_price = best_bid[0][0]
-            bb_qty = best_bid[0][1]
-            self.ss.bybit_bba[0] = np.array([bb_price, bb_qty], dtype=float)
-            
+            self.ss.bybit_bba[0, 0] = float(best_bid[0][0])
+            self.ss.bybit_bba[0, 1] = float(best_bid[0][1])
+
         if len(best_ask) != 0:
-            ba_price = best_ask[0][0]
-            ba_qty = best_ask[0][1]
-            self.ss.bybit_bba[1] = np.array([ba_price, ba_qty], dtype=float)
+            self.ss.bybit_bba[1, 0] = float(best_ask[0][0])
+            self.ss.bybit_bba[1, 1] = float(best_ask[0][1])
 

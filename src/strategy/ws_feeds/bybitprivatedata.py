@@ -1,18 +1,15 @@
-import websockets
-import orjson
+
 import asyncio
+import orjson
+import websockets
 
-from src.utils.misc import Misc
-
-from src.exchanges.bybit.websockets.endpoints import WsStreamLinks
-from src.exchanges.bybit.websockets.private import PrivateWs
+from src.utils.misc import curr_dt
+from src.exchanges.bybit.get.private import BybitPrivateGet
+from src.exchanges.bybit.endpoints import WsStreamLinks
 from src.exchanges.bybit.websockets.handlers.execution import BybitExecutionHandler
-from src.exchanges.bybit.websockets.handlers.position import BybitPositionHandler
 from src.exchanges.bybit.websockets.handlers.order import BybitOrderHandler
-
-from src.exchanges.bybit.get.private import BybitPrivateClient
-
-
+from src.exchanges.bybit.websockets.handlers.position import BybitPositionHandler
+from src.exchanges.bybit.websockets.private import BybitPrivateWs
 from src.sharedstate import SharedState
 
 
@@ -20,88 +17,62 @@ class BybitPrivateData:
 
 
     def __init__(self, sharedstate: SharedState) -> None:
-
         self.ss = sharedstate
-        self.api_key = self.ss.api_key
-        self.api_secret = self.ss.api_secret
-        self.symbol = self.ss.bybit_symbol
 
-        self.private_ws = PrivateWs(self.api_key, self.api_secret)
+        self.private_ws = BybitPrivateWs(self.ss.api_key, self.ss.api_secret)
+        self.private_client = BybitPrivateGet(self.ss)
+        
+
+        self.ws_req, self.ws_topics = self.private_ws.multi_stream_request(
+            topics=["Position", "Execution", "Order"]
+        )
+
+        # Create a dictionary to map topics to handlers
+        self.topic_handler_map = {
+            self.ws_topics[0]: BybitPositionHandler(self.ss).process,
+            self.ws_topics[1]: BybitExecutionHandler(self.ss).process,
+            self.ws_topics[2]: BybitOrderHandler(self.ss).process,
+        }
 
 
-    async def open_orders_sync(self):
-        """
-        Will sync the open orders dict every 0.5s
-        """
+    async def open_orders_sync(self) -> None:
 
         while True:
+            recv = await self.private_client.open_orders()
+            BybitOrderHandler(self.ss).sync(recv)
 
-            recv = await BybitPrivateClient(self.ss).open_orders()
-            data = recv['result']['list']
-
-            curr_orders = {}
-
-            for open_order in data: 
-
-                id = open_order['orderId']
-                price = float(open_order['price'])
-                qty = float(open_order['qty'])
-                side = open_order['side']
-                
-                curr_orders[id] = {'price': price, 'qty': qty, 'side': side}
-
-            self.ss.current_orders = curr_orders
-
-            # Sleep for 0.5s \
             await asyncio.sleep(0.5)
 
 
-    async def current_position_sync(self):
-        """
-        Will sync the open orders dict every 0.5s
-        """
+    async def current_position_sync(self) -> None:
 
         while True:
+            recv = await self.private_client.current_position()
+            BybitPositionHandler(self.ss).sync(recv)
 
-            recv = await BybitPrivateClient(self.ss).current_position()
-            data = recv['result']['list']
-
-            BybitPositionHandler(self.ss, data).process()
-
-            # Sleep for 0.5s \
             await asyncio.sleep(0.5)
 
 
-    async def privatefeed(self):
-        
-        req, topics = self.private_ws.multi_stream_request(['Position', 'Execution', 'Order'])
+    async def private_feed(self) -> None:
+        print(f"{curr_dt()}: Subscribing to BYBIT {self.ws_topics} feeds...")
 
-        print(f"{Misc.current_datetime()}: Subscribed to BYBIT {topics} feeds...")
-        
         async for websocket in websockets.connect(WsStreamLinks.COMBINED_PRIVATE_STREAM):
-            
+
             try:
                 await websocket.send(self.private_ws.auth())
-                await websocket.send(req)
+                await websocket.send(self.ws_req)
 
                 while True:
-                    
                     recv = orjson.loads(await websocket.recv())
 
-                    if 'success' in recv:
-                        pass
-                    
-                    else:
-                        data = recv['data']
+                    if "success" in recv:
+                        continue
 
-                        if recv['topic'] == topics[0]:
-                            BybitPositionHandler(self.ss, data).process()
+                    data = recv["data"]
+                    handler_cls = self.topic_handler_map.get(recv["topic"])
 
-                        if recv['topic'] == topics[1]:
-                            BybitExecutionHandler(self.ss, data).process()
-                        
-                        if recv['topic'] == topics[2]:
-                            BybitOrderHandler(self.ss, data).process()
+                    if handler_cls:
+                        handler_cls(data)
 
             except websockets.ConnectionClosed:
                 continue
@@ -111,12 +82,10 @@ class BybitPrivateData:
                 raise
 
 
-    async def start_feed(self):
-
-        tasks = []
-
-        tasks.append(asyncio.create_task(self.open_orders_sync()))
-        tasks.append(asyncio.create_task(self.current_position_sync()))
-        tasks.append(asyncio.create_task(self.privatefeed()))
-
-        await asyncio.gather(*tasks)
+    async def start_feed(self) -> None:
+        await asyncio.gather(
+            asyncio.create_task(self.open_orders_sync()),
+            asyncio.create_task(self.current_position_sync()),
+            asyncio.create_task(self.private_feed())
+        )
+        

@@ -1,3 +1,4 @@
+
 from decimal import Decimal
 
 
@@ -7,5 +8,6 @@ def round_step_size(quantity: float, step_size: float) -> float:
     
     Rounds a float to a given step size
     """
+
     quantity = Decimal(str(quantity))
     return float(quantity - quantity % Decimal(str(step_size)))

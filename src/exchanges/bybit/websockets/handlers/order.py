@@ -5,33 +5,36 @@ from src.sharedstate import SharedState
 class BybitOrderHandler:
 
 
-    def __init__(self, sharedstate: SharedState, data) -> None:
+    def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
-        self.data = data
+
     
+    def sync(self, recv: dict) -> None:
 
-    def process(self):
+        data = recv["result"]["list"]
 
-        for order in self.data:
-            
-            try:
-                id = order['orderId']
-                status = order['orderStatus']
+        self.ss.current_orders = {
+            o["orderId"]: {"price": float(o["price"]), "qty": float(o["qty"]), "side": o["side"]} 
+            for o in data
+        }
 
-                # Remove the order if filled \
-                if status == 'Filled':
-                    self.ss.current_orders.pop(id)
+    def process(self, data: dict) -> None:
 
-                # If new, the order info to the dict \
-                elif status == 'New':
-                    
-                    modified_order = {} 
-                    
-                    modified_order['price'] = order['price']
-                    modified_order['qty'] = order['qty']
-                    modified_order['side'] = order['side']
+        new_orders = {
+            order["orderId"]: {"price": order["price"], "qty": order["qty"], "side": order["side"]}
+            for order in data
+            if order.get("orderStatus") == "New"
+        }
 
-                    self.ss.current_orders[id] = modified_order
+        filled_orders = set(
+            order["orderId"] 
+            for order in data 
+            if order["orderStatus"] == "Filled"
+        )
 
-            except KeyError:
-                pass
+        # Update the orders
+        self.ss.current_orders.update(new_orders)
+
+        # Remove filled orders
+        for order_id in filled_orders:
+            self.ss.current_orders.pop(order_id, None)

@@ -1,12 +1,12 @@
+
 import numpy as np
 from numba import njit
 
 
 @njit(nogil=True)
-def ema(arr_in: np.array, window: int) -> np.array:
+def ema(arr_in: np.ndarray, window: int) -> np.ndarray:
     """
-    Hyper-fast EMA implementation \n
-    Be careful with the data type in the array! 
+    Hyper-fast EMA implementation
     """
     
     n = arr_in.shape[0]

@@ -26,5 +26,5 @@ class BaseOrderBook:
         return asks_or_bids
 
 
-    def process_data(self, recv):
+    def process(self, recv):
         raise NotImplementedError("Derived classes should implement this method")

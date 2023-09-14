@@ -6,17 +6,22 @@ from src.sharedstate import SharedState
 class BybitPositionHandler:
 
 
-    def __init__(self, sharedstate: SharedState, data: list) -> None:
+    def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
-        self.data = data
 
     
-    def process(self):
-        """
-        Add TWAP logic here, just enough to get it below limits \n
-        Add checker so many TWAPs dont activate accidentally! \n
-        """
+    def sync(self, recv: dict) -> None:
+        data = recv["result"]["list"][0]
+        self.process(data)
+
+
+    def process(self, data: list) -> None:
+        side = data["side"]
         
-        Inventory(self.ss).calculate_delta(self.data)
+        if len(side) != 0:
+            value = float(data["positionValue"])
+            leverage = float(data["leverage"])
+
+            Inventory(self.ss).position_delta(side, value, leverage)
 
         

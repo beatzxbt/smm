@@ -8,31 +8,35 @@ class BybitPublicClient:
 
     def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
+        self._session = None
+
         self.symbol = self.ss.bybit_symbol
-
-        self.session = HTTP(
-            api_key=self.ss.api_key, 
-            api_secret=self.ss.api_secret
-        )
-             
-
-    async def klines(self, interval: int):
-
-        data = self.session.get_kline(
-            category='linear', 
-            symbol=self.symbol,
-            interval=str(interval)
-        )
-
-        return data
+        self.category = "linear"
 
 
-    async def trades(self, limit: int):
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = HTTP(
+                api_key=self.ss.api_key, 
+                api_secret=self.ss.api_secret
+            )
+                
 
-        data = self.session.get_public_trade_history(
-            category='linear', 
-            symbol=self.symbol,
+        return self._session
+
+
+    async def klines(self, interval: int, limit: int) -> list:
+        return self.session.get_kline(
+            category=self.category, 
+            symbol=self.symbol, 
+            interval=str(interval),
             limit=str(limit)
         )
 
-        return data
+    async def trades(self, limit: int) -> list:
+        return self.session.get_public_trade_history(
+            category=self.category, 
+            symbol=self.symbol, 
+            limit=str(limit)
+        )
