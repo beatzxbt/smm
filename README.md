@@ -38,7 +38,13 @@ New upgrades
 - Access to Binance data feeds (LOB/Trades) 
 
 
-Fixes/Improvements Required
+Current known bugs
+---------------
+
+- Klines websocket pushing incorrect data, causing duplicate timestamps (affects all klines indicators) {Urgent}
+
+
+Improvements/Additions
 ---------------
 
 - Setting up logger {High Priority}
