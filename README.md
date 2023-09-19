@@ -41,7 +41,7 @@ New upgrades
 Current known bugs
 ---------------
 
-- Klines websocket pushing incorrect data, causing duplicate timestamps (affects all klines indicators) {Urgent}
+- None so far
 
 
 Improvements/Additions
