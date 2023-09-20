@@ -41,10 +41,19 @@ class BybitBBAHandler:
         best_ask = data["a"]
 
         if len(best_bid) != 0:
-            self.ss.bybit_bba[0, 0] = float(best_bid[0][0])
-            self.ss.bybit_bba[0, 1] = float(best_bid[0][1])
+            price = float(best_bid[0][0])
+            qty = float(best_bid[0][1])
+
+            # 0 qty causing div by 0 on mid calculations)
+            if qty > 0:
+                self.ss.bybit_bba[0, 0] = price
+                self.ss.bybit_bba[0, 1] = qty
 
         if len(best_ask) != 0:
-            self.ss.bybit_bba[1, 0] = float(best_ask[0][0])
-            self.ss.bybit_bba[1, 1] = float(best_ask[0][1])
+            price = float(best_ask[0][0])
+            qty = float(best_ask[0][1])
 
+            # 0 qty causing div by 0 on mid calculations)
+            if qty > 0:
+                self.ss.bybit_bba[1, 0] = price
+                self.ss.bybit_bba[1, 1] = qty
