@@ -24,3 +24,8 @@ lot_size = 0.01
 symbol = "BTCUSDT"
 tick_size = 0.01
 lot_size = 0.01
+
+
+#Primary data feed
+[data_feed]
+primary = "BINANCE"

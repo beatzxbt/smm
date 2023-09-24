@@ -47,20 +47,28 @@ class NewSharedState:
             bybit_symbol_key = self.find_matching_keys(settings, "bybit_symbol", ticker_arg)
             self.bybit_symbol = settings[bybit_symbol_key]["symbol"]
             self.bybit_tick_size = settings[bybit_symbol_key]["tick_size"]
-            self.bybit_lot_size = settings[bybit_symbol_key]["lot_size"]            
+            self.bybit_lot_size = settings[bybit_symbol_key]["lot_size"]    
+            #Primary date feed
+            self.primary_date_feed = settings["data_feed"]["primary"]        
 
+            print(self.binance_symbol)
 
     # This will find the matching key, or the default value
     # Settings -> is always the settigns loaded by tomli
     # base_section -> is the base name of the section/config ex: binance_symbol
     # arg -> is the argument given by the user of the defualt value
     def find_matching_keys(self, settings, base_section, arg):
-        matching_keys = [
-            key for key in settings.keys() 
-            if key.startswith(str(base_section)) and
-            key.endswith(str(arg)) or
-            (arg == "" and key == base_section)
-        ]
-        if len(matching_keys) != 1:
-            raise ValueError("There are more or less sections with the same name of: ", base_section)
-        return matching_keys[0]
+        if arg == str(''):
+            match_key = base_section
+        else: 
+            matching_keys = [
+                key for key in settings.keys() 
+                if key.startswith(str(base_section)) and
+                key.endswith(str(arg))
+            ]
+            print(matching_keys)
+            if len(matching_keys) != 1:
+                raise ValueError("There are more or less sections with the same name of: ", arg)
+            match_key = matching_keys[0]
+
+        return match_key
