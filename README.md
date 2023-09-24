@@ -28,6 +28,11 @@ Strategy Design/Overview
     * (Ex) If binance price is higher than then bybit price -> skew is positive -> bids have more qty than asks
     * (Ex) If inventory is extremely long, quotes are killed on the long side to try neutralize the position
 3. Orders are sent to the exchange via diff function, which minimizes rate limit usage to shift between order states
+
+Configuration/Arguments system
+---------------
+
+WIP
   
 
 New upgrades

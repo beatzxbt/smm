@@ -1,0 +1,26 @@
+[binance_symbol]
+
+symbol = "XMRUSDT"
+tick_size = 0.01
+lot_size = 0.01
+
+[bybit_symbol]
+
+symbol = "XMRUSDT"
+tick_size = 0.05
+lot_size = 0.01
+
+#For others symbols you use a name 
+#WARNING: IF YOU USE ANOTHER SYMBOL YOU SHOULD MAKE A BYBIT SYMBOL FOR IT TOO
+#-t/--ticker btc
+[binance_symbol_btc]
+
+symbol = "BTCUSDT"
+tick_size = 0.01
+lot_size = 0.01
+
+[bybit_symbol_btc]
+
+symbol = "BTCUSDT"
+tick_size = 0.01
+lot_size = 0.01
