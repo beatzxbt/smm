@@ -103,6 +103,8 @@ class MarketMaker:
 
         self.spread = self._adjspread()
 
+    def _config_name(self) -> str:
+        return "marketmaker"
 
     def _skew(self) -> tuple[float, float]:
         """

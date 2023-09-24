@@ -1,37 +1,60 @@
 [binance_symbol]
-
-symbol = "XMRUSDT"
-tick_size = 0.01
-lot_size = 0.01
+    [binance_symbol.default]
+        symbol = "XMRUSDT"
+        tick_size = 0.01
+        lot_size = 0.01
+    [binance_symbol.btc]
+        symbol = "BTCUSDT"
+        tick_size = 0.01
+        lot_size = 0.05
 
 [bybit_symbol]
-
-symbol = "XMRUSDT"
-tick_size = 0.05
-lot_size = 0.01
-
-#For others symbols you use a name 
-#WARNING: IF YOU USE ANOTHER SYMBOL YOU SHOULD MAKE A BYBIT SYMBOL FOR IT TOO
-#-t/--ticker btc
-[binance_symbol_btc]
-
-symbol = "BTCUSDT"
-tick_size = 0.01
-lot_size = 0.01
-
-[bybit_symbol_btc]
-
-symbol = "BTCUSDT"
-tick_size = 0.01
-lot_size = 0.01
+    [bybit_symbol.default]
+        symbol = "XMRUSDT"
+        tick_size = 0.05
+        lot_size = 0.01
+    [bybit_symbol.btc]
+        symbol = "BTCUSDT"
+        tick_size = 0.01
+        lot_size = 0.01
 
 
 # Primary data feed (BYBIT or BINANCE) 
 # Check README.md for more info regarding this 
 [data_feed]
-primary = "BINANCE"
+    [data_feed.default]
+        feed = "BINANCE"
+    [data_feed.bybit]
+        feed = "BYBIT"
 
 # A multiple of the tick size
 # Prevents a 'ping-pong' effect
 [buffer]
-value = 3
+    [buffer.default]
+        buffer = 3
+
+[account]
+    [account.default]
+        size = 100
+    [account.arb]
+        size = 1000
+
+# Settings for volatility indicator 
+[volatility]
+    [volatility.default]
+        bollinger_band_length = 20
+        bollinger_band_std = 5
+
+[offsets]
+    [offsets.default]
+        quote_offset = 0
+        size_offset = 0
+        volatility_offset = 0
+
+[strategies]
+    [strategies.marketmaker]
+        [strategies.marketmaker.default]
+            base_spread = 0.1
+            number_of_orders = 10
+            min_order_size = 0.1
+            max_order_size = 0.45

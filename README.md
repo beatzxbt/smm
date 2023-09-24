@@ -33,6 +33,17 @@ Configuration/Arguments system
 ---------------
 
 WIP
+
+[All of this should be setted on the configuration file]
+
+[Make this readme better on this part too and better description]
+* -h --help -> Returns a help page
+* -k --key -> Sets the key to use (Ex: -k arb)
+* -t --ticker -> Sets the ticker to use (Ex: -t btc)
+* -f --feed -> Sets the primary feed to use (Ex: -f bybit)
+* -sf --sizef -> This will choose the account size from the configuration but the size command can override this one and the configuration file (Ex: -sf arb)
+* -s --size -> This sets the account size directly, overrides the -sf when -s given even if the -sf is given too (Ex: -s 1500)
+
   
 
 New upgrades

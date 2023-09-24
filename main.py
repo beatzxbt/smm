@@ -15,6 +15,8 @@ async def main():
                         help = "Sets the api key to use")
     parser.add_argument('-t', '--ticker', 
                         help = "Sets the ticker to use")
+    parser.add_argument('-f', '--feed',
+                        help = "Sets the default data feed")
     parser.add_argument('-sf', '--sizef',
                         help = "This uses a account size of the file itself")
     parser.add_argument('-s', '--size',
@@ -25,6 +27,7 @@ async def main():
     ss = NewSharedState(
         args.key,
         args.ticker,
+        args.feed,
         args.sizef,
         args.size
     )

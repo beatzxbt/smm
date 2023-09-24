@@ -59,6 +59,8 @@ class SharedState:
         self.binance_lot_size = float(settings["binance_lot_size"])
         self.bybit_tick_size = float(settings["bybit_tick_size"])
         self.bybit_lot_size = float(settings["bybit_lot_size"])
+
+        
         self.primary_data_feed = str(settings["primary_data_feed"]).upper()
         self.account_size = float(settings["account_size"])
         self.buffer = float(settings["buffer"]) * self.bybit_tick_size

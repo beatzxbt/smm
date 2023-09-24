@@ -7,6 +7,7 @@ class NewSharedState:
         #All the default argumentes are defined in the parser arguments (main.py)
         key_arg,
         ticker_arg,
+        feed_arg,
         sizef_arg,
         size_arg
     ) -> None:
@@ -17,6 +18,7 @@ class NewSharedState:
         self.load_settings(
             #This is the optional ticker argument
             ticker_arg,
+            feed_arg,
             sizef_arg,
             size_arg,
         )
@@ -27,62 +29,73 @@ class NewSharedState:
     def load_config(self, key_arg):
         with open("config/bybit.toml", "rb") as f:
             config = tomli.load(f)
-            if key_arg == None:
-                match_key = "api_key"
-            else: 
-                matching_keys = [key for key in config.keys() if key.endswith(key_arg)]
-                #If the user has some type of plugin for toml, the file will already give a trigger about this
-                if len(matching_keys) != 1:
-                    raise ValueError("There are more or less than one API key/secret of number: ", key_arg)
-                match_key = str(matching_keys[0])
-                
-            if len(config[match_key]["api_key"]) > 0 and len(config[match_key]["api_secret"]) > 0:
-                self.api_key = config[match_key]["api_key"]
-                self.api_secret = config[match_key]["api_secret"]
-            else:
-                raise ValueError("Missing API key/secret of number: ", key_arg)
+            self.api_key = self.get_config_value(config["api_key"], key_arg, "api_key")
+            self.api_secret = self.get_config_value(config["api_key"], key_arg, "api_secret")
 
     def load_settings(
         self, 
         ticker_arg,
+        feed_arg,
         sizef_arg,
         size_arg
     ):
+
         with open("config/config.toml", "rb") as f:
             settings = tomli.load(f)
             #Binance symbol
-            binance_symbol_key = self.find_matching_keys(settings, "binance_symbol", ticker_arg)
-            self.binance_symbol = settings[binance_symbol_key]["symbol"]
-            self.binance_tick_size = settings[binance_symbol_key]["tick_size"]
-            self.binance_lot_size = settings[binance_symbol_key]["lot_size"]
+            self.binance_symbol = self.get_config_value(settings["binance_symbol"], ticker_arg, "symbol")
+            self.binance_tick_size = self.get_config_value(settings["binance_symbol"], ticker_arg, "tick_size")
+            self.binance_lot_size = self.get_config_value(settings["binance_symbol"], ticker_arg, "lot_size")
             #Bybit symbol
-            bybit_symbol_key = self.find_matching_keys(settings, "bybit_symbol", ticker_arg)
-            self.bybit_symbol = settings[bybit_symbol_key]["symbol"]
-            self.bybit_tick_size = settings[bybit_symbol_key]["tick_size"]
-            self.bybit_lot_size = settings[bybit_symbol_key]["lot_size"]    
+            self.bybit_symbol = self.get_config_value(settings["bybit_symbol"], ticker_arg, "symbol")
+            self.bybit_tick_size = self.get_config_value(settings["bybit_symbol"], ticker_arg, "tick_size")
+            self.bybit_lot_size = self.get_config_value(settings["bybit_symbol"], ticker_arg, "lot_size")
             #Primary date feed
-            self.primary_date_feed = settings["data_feed"]["primary"]        
+            self.primary_data_feed = self.get_config_value(settings["data_feed"], feed_arg, "feed")  
             #Buffer
-            self.buffer = settings["buffer"]["value"]
+            self.buffer = int(self.get_config_value(settings["buffer"], None, "buffer"))
             #Account size
-            print(sizef_arg)
-            print(size_arg)
+            if size_arg is not None:
+                self.account_size = int(size_arg)
+            else:
+                self.account_size = int(self.get_config_value(settings["account"], sizef_arg, "size"))
+            #Volatility indicator
+            self.bb_length = int(self.get_config_value(settings["volatility"], None, "bollinger_band_length"))
+            self.bb_std = int(self.get_config_value(settings["volatility"], None, "bollinger_band_std"))
+            #Master offsets
+            self.quote_offset = int(self.get_config_value(settings["offsets"], None, "quote_offset"))
+            self.size_offset = int(self.get_config_value(settings["offsets"], None, "size_offset"))
+            self.volatility_offset = int(self.get_config_value(settings["offsets"], None, "volatility_offset"))
 
-    # This will find the matching key, or the default value
-    # Settings -> is always the settigns loaded by tomli
-    # base_section -> is the base name of the section/config ex: binance_symbol
-    # arg -> is the argument given by the user of the defualt value
-    def find_matching_keys(self, settings, base_section, arg):
-        if arg == None:
-            match_key = base_section
-        else: 
-            matching_keys = [
-                key for key in settings.keys() 
-                if key.startswith(str(base_section)) and
-                key.endswith(str(arg))
-            ]
-            if len(matching_keys) != 1:
-                raise ValueError("There are more or less sections with the same name of: ", arg)
-            match_key = matching_keys[0]
+            print(settings["strategies"])
 
-        return match_key
+    
+    def get_config_value(self, arr, arg, key):
+        """
+        Retrieve a configuration value from a JSON array.
+
+        This function retrieves a configuration value based on the specified arguments.
+        
+        Args:
+            arr (dict): The JSON array containing configuration settings.
+            arg (str): The specific category within the array. Use None for default settings.
+            key (str): The key corresponding to the setting to retrieve.
+
+        Returns:
+            The value corresponding to the specified key in the configuration.
+
+        Raises:
+            ValueError: If the category or key does not exist in the configuration.
+        """
+        if arg is None:
+            default_config = arr.get("default")
+            if default_config and key in default_config:
+                return default_config[key]
+            else:
+                raise ValueError("There is no default configuration or the key does not exist.")
+        else:
+            specific_config = arr.get(arg)
+            if specific_config and key in specific_config:
+                return specific_config[key]
+            else:
+                raise ValueError(f"There is no configuration for '{arg}' or the key does not exist.")
