@@ -6,7 +6,9 @@ class NewSharedState:
         self,
         #All the default argumentes are defined in the parser arguments (main.py)
         key_arg,
-        ticker_arg
+        ticker_arg,
+        sizef_arg,
+        size_arg
     ) -> None:
         self.load_config(
             #This it the optional key argument for the load config 
@@ -14,28 +16,38 @@ class NewSharedState:
         )
         self.load_settings(
             #This is the optional ticker argument
-            ticker_arg
+            ticker_arg,
+            sizef_arg,
+            size_arg,
         )
-
+        print(self.api_key)
         None
 
 
     def load_config(self, key_arg):
         with open("config/bybit.toml", "rb") as f:
             config = tomli.load(f)
-            matching_keys = [key for key in config.keys() if key.endswith(key_arg) or (key_arg == "1" and key == "api_key")]
-
-            #If the user has some type of plugin for toml, the file will already give a trigger about this
-            if len(matching_keys) != 1:
-                raise ValueError("There are more or less than one API key/secret of number: ", key_arg)
-            match_key = str(matching_keys[0])
+            if key_arg == None:
+                match_key = "api_key"
+            else: 
+                matching_keys = [key for key in config.keys() if key.endswith(key_arg)]
+                #If the user has some type of plugin for toml, the file will already give a trigger about this
+                if len(matching_keys) != 1:
+                    raise ValueError("There are more or less than one API key/secret of number: ", key_arg)
+                match_key = str(matching_keys[0])
+                
             if len(config[match_key]["api_key"]) > 0 and len(config[match_key]["api_secret"]) > 0:
                 self.api_key = config[match_key]["api_key"]
                 self.api_secret = config[match_key]["api_secret"]
             else:
                 raise ValueError("Missing API key/secret of number: ", key_arg)
 
-    def load_settings(self, ticker_arg):
+    def load_settings(
+        self, 
+        ticker_arg,
+        sizef_arg,
+        size_arg
+    ):
         with open("config/config.toml", "rb") as f:
             settings = tomli.load(f)
             #Binance symbol
@@ -50,15 +62,18 @@ class NewSharedState:
             self.bybit_lot_size = settings[bybit_symbol_key]["lot_size"]    
             #Primary date feed
             self.primary_date_feed = settings["data_feed"]["primary"]        
-
-            print(self.binance_symbol)
+            #Buffer
+            self.buffer = settings["buffer"]["value"]
+            #Account size
+            print(sizef_arg)
+            print(size_arg)
 
     # This will find the matching key, or the default value
     # Settings -> is always the settigns loaded by tomli
     # base_section -> is the base name of the section/config ex: binance_symbol
     # arg -> is the argument given by the user of the defualt value
     def find_matching_keys(self, settings, base_section, arg):
-        if arg == str(''):
+        if arg == None:
             match_key = base_section
         else: 
             matching_keys = [
@@ -66,7 +81,6 @@ class NewSharedState:
                 if key.startswith(str(base_section)) and
                 key.endswith(str(arg))
             ]
-            print(matching_keys)
             if len(matching_keys) != 1:
                 raise ValueError("There are more or less sections with the same name of: ", arg)
             match_key = matching_keys[0]

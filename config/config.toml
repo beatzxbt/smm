@@ -26,6 +26,12 @@ tick_size = 0.01
 lot_size = 0.01
 
 
-#Primary data feed
+# Primary data feed (BYBIT or BINANCE) 
+# Check README.md for more info regarding this 
 [data_feed]
 primary = "BINANCE"
+
+# A multiple of the tick size
+# Prevents a 'ping-pong' effect
+[buffer]
+value = 3
