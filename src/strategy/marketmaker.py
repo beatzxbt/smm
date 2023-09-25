@@ -96,15 +96,36 @@ class MarketMaker:
 
     def __init__(self, sharedstate: SharedState) -> None:
         self.ss = sharedstate
+        
+        # Ensure that all essential parameters required by this strategy 
+        # are present in the configuration file.
+        self._verify_configuration(self.ss)
+
         self.calculate_features = CalculateFeatures(self.ss)
-        self.max_orders = self.ss.num_orders
+
+        self.max_orders = self.ss.strategy_config.get("number_of_orders")
+        
         self.tick_size = self.ss.bybit_tick_size
         self.lot_size = self.ss.bybit_lot_size
 
         self.spread = self._adjspread()
 
-    def _config_name(self) -> str:
-        return "marketmaker"
+    def _verify_configuration(self, sharedstate: SharedState):
+        """
+        Verify the presence of essential parameters in the strategy configuration.
+
+        This function is an essential part of the strategy framework, ensuring that
+        required configuration parameters are available for each strategy.
+
+        Args:
+            sharedstate (SharedState): The SharedState instance containing strategy configuration.
+        """
+
+        params = ["base_spread", "number_of_orders", "min_order_size", "max_order_size"]
+        for param in params:
+            not_exists = self.ss.strategy_config.get(param) is None
+            if not_exists:
+                raise ValueError(f"The parameter '{param}' doesn't exist in the configuration file.")
 
     def _skew(self) -> tuple[float, float]:
         """

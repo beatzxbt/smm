@@ -22,7 +22,7 @@ class DataFeeds:
 
         tasks = [
             asyncio.create_task(BybitMarketData(self.ss).start_feed()),
-            asyncio.create_task(BybitPrivateData(self.ss).start_feed())
+            #asyncio.create_task(BybitPrivateData(self.ss).start_feed())
         ]
 
         if self.ss.primary_data_feed == "BINANCE":
@@ -42,7 +42,7 @@ class Strategy:
 
 
     async def logic(self):
-        
+
         # Delay to let data feeds warm up
         print(f"{curr_dt()}: Warming up data feeds...")
         await asyncio.sleep(10)

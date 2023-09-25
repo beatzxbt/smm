@@ -51,6 +51,7 @@
         size_offset = 0
         volatility_offset = 0
 
+# The 'strategies' section contains configurations for various trading strategies.
 [strategies]
     [strategies.marketmaker]
         [strategies.marketmaker.default]
@@ -58,3 +59,18 @@
             number_of_orders = 10
             min_order_size = 0.1
             max_order_size = 0.45
+        [strategies.marketmaker.safe]
+            base_spread = 0.1
+            number_of_orders = 5
+            min_order_size = 0.05
+            max_order_size = 0.15
+    [strategies.arbitrage]
+        [strategies.arbitrage.default]
+            bull = 0.1
+
+# The 'strategy' section specifies the active trading strategy to be used.
+[strategy]
+    [strategy.default]
+        strategy = "marketmaker"
+    [strategy.arbitrage]
+        strategy = "arbitrage"

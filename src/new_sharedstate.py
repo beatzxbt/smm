@@ -1,4 +1,10 @@
 import tomli
+import numpy as np
+from numpy_ringbuffer import RingBuffer
+from collections import deque
+
+from src.exchanges.binance.websockets.handlers.orderbook import OrderBookBinance
+from src.exchanges.bybit.websockets.handlers.orderbook import OrderBookBybit
 
 class NewSharedState:
 
@@ -9,20 +15,43 @@ class NewSharedState:
         ticker_arg,
         feed_arg,
         sizef_arg,
-        size_arg
+        size_arg,
+        algo_arg,
+        conf_arg
     ) -> None:
         self.load_config(
-            #This it the optional key argument for the load config 
             key_arg
         )
         self.load_settings(
-            #This is the optional ticker argument
             ticker_arg,
             feed_arg,
             sizef_arg,
             size_arg,
+            algo_arg,
+            conf_arg
         )
-        print(self.api_key)
+
+        # Initialize non-user-configurable data structures
+
+        # Binance attributes
+        self.binance_trades = RingBuffer(capacity=1000, dtype=(float, 4))
+        self.binance_bba = np.ones((2, 2))  # [Bid[P, Q], Ask[P, Q]]
+        self.binance_book = OrderBookBinance()
+        self.binance_last_price = 0
+
+        # Bybit attributes
+        self.bybit_trades = RingBuffer(capacity=1000, dtype=(float, 4))
+        self.bybit_bba = np.ones((2, 2))  # [Bid[P, Q], Ask[P, Q]]
+        self.bybit_book = OrderBookBybit()
+        self.bybit_mark_price = 0
+        self.bybit_klines = RingBuffer(capacity=500, dtype=(float, 7))
+
+        # Other attributes
+        self.current_orders = {}
+        self.execution_feed = deque(maxlen=100)
+        self.volatility_value = 0
+        self.inventory_delta = 0
+
         None
 
 
@@ -37,7 +66,9 @@ class NewSharedState:
         ticker_arg,
         feed_arg,
         sizef_arg,
-        size_arg
+        size_arg,
+        algo_arg,
+        conf_arg
     ):
 
         with open("config/config.toml", "rb") as f:
@@ -66,8 +97,11 @@ class NewSharedState:
             self.quote_offset = int(self.get_config_value(settings["offsets"], None, "quote_offset"))
             self.size_offset = int(self.get_config_value(settings["offsets"], None, "size_offset"))
             self.volatility_offset = int(self.get_config_value(settings["offsets"], None, "volatility_offset"))
-
-            print(settings["strategies"])
+            #Strategy
+            self.strategy = self.get_config_value(settings["strategy"], algo_arg, "strategy")
+            self.strategy_config = self.get_strat_configuration(settings["strategies"], self.strategy, conf_arg)
+            print(self.strategy)
+            print(self.strategy_config)
 
     
     def get_config_value(self, arr, arg, key):
@@ -84,8 +118,7 @@ class NewSharedState:
         Returns:
             The value corresponding to the specified key in the configuration.
 
-        Raises:
-            ValueError: If the category or key does not exist in the configuration.
+
         """
         if arg is None:
             default_config = arr.get("default")
@@ -99,3 +132,63 @@ class NewSharedState:
                 return specific_config[key]
             else:
                 raise ValueError(f"There is no configuration for '{arg}' or the key does not exist.")
+
+    def get_strat_configuration(self, arr, strat_name, arg):
+        """
+        Get configuration settings for a specific strategy.
+
+        Args:
+            arr (dict): The configuration dictionary.
+            strat_name (str): The name of the strategy.
+            arg (str): The optional argument to select a specific configuration.
+
+        Returns:
+            dict: The configuration settings for the specified strategy and argument.
+        """
+
+        if strat_name in arr:
+            config = arr[strat_name]
+            if config is None:
+                raise ValueError(f"The configuration for '{strat_name}' strategy is None.")
+            if arg is None:
+                default_config = config.get("default")
+                if default_config is None:
+                    raise ValueError(f"The default configuration for '{strat_name}' strategy is None.")
+                return default_config
+            else:
+                specific_config = config.get(arg)
+                if specific_config is None:
+                    raise ValueError(f"The {arg} configuration for '{strat_name}' strategy is None")
+        else:
+            raise ValueError(f"There is no configuration for '{strat_name}' strategy.")
+
+    @property
+    def binance_mid_price(self):
+        return self.calculate_mid_price(self.binance_bba)
+
+
+    @property
+    def binance_weighted_mid_price(self):
+        return self.calculate_weighted_mid_price(self.binance_bba)
+
+
+    @property
+    def bybit_mid_price(self):
+        return self.calculate_mid_price(self.bybit_bba)
+
+
+    @property
+    def bybit_weighted_mid_price(self):
+        return self.calculate_weighted_mid_price(self.bybit_bba)
+
+
+    @staticmethod
+    def calculate_mid_price(bba):
+        best_bid, best_ask = bba[0][0], bba[1][0]
+        return (best_ask + best_bid)/2
+
+
+    @staticmethod
+    def calculate_weighted_mid_price(bba):
+        imb = bba[0][1] / (bba[0][1] + bba[1][1])
+        return bba[1][0] * imb + bba[0][0] * (1 - imb)
