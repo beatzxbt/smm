@@ -94,9 +94,9 @@ class NewSharedState:
             self.bb_length = int(self.get_config_value(settings["volatility"], None, "bollinger_band_length"))
             self.bb_std = int(self.get_config_value(settings["volatility"], None, "bollinger_band_std"))
             #Master offsets
-            self.quote_offset = int(self.get_config_value(settings["offsets"], None, "quote_offset"))
-            self.size_offset = int(self.get_config_value(settings["offsets"], None, "size_offset"))
-            self.volatility_offset = int(self.get_config_value(settings["offsets"], None, "volatility_offset"))
+            self.quote_offset = float(self.get_config_value(settings["offsets"], None, "quote_offset"))
+            self.size_offset = float(self.get_config_value(settings["offsets"], None, "size_offset"))
+            self.volatility_offset = float(self.get_config_value(settings["offsets"], None, "volatility_offset"))
             #Strategy
             self.strategy = self.get_config_value(settings["strategy"], algo_arg, "strategy")
             self.strategy_config = self.get_strat_configuration(settings["strategies"], self.strategy, conf_arg)
