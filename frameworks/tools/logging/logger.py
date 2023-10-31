@@ -20,6 +20,10 @@ class Logger:
     def debug(msg: str) -> None:
         print(f"{now()} | DEBUG | {msg}")
 
+    
+    def warning(msg: str) -> None:
+        print(f"{now()} | WARNING | {msg}")
+
 
     def error(msg: str) -> None:
         print(f"{now()} | ERROR | {msg}")

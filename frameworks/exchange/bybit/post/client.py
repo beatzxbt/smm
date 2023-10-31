@@ -6,8 +6,8 @@ import hmac
 import aiohttp
 import asyncio
 
+from frameworks.tools.logging.logger import Logger
 from frameworks.exchange.bybit.endpoints import BaseEndpoints
-from frameworks.tools.misc import current_datetime as now
 from frameworks.sharedstate.private import PrivateDataSharedState
 
 
@@ -42,6 +42,8 @@ class BybitPrivatePostClient:
         self.bybit = self.pdss.bybit["API"]
         self.base_endpoint = BaseEndpoints.MAINNET1
         self.recvWindow = "5000"
+
+        self.logging = Logger()
     
     
     def _sign(self, payload: str) -> dict:
@@ -93,9 +95,14 @@ class BybitPrivatePostClient:
                 self._update_rate_limit(endpoint, response)
 
                 if response["retMsg"] == "OK" or response["retMsg"] == "success":
+                    latency = int(response["time"]) - int(self.timestamp)
+
+                    if latency >= 1000:
+                        self.logging.warning(f"High latency detected: {latency}ms | Endpoint: {endpoint}")
+
                     ret = {
                         "return" : response["result"],
-                        "latency": int(response["time"]) - int(self.timestamp)
+                        "latency": latency
                     }
 
                     return ret
@@ -108,19 +115,20 @@ class BybitPrivatePostClient:
                         err_response, msg = self.errors.err_codes[code]
     
                         if err_response:
-                            print(f"{now()}: {msg} | Endpoint: {endpoint}, Payload: {payload}")
+                            self.logging.error(f"{msg} | Endpoint: {endpoint}")
                             return None
 
+                        # Retry the request
                         else:
                             raise Exception
                             
                     # Enter other error handling here
                     else:            
-                        print(f"{now()}: {response['retMsg']} | Endpoint: {endpoint}, Payload: {payload}")
+                        self.logging.error(f"{msg} | Endpoint: {endpoint}")
                         return None
 
 
-            except Exception:
+            except Exception as e:
                 # Resign the payload and retry the request after sleeping for 1s
                 if attempt < max_retries - 1:  
                     await asyncio.sleep(attempt)  
@@ -128,5 +136,5 @@ class BybitPrivatePostClient:
                     self.signed_header = self._sign(payload)
 
                 else:
-                    print(f"{now()}: {msg} | Endpoint: {endpoint}, Payload: {payload}")
+                    self.logging.critical(f"Exception: {e} | Endpoint: {endpoint}")
                     return None
