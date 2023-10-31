@@ -2,7 +2,7 @@
 import orjson
 import websockets
 
-from frameworks.tools.misc import current_datetime as now
+from frameworks.tools.logging.logger import Logger
 from frameworks.exchange.bybit.get.public import BybitPublicGet
 from frameworks.exchange.bybit.endpoints import WsStreamLinks
 from frameworks.exchange.bybit.websockets.handlers.kline import BybitKlineHandler
@@ -20,6 +20,8 @@ class BybitMarketStream:
         self.mdss = sharedstate
         self.symbol = symbol
         self.bybit = self.mdss.bybit[self.symbol]
+
+        self.logging = Logger()
 
         self.public_ws = BybitPublicWsInit(self.symbol)
 
@@ -45,13 +47,14 @@ class BybitMarketStream:
         _trades = await BybitPublicGet(self.symbol).trades(1000)
         BybitTradesHandler(self.mdss, self.symbol).initialize(_trades["result"]["list"])
 
+        
 
     async def _stream(self):
-        # Fill market data arrays
         await self._initialize()
+        self.logging.info("Bybit market data initialized...")
 
         async for websocket in websockets.connect(WsStreamLinks.FUTURES_PUBLIC_STREAM):
-            print(f"{now()}: Subscribing to BYBIT {self.ws_topics} feeds...")
+            self.logging.info(f"Subscribed to BYBIT {self.ws_topics} websocket feeds...")
 
             try:
                 await websocket.send(self.ws_req)
@@ -68,11 +71,12 @@ class BybitMarketStream:
                         handler(recv)
 
             except websockets.ConnectionClosed:
+                self.logging.critical(f"Disconnected from BYBIT {self.ws_topics} websocket feeds...reconnecting...")
                 continue
 
             except Exception as e:
-                print(e)
-                raise
+                self.logging.critical(e)
+                raise e
 
 
     async def start_feed(self):

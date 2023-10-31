@@ -2,7 +2,7 @@
 import orjson
 import websockets
 
-from frameworks.tools.misc import current_datetime as now
+from frameworks.tools.logging.logger import Logger
 from frameworks.exchange.binance.get.public import BinancePublicGet
 from frameworks.exchange.binance.websockets.handlers.orderbook import BinanceBBAHandler
 from frameworks.exchange.binance.websockets.handlers.trades import BinanceTradesHandler
@@ -17,6 +17,8 @@ class BinanceMarketStream:
         self.mdss = sharedstate
         self.symbol = symbol
         self.binance = self.mdss.binance[self.symbol]
+
+        self.logging = Logger()
 
         self.ws_url, self.ws_topics = BinancePublicWs().multi_stream_request(
             symbol=self.symbol,
@@ -40,11 +42,11 @@ class BinanceMarketStream:
 
 
     async def _stream(self):
-        # Fill market data arrays
         await self._initialize()
+        self.logging.info("Binance market data initialized...")
 
         async for websocket in websockets.connect(self.ws_url):
-            print(f"{now()}: Subscribing to BINANCE {self.ws_topics} feeds...")
+            self.logging.info(f"Subscribed to BINANCE {self.ws_topics} websocket feeds...")
 
             try:
                 while True:
@@ -57,11 +59,12 @@ class BinanceMarketStream:
                             handler(recv)
 
             except websockets.ConnectionClosed:
+                self.logging.critical(f"Disconnected from BYBIT {self.ws_topics} websocket feeds...reconnecting...")
                 continue
 
             except Exception as e:
-                print(e)
-                raise
+                self.logging.critical(e)
+                raise e
 
 
     async def start_feed(self):

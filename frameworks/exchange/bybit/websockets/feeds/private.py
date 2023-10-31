@@ -3,7 +3,7 @@ import asyncio
 import orjson
 import websockets
 
-from frameworks.tools.misc import current_datetime as now
+from frameworks.tools.logging.logger import Logger
 from frameworks.exchange.bybit.get.private import BybitPrivateGet
 from frameworks.exchange.bybit.endpoints import WsStreamLinks
 from frameworks.exchange.bybit.websockets.handlers.execution import BybitExecutionHandler
@@ -20,6 +20,8 @@ class BybitPrivateStream:
         self.pdss = sharedstate
         self.symbol = symbol
         self.bybit = self.pdss.bybit[symbol]
+
+        self.logging = Logger()
 
         self.private_ws = BybitPrivateWsInit(
             api_key=self.bybit["API"]["key"], 
@@ -65,9 +67,8 @@ class BybitPrivateStream:
 
 
     async def _stream(self) -> None:
-        print(f"{now()}: Subscribing to BYBIT {self.ws_topics} feeds...")
-
         async for websocket in websockets.connect(WsStreamLinks.COMBINED_PRIVATE_STREAM):
+            self.logging.info(f"Subscribed to BYBIT {self.ws_topics} websocket feeds...")
 
             try:
                 await websocket.send(self.private_ws.auth())
@@ -85,11 +86,12 @@ class BybitPrivateStream:
                         handler_cls(recv["data"])
 
             except websockets.ConnectionClosed:
+                self.logging.critical(f"Disconnected from BYBIT {self.ws_topics} websocket feeds...reconnecting...")
                 continue
 
             except Exception as e:
-                print(e)
-                raise
+                self.logging.critical(e)
+                raise e
 
 
     async def start_feed(self) -> None:
