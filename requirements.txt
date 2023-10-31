@@ -9,3 +9,4 @@ orjson==3.9.1
 urllib3==1.26.12
 numpy-ringbuffer==0.2.2
 pybit==5.5.0
+tomli

@@ -1,0 +1,11 @@
+
+symbol: MINAUSDT
+
+# Format: [EntryBPS, ExitBPS, QuoteSize]
+# Remember your fees when chosing levels!
+stink_levels: [
+  [225, 100, 30000], # 125BPS profit
+  [175, 100, 20000], # 75BPS profit
+  [125, 75, 10000], # 50BPS profit
+  [75, 50, 7500] # 25BPS profit
+]

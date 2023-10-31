@@ -1,7 +1,0 @@
-[api_key]
-    [api_key.default]
-        api_key = "twitter.com/@beatzxbt"
-        api_secret = "twitter.com/@beatzxbt"
-    [api_key.arb]
-        api_key = "twitter.com/lev"
-        api_secret = "twitter.com/@beatzxbt"
