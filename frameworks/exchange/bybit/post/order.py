@@ -34,18 +34,18 @@ class BybitOrder:
         return await self.client.submit(self.session, endpoint, payload)
 
 
-    async def order_market(self, order: tuple) -> dict | None:
+    async def order_market(self, order: tuple, tp: float=None) -> dict | None:
         endpoint = self.endpoints.CREATE_ORDER
         str_order = self._order_to_str(order)
-        payload = self.futures.market(str_order)
+        payload = self.futures.market(str_order, tp)
 
         return await self._submit(endpoint, payload)
 
 
-    async def order_limit(self, order: tuple) -> dict | None:
+    async def order_limit(self, order: tuple, tp: float=None) -> dict | None:
         endpoint = self.endpoints.CREATE_ORDER
         str_order = self._order_to_str(order)
-        payload = self.futures.limit(str_order)
+        payload = self.futures.limit(str_order, tp)
 
         return await self._submit(endpoint, payload)
 
@@ -67,10 +67,10 @@ class BybitOrder:
         await self.session.close()
 
 
-    async def amend(self, order: tuple) -> dict | None:
+    async def amend(self, order: tuple, tp: float=None) -> dict | None:
         endpoint = self.endpoints.AMEND_ORDER
         str_order = self._order_to_str(order)
-        payload = self.futures.amend(str_order)
+        payload = self.futures.amend(str_order, tp)
 
         return await self._submit(endpoint, payload)
 

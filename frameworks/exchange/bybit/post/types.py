@@ -23,8 +23,8 @@ class OrderBase:
         }
 
 
-    def create_limit_payload(self, side: str, price: str, qty: str) -> dict:
-        return {
+    def create_limit_payload(self, side: str, price: str, qty: str, tp: str) -> dict:
+        limit = {
             **self._base_payload(),
             "side": side,
             "orderType": "Limit",
@@ -33,14 +33,30 @@ class OrderBase:
             "timeInForce": "PostOnly",
         }
 
+        if tp is not None:
+            limit["takeProfit"] = str(tp)
+            limit["tpslMode"] = "Partial"
+            limit["tpLimitPrice"] = str(tp)
+            limit["tpOrderType"] = "Limit"
 
-    def create_market_payload(self, side: str, qty: str) -> dict:
-        return {
+        return limit
+
+
+    def create_market_payload(self, side: str, qty: str, tp: str) -> dict:
+        market = {
             **self._base_payload(),
             "side": side,
             "orderType": "Market",
             "qty": qty,
         }
+
+        if tp is not None:
+            market["takeProfit"] = str(tp)
+            market["tpslMode"] = "Partial"
+            market["tpLimitPrice"] = str(tp)
+            market["tpOrderType"] = "Limit"
+
+        return market
 
 
     def create_cancel_payload(self, orderId: str) -> dict:
@@ -50,13 +66,19 @@ class OrderBase:
         }
 
 
-    def create_amend_payload(self, orderId: str, price: str, qty: str) -> dict:
-        return {
-            **self._base_payload(), 
-            "orderId": orderId, 
-            "price": price,
-            "qty": qty
-        }
+    def create_amend_payload(self, orderId: str, price: str, qty: str, tp: str) -> dict:
+        amend = {
+                **self._base_payload(), 
+                "orderId": orderId, 
+                "price": price,
+                "qty": qty
+            }
+
+        if tp is not None:
+            amend["takeProfit"] = str(tp)
+            amend["tpLimitPrice"] = str(tp)
+            
+        return amend
 
 
 
@@ -83,16 +105,16 @@ class OrderTypesFutures(OrderBase):
         super().__init__(symbol, OrderCategory.LINEAR)
 
 
-    def limit(self, order):
-        return self.create_limit_payload(order[0], order[1], order[2])
+    def limit(self, order, tp):
+        return self.create_limit_payload(order[0], order[1], order[2], tp)
 
 
-    def market(self, order):
-        return self.create_market_payload(order[0], order[1])
+    def market(self, order, tp):
+        return self.create_market_payload(order[0], order[1], tp)
 
 
-    def amend(self, order):
-        return self.create_amend_payload(order[0], order[1], order[2])
+    def amend(self, order, tp):
+        return self.create_amend_payload(order[0], order[1], order[2], tp)
 
 
     def cancel(self, orderId):
