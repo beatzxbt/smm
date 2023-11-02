@@ -1,27 +1,22 @@
-
 import asyncio
 import numpy as np
 from numpy_ringbuffer import RingBuffer
 import yaml
 
 from frameworks.exchange.binance.websockets.handlers.orderbook import OrderBookBinance
-from frameworks.exchange.binance.websockets.feeds.public import BinanceMarketStream
-
-from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
-from frameworks.exchange.bybit.websockets.feeds.public import BybitMarketStream
-
 
 class MarketDataWebsocketStream:
 
 
     def __init__(self, exchange: str) -> None:
+        from frameworks.exchange.binance.websockets.feeds.public import BinanceMarketStream
         self.exchange = exchange.upper()
 
         self.exchange_stream_map = {
             "BINANCE": BinanceMarketStream()
         }
         
-    def start_
+    #def start_
 
 
 
@@ -29,6 +24,7 @@ class MarketDataSharedState:
 
 
     def __init__(self, config_dir: str, param_dir: str) -> None:
+        from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
         self.binance_symbols = [] # Fix import logic here
         self.bybit_symbols = [] # Fix import logic here
         self.hyperliquid_symbols = [] # Fix import logic here

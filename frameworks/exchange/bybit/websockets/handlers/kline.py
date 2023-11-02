@@ -1,6 +1,5 @@
-
 import numpy as np
-from frameworks.sharedstate.market import MarketDataSharedState
+from .....sharedstate.market import MarketDataSharedState
 
 
 class BybitKlineHandler:
