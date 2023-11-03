@@ -3,39 +3,30 @@ import numpy as np
 from numpy_ringbuffer import RingBuffer
 import yaml
 
-from frameworks.exchange.binance.websockets.handlers.orderbook import OrderBookBinance
-
-class MarketDataWebsocketStream:
-
-
-    def __init__(self, exchange: str) -> None:
-        from frameworks.exchange.binance.websockets.feeds.public import BinanceMarketStream
-        self.exchange = exchange.upper()
-
-        self.exchange_stream_map = {
-            "BINANCE": BinanceMarketStream()
-        }
-        
-    #def start_
-
-
 
 class MarketDataSharedState:
 
 
     def __init__(self, config_dir: str, param_dir: str) -> None:
-        from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
-        self.binance_symbols = [] # Fix import logic here
-        self.bybit_symbols = [] # Fix import logic here
-        self.hyperliquid_symbols = [] # Fix import logic here
+        self.binance_symbols = [] 
+        self.bybit_symbols = [] 
+        self.hyperliquid_symbols = [] 
 
-        self.binance = {f"{symbol}": self._base_data_outline() for symbol in self.binance_symbols}
-        self.binance["book"] = OrderBookBinance()
+        if self.binance_symbols:
+            from frameworks.exchange.binance.websockets.handlers.orderbook import OrderBookBinance
+            self.binance = {f"{symbol}": self._base_data_outline() for symbol in self.binance_symbols}
+            self.binance["book"] = OrderBookBinance()
 
-        self.bybit = {f"{symbol}": self._base_data_outline() for symbol in self.bybit_symbols}
-        self.bybit["book"] = OrderBookBybit()
-
+        if self.bybit_symbols:
+            from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
+            self.bybit = {f"{symbol}": self._base_data_outline() for symbol in self.bybit_symbols}
+            self.bybit["book"] = OrderBookBybit()
+        
+        # if self.hyperliquid_symbols:
+        #     self.hyperliquid = {f"{symbol}": self._base_data_outline() for symbol in self.hyperliquid_symbols}
+        #     self.hyperliquid["book"] = OrderBookHyperliquid() 
     
+
     def _base_data_outline(self):
         """
         Base dict for all exchange market data
@@ -61,3 +52,40 @@ class MarketDataSharedState:
             "tick_size": 0,
             "lot_size": 0
         }
+
+
+
+class MarketDataWebsocketStream:
+    """
+    This class spawns the relevant market data streams on chosen 
+    exchanges
+    """
+
+    def __init__(self, mdss: MarketDataSharedState, symbols: list[str, str]) -> None:
+        self.mdss = mdss
+
+        self.exchanges = [i[0].upper() for i in symbols]
+
+        if "BINANCE" in self.exchanges:
+            from frameworks.exchange.binance.websockets.feeds.public import BinanceMarketStream
+
+        if "BYBIT" in self.exchanges:
+            from frameworks.exchange.bybit.websockets.feeds.public import BybitMarketStream
+
+        
+    async def run(self):
+        tasks = []
+
+        for exchange, symbol in self.symbols:
+
+            if "BINANCE" == exchange:
+                tasks.append(BinanceMarketStream(self.mdss, symbol).start_feed())
+                continue
+
+            if "BYBIT" == exchange:
+                tasks.append(BybitMarketStream(self.mdss, symbol).start_feed())
+                continue
+
+            # if "HYPERLIQUID" == exchange:
+            #     tasks.append(HyperLiquidMarketStream(self.mdss, symbol).start_feed())
+            #     continue
