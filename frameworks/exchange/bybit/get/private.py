@@ -38,3 +38,8 @@ class BybitPrivateGet:
             symbol=self.symbol
         )
         
+
+    async def wallet_info(self) -> list:
+        return self.session.get_wallet_balance(
+            accountType="UNIFIED"
+        )

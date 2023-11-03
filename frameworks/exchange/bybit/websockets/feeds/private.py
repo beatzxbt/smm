@@ -9,6 +9,7 @@ from frameworks.exchange.bybit.endpoints import WsStreamLinks
 from frameworks.exchange.bybit.websockets.handlers.execution import BybitExecutionHandler
 from frameworks.exchange.bybit.websockets.handlers.order import BybitOrderHandler
 from frameworks.exchange.bybit.websockets.handlers.position import BybitPositionHandler
+from frameworks.exchange.bybit.websockets.handlers.wallet import BybitWalletHandler
 from frameworks.exchange.bybit.websockets.private import BybitPrivateWsInit
 from frameworks.sharedstate.private import PrivateDataSharedState
 
@@ -42,7 +43,7 @@ class BybitPrivateStream:
             self.ws_topics[0]: BybitPositionHandler(self.pdss, self.symbol).update,
             self.ws_topics[1]: BybitExecutionHandler(self.pdss, self.symbol).update,
             self.ws_topics[2]: BybitOrderHandler(self.pdss, self.symbol).update,
-            # self.ws_topics[3]: BybitOrderHandler(self.bybit).process, # Add wallet handler here
+            self.ws_topics[3]: BybitWalletHandler(self.pdss, self.symbol).update
         }
 
 
@@ -52,7 +53,7 @@ class BybitPrivateStream:
         """
         while True:
             recv = await self.private_client.open_orders()
-            BybitOrderHandler(self.ss).sync(recv)
+            BybitOrderHandler(self.pdss, self.symbol).sync(recv)
             await asyncio.sleep(15)
 
 
@@ -62,7 +63,17 @@ class BybitPrivateStream:
         """
         while True:
             recv = await self.private_client.current_position()
-            BybitPositionHandler(self.ss).sync(recv)
+            BybitPositionHandler(self.pdss, self.symbol).sync(recv)
+            await asyncio.sleep(15)
+
+
+    async def _wallet_info_sync(self) -> None:
+        """
+        Sync the wallet information every 15s 
+        """
+        while True:
+            recv = await self.private_client.wallet_info()
+            BybitWalletHandler(self.pdss, self.symbol).sync(recv)
             await asyncio.sleep(15)
 
 

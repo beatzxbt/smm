@@ -1,5 +1,4 @@
 
-
 from frameworks.sharedstate.private import PrivateDataSharedState
 
 
@@ -16,7 +15,7 @@ class BybitPositionHandler:
         self.process(recv["result"]["list"][0])
 
 
-    def process(self, data: list) -> None:
+    def update(self, data: list) -> None:
         side = data["side"]
 
         if side:
