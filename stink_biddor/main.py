@@ -30,4 +30,7 @@ async def main(configuration_directory: str, parameter_directory: str):
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    CONFIGURATION_DIR = ""
+    PARAMETERS_DIR = ""
+
+    asyncio.run(main(CONFIGURATION_DIR, PARAMETERS_DIR))
