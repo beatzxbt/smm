@@ -3,7 +3,7 @@ import numpy as np
 
 from frameworks.tools.numba_funcs import nlinspace, nsqrt, nabs, npower
 from smm.strategy.features.momentum import momentum_v1, _tick_candles, _combine_trades_arr
-from smm.strategy.features.mark_spread import log_spread
+from smm.strategy.features.log_spread import log_spread
 from smm.strategy.features.bba_imbalance import bba_imbalance
 
 from frameworks.sharedstate.market import MarketDataSharedState
@@ -14,8 +14,13 @@ class CalculateFeatures:
     Some features are disabled for Bybit-only streams    
     """
 
-    def __init__(self, sharedstate: MarketDataSharedState, symbol: str) -> None:
-        self.mdss = sharedstate
+    def __init__(
+        self, 
+        mdss: MarketDataSharedState, 
+        symbol: str
+    ) -> None:
+
+        self.mdss = mdss
         self.bybit = self.mdss.bybit[symbol]
         self.binance = self.mdss.binance[symbol]
 
