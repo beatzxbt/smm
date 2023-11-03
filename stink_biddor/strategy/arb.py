@@ -29,11 +29,11 @@ class StinkBiddor:
         self.entry_bps, self.exit_bps, self.quote_size = params
 
 
-    def _bid_enter(self) -> float:
+    def _bid_enter(
+        self
+    ) -> float:
         """
-        Bybit midprice - defined offset 
-
-        Returns a correctly rounded value
+        Bybit midprice - defined offset
         """
 
         base_price = self.bybit_mdss["mid_price"]
@@ -44,11 +44,11 @@ class StinkBiddor:
         return round_step_size(entry_price, self.bybit_mdss["tick_size"])
 
 
-    def _ask_enter(self) -> float:
+    def _ask_enter(
+        self
+    ) -> float:
         """
-        Bybit midprice + defined offset 
-
-        Returns a correctly rounded value
+        Bybit midprice + defined offset
         """
 
         base_price = self.bybit_mdss["mid_price"]
@@ -59,11 +59,11 @@ class StinkBiddor:
         return round_step_size(entry_price, self.bybit_mdss["tick_size"])
 
 
-    def _bid_exit(self) -> float:
+    def _bid_exit(
+        self
+    ) -> float:
         """
-        Bybit bid entry + defined offset 
-
-        Returns a correctly rounded value
+        Bybit bid entry + defined offset
         """
 
         base_price = self.bybit_mdss["mid_price"]
@@ -74,11 +74,11 @@ class StinkBiddor:
         return round_step_size(exit_price, self.bybit_mdss["tick_size"])
 
 
-    def _ask_exit(self) -> float:
+    def _ask_exit(
+        self
+    ) -> float:
         """
-        Bybit ask entry + defined offset 
-
-        Returns a correctly rounded value
+        Bybit ask entry + defined offset
         """
 
         base_price = self.bybit_mdss["mid_price"]
@@ -89,7 +89,9 @@ class StinkBiddor:
         return round_step_size(exit_price, self.bybit_mdss["tick_size"])
     
 
-    async def buy(self):
+    async def buy(
+        self
+    ) -> None:
         orderId = None
 
         try: 
@@ -148,7 +150,9 @@ class StinkBiddor:
             return 
 
 
-    async def sell(self):
+    async def sell(
+        self
+    ) -> None:
         orderId = None
 
         try: 
