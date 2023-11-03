@@ -67,9 +67,9 @@ class Strategy:
             tasks = []
 
             # Spawn individual tasks for different levels
-            for params in self.strategy.stink_levels:
-                tasks.append(asyncio.create_task(StinkBiddor(self.mdss, self.pdss, self.symbol, params).buy()))
-                tasks.append(asyncio.create_task(StinkBiddor(self.mdss, self.pdss, self.symbol, params).sell()))
+            for levels in self.strategy.stink_levels:
+                tasks.append(asyncio.create_task(StinkBiddor(self.mdss, self.pdss, self.symbol, levels).buy()))
+                tasks.append(asyncio.create_task(StinkBiddor(self.mdss, self.pdss, self.symbol, levels).sell()))
 
             await asyncio.sleep(self.sleep_timer)
             

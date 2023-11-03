@@ -2,7 +2,6 @@
 import asyncio
 
 from frameworks.tools.rounding import round_step_size
-# from frameworks.tools.numba_funcs import nlinspace, nsqrt, nabs, npower, nround
 from frameworks.tools.logging.logger import Logger
 from frameworks.exchange.bybit.post.order import BybitOrder
 from frameworks.sharedstate.market import MarketDataSharedState
@@ -22,7 +21,8 @@ class StinkBiddor:
 
         self.mdss = mdss
         self.pdss = pdss
-        self.bybit_mdss = self.mdss.bybit[symbol]
+        self.symbol = symbol
+        self.bybit_mdss = self.mdss.bybit[self.symbol]
 
         self.logging = Logger()
 
@@ -98,7 +98,7 @@ class StinkBiddor:
             exit_price = self._bid_exit()
             qty = self.quote_size
             init_order_params = ('Buy', price, qty)
-            init_order = await BybitOrder(self.pdss).order_limit(init_order_params, tp=exit_price)
+            init_order = await BybitOrder(self.pdss, self.symbol).order_limit(init_order_params, tp=exit_price)
             
             # If the initial order fails (cant be handled), raise Execption 
             if init_order is None:
@@ -124,8 +124,8 @@ class StinkBiddor:
                     exit_price = self._bid_exit()
 
                     result = await asyncio.gather(
-                        asyncio.create_task(BybitOrder(self.pdss).order_limit(new_order_params, tp=exit_price)),
-                        asyncio.create_task(BybitOrder(self.pdss).cancel(orderId))
+                        asyncio.create_task(BybitOrder(self.pdss, self.symbol).order_limit(new_order_params, tp=exit_price)),
+                        asyncio.create_task(BybitOrder(self.pdss, self.symbol).cancel(orderId))
                     )
 
                     orderId = result[0]['return']['orderId']
@@ -134,7 +134,7 @@ class StinkBiddor:
         # If task is cancelled, cancel the order and break loop
         except asyncio.CancelledError:
             if orderId is not None:
-                await BybitOrder(self.pdss).cancel(orderId)
+                await BybitOrder(self.pdss, self.symbol).cancel(orderId)
                 
             return 
 
@@ -143,7 +143,7 @@ class StinkBiddor:
             self.logging.error(e)
             
             if orderId is not None:
-                await BybitOrder(self.pdss).cancel(orderId)
+                await BybitOrder(self.pdss, self.symbol).cancel(orderId)
                 
             return 
 
@@ -157,7 +157,7 @@ class StinkBiddor:
             exit_price = self._ask_exit()
             qty = self.quote_size
             init_order_params = ('Sell', price, qty)
-            init_order = await BybitOrder(self.pdss).order_limit(init_order_params, tp=exit_price)
+            init_order = await BybitOrder(self.pdss, self.symbol).order_limit(init_order_params, tp=exit_price)
             
             # If the initial order fails (cant be handled), raise Execption 
             if init_order is None:
@@ -184,8 +184,8 @@ class StinkBiddor:
                     exit_price = self._ask_exit()
 
                     result = await asyncio.gather(
-                        asyncio.create_task(BybitOrder(self.pdss).order_limit(new_order_params, tp=exit_price)),
-                        asyncio.create_task(BybitOrder(self.pdss).cancel(orderId))
+                        asyncio.create_task(BybitOrder(self.pdss, self.symbol).order_limit(new_order_params, tp=exit_price)),
+                        asyncio.create_task(BybitOrder(self.pdss, self.symbol).cancel(orderId))
                     )
 
                     orderId = result[0]['return']['orderId']
@@ -193,7 +193,7 @@ class StinkBiddor:
         # If task is cancelled, cancel the order
         except asyncio.CancelledError:
             if orderId is not None:
-                await BybitOrder(self.pdss).cancel(orderId)
+                await BybitOrder(self.pdss, self.symbol).cancel(orderId)
                 
             return 
 
@@ -202,6 +202,6 @@ class StinkBiddor:
             self.logging.error(e)
 
             if orderId is not None:
-                await BybitOrder(self.pdss).cancel(orderId)
+                await BybitOrder(self.pdss, self.symbol).cancel(orderId)
                 
             return 
