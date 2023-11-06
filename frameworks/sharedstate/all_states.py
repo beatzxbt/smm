@@ -5,8 +5,8 @@ import yaml
 from collections import deque
 from numpy_ringbuffer import RingBuffer
 
-from src.exchanges.binance.websockets.handlers.orderbook import OrderBookBinance
-from src.exchanges.bybit.websockets.handlers.orderbook import OrderBookBybit
+from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
+from frameworks.exchange.binance.websockets.handlers.orderbook import OrderBookBinance
 
 
 class SharedState:

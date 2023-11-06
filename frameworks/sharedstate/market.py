@@ -21,7 +21,7 @@ class MarketDataSharedState:
             from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
             self.bybit = {f"{symbol}": self._base_data_outline() for symbol in self.bybit_symbols}
             self.bybit["book"] = OrderBookBybit()
-        
+
         # if self.hyperliquid_symbols:
         #     self.hyperliquid = {f"{symbol}": self._base_data_outline() for symbol in self.hyperliquid_symbols}
         #     self.hyperliquid["book"] = OrderBookHyperliquid() 
@@ -63,27 +63,21 @@ class MarketDataWebsocketStream:
 
     def __init__(self, mdss: MarketDataSharedState, symbols: list[str, str]) -> None:
         self.mdss = mdss
-
-        self.exchanges = [i[0].upper() for i in symbols]
-
-        if "BINANCE" in self.exchanges:
-            from frameworks.exchange.binance.websockets.feeds.public import BinanceMarketStream
-
-        if "BYBIT" in self.exchanges:
-            from frameworks.exchange.bybit.websockets.feeds.public import BybitMarketStream
-
-        
+        self.symbols = symbols
+    
     async def run(self):
         tasks = []
 
         for exchange, symbol in self.symbols:
 
             if "BINANCE" == exchange:
-                tasks.append(BinanceMarketStream(self.mdss, symbol).start_feed())
+                from frameworks.exchange.binance.websockets.feeds.public import BinanceMarketStream
+                tasks.append(await BinanceMarketStream(self.mdss, symbol).start_feed())
                 continue
 
             if "BYBIT" == exchange:
-                tasks.append(BybitMarketStream(self.mdss, symbol).start_feed())
+                from frameworks.exchange.bybit.websockets.feeds.public import BybitMarketStream
+                tasks.append(await BybitMarketStream(self.mdss, symbol).start_feed())
                 continue
 
             # if "HYPERLIQUID" == exchange:
