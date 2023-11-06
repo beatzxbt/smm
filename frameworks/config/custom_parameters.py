@@ -4,10 +4,10 @@ import asyncio
 class CustomParameters:
 
     def __init__(self, param_dir: str) -> None:
-        self.param_dir = param_dir
-        if not len(self.param_dir):
+        if not len(param_dir):
             raise AttributeError("Missing parameter file path!")
 
+        self.param_dir = param_dir
         self.load_initial_settings()
 
     def load_settings(self, settings):
