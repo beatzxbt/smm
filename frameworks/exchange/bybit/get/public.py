@@ -35,3 +35,8 @@ class BybitPublicGet:
             limit=str(limit)
         )
         
+    async def instrumentInfo(self) -> list:
+        return self.session.get_instruments_info(
+            category=self.category,
+            symbol=self.symbol
+        )

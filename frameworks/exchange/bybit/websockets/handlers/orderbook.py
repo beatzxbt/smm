@@ -6,7 +6,6 @@ from frameworks.sharedstate.market import MarketDataSharedState
 
 class OrderBookBybit(BaseOrderBook):
 
-
     def initialize(self, asks, bids):
         self.asks = np.array(asks, float)
         self.bids = np.array(bids, float)
@@ -18,15 +17,13 @@ class OrderBookBybit(BaseOrderBook):
         bids = np.array(recv["data"]["b"], dtype=float)
 
         if recv["type"] == "snapshot":
-            self.process_snapshot(asks, bids)
+            self.initialize(asks, bids)
 
         elif recv["type"] == "delta":
             self.asks = self.update_book(self.asks, asks)
             self.bids = self.update_book(self.bids, bids)
 
             self.sort_book()
-
-
 
 class BybitBBAHandler:
 
@@ -38,7 +35,6 @@ class BybitBBAHandler:
     def update(self, recv):
         best_bid = recv["data"]["b"]
         best_ask = recv["data"]["a"]
-
         if len(best_bid) != 0:
             price = float(best_bid[0][0])
             qty = float(best_bid[0][1])

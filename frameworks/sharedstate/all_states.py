@@ -5,8 +5,10 @@ import yaml
 from collections import deque
 from numpy_ringbuffer import RingBuffer
 
-from src.exchanges.binance.websockets.handlers.orderbook import OrderBookBinance
-from src.exchanges.bybit.websockets.handlers.orderbook import OrderBookBybit
+from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
+from frameworks.exchange.binance.websockets.handlers.orderbook import OrderBookBinance
+
+from frameworks.tools.mids import calculate_mid_price, calculate_weighted_mid_price
 
 
 class SharedState:
@@ -92,31 +94,19 @@ class SharedState:
 
     @property
     def binance_mid_price(self):
-        return self.calculate_mid_price(self.binance_bba)
+        return calculate_mid_price(self.binance_bba)
 
 
     @property
     def binance_weighted_mid_price(self):
-        return self.calculate_weighted_mid_price(self.binance_bba)
+        return calculate_weighted_mid_price(self.binance_bba)
 
 
     @property
     def bybit_mid_price(self):
-        return self.calculate_mid_price(self.bybit_bba)
+        return calculate_mid_price(self.bybit_bba)
 
 
     @property
     def bybit_weighted_mid_price(self):
-        return self.calculate_weighted_mid_price(self.bybit_bba)
-
-
-    @staticmethod
-    def calculate_mid_price(bba):
-        best_bid, best_ask = bba[0][0], bba[1][0]
-        return (best_ask + best_bid)/2
-
-
-    @staticmethod
-    def calculate_weighted_mid_price(bba):
-        imb = bba[0][1] / (bba[0][1] + bba[1][1])
-        return bba[1][0] * imb + bba[0][0] * (1 - imb)
+        return calculate_weighted_mid_price(self.bybit_bba)
