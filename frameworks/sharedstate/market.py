@@ -1,33 +1,27 @@
-import asyncio
 import numpy as np
 from numpy_ringbuffer import RingBuffer
-import yaml
-
 
 class MarketDataSharedState:
 
-
-    def __init__(self, config_dir: str, param_dir: str) -> None:
+    def __init__(self, params) -> None:
         self.binance_symbols = [] 
         self.bybit_symbols = [] 
         self.hyperliquid_symbols = [] 
 
         if self.binance_symbols:
             from frameworks.exchange.binance.websockets.handlers.orderbook import OrderBookBinance
-            self.binance = {f"{symbol}": self._base_data_outline() for symbol in self.binance_symbols}
-            self.binance["book"] = OrderBookBinance()
+            self.binance = {f"{symbol}": self._base_data_outline(OrderBookBinance()) for symbol in self.binance_symbols}
 
         if self.bybit_symbols:
             from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
-            self.bybit = {f"{symbol}": self._base_data_outline() for symbol in self.bybit_symbols}
-            self.bybit["book"] = OrderBookBybit()
+            self.bybit = {f"{symbol}": self._base_data_outline(OrderBookBybit()) for symbol in self.bybit_symbols}
 
         # if self.hyperliquid_symbols:
         #     self.hyperliquid = {f"{symbol}": self._base_data_outline() for symbol in self.hyperliquid_symbols}
         #     self.hyperliquid["book"] = OrderBookHyperliquid() 
     
 
-    def _base_data_outline(self):
+    def _base_data_outline(self, orderbook):
         """
         Base dict for all exchange market data
 
@@ -39,7 +33,7 @@ class MarketDataSharedState:
             "klines": RingBuffer(capacity=1000, dtype=(float, 7)),
             "bba": np.ones((2, 2)), # [Bid[P, Q], Ask[P, Q]]
             "liquidations": RingBuffer(capacity=1000, dtype=(float, 5)),
-            "book": None, 
+            "book": orderbook, 
 
             "mark_price": 0,
             "index_price": 0,

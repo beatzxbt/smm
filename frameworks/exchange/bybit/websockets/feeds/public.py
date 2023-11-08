@@ -32,7 +32,7 @@ class BybitMarketStream:
 
         # Dictionary to map topics to their respective handlers
         self.topic_handler_map = {
-            self.ws_topics[0]: self.mdss.bybit["book"].update,
+            self.ws_topics[0]: self.mdss.bybit[self.symbol]["book"].update,
             self.ws_topics[1]: BybitBBAHandler(self.mdss, self.symbol).update,
             self.ws_topics[2]: BybitTradesHandler(self.mdss, self.symbol).update,
             self.ws_topics[3]: BybitTickerHandler(self.mdss, self.symbol).update,

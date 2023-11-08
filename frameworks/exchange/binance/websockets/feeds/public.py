@@ -27,7 +27,7 @@ class BinanceMarketStream:
 
         # Dictionary to map topics to their respective handlers
         self.stream_handler_map = {
-            self.ws_topics[0]: self.binance["book"].update,
+            self.ws_topics[0]: self.binance[self.symbol]["book"].update,
             self.ws_topics[1]: BinanceBBAHandler(self.mdss).update,
             self.ws_topics[2]: BinanceTradesHandler(self.mdss).update,
         }
