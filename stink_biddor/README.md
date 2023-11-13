@@ -1,17 +1,17 @@
-Stink Biddor 
+## Stink Biddor 
 ===================
 
 This is a *simpler and dumber* take on a market making algorithm. 
 
 
-Getting Started
+## Getting Started
 ---------------
 
 1. Make sure you have read the primary README.md in the main folder and followed its instructions (API info, sharedstate folders etc)
 2. Open /smm/stink_biddor/settings.py to access your strategy specific settings, and add your exchange, symbol & price/size levels (explanation below)
 
 
-Strategy Design/Overview
+## Strategy Design/Overview
 ---------------
 
 We assume that mid-price is the fair price for our chosen asset, and we want to capture fills around this price. However, rather than being competitive 
@@ -25,32 +25,38 @@ orders. Don't get greedy and place the take profit at <20BPS, you might not get 
 losing out on fees & potential profits. As distance from mid increases, our mean reversion effect grows stronger and such, we bet more size. Do keep an eye on your
 total exposure on one size, as it should *never* be higher than 50% maintainance margin of exposure on the account. 
 
-**TLDR**
--> Quoting very wide around mid-price 
--> Place orders xBPS away from the mid, and a take profit a few BPS in profit (long/short)
--> Keep close eye on maintainance margin, never exceeding 50%
--> Avoid more than 4 levels per side to account for rate limits
+This strategy is known to, and certainly will end up with a lot of left tail PnL. It's impossible to prevent this, as not all fills will mean revert & you'll be 
+left with bad inventory. The goal of the position checker at the end of each cycle is precisely to exit postitions if this mean reversion doesn't occur, to prevent
+liquidation-like losses in a tail event. However, in the long run, you get paid handsomely for the 'smaller' positions and *should* make more than your tail losses
+as time goes on. Make sure to adjust your levels whenever needed, markets change and so should your interpretation of how asymetric trades behave.
+
+# TLDR
+- Quoting very wide around mid-price 
+- Place orders xBPS away from the mid, and a take profit a few BPS in profit (long/short)
+- Keep close eye on maintainance margin, never exceeding 50%
+- Avoid more than 4 levels per side to account for rate limits
   
 
-New upgrades
+## New upgrades
 ---------------
 
 - None so far
 
 
-Current known bugs
+## Current known bugs
 ---------------
 
 - High latency (>1000ms) will result in repeated 'no order found' errors
   -> Increase order refresh time from 1s -> 2x your latency to fix
 
 
-Improvements/Additions Required
+## Improvements/Additions Required
 ---------------
 
 - Improving quote design to run position checker for fill per order, not the set of orders as a whole
   
 
+# Contact
 ---------------
 
 If you have any questions or suggestions regarding the strategy, or just want to have a chat, my handles are below 👇🏼
