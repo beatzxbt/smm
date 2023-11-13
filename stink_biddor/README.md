@@ -1,5 +1,5 @@
-## Stink Biddor 
-===================
+# Stink Biddor 
+---------------
 
 This is a *simpler and dumber* take on a market making algorithm. 
 
@@ -30,7 +30,7 @@ left with bad inventory. The goal of the position checker at the end of each cyc
 liquidation-like losses in a tail event. However, in the long run, you get paid handsomely for the 'smaller' positions and *should* make more than your tail losses
 as time goes on. Make sure to adjust your levels whenever needed, markets change and so should your interpretation of how asymetric trades behave.
 
-# TLDR
+## TLDR
 - Quoting very wide around mid-price 
 - Place orders xBPS away from the mid, and a take profit a few BPS in profit (long/short)
 - Keep close eye on maintainance margin, never exceeding 50%
@@ -56,7 +56,7 @@ as time goes on. Make sure to adjust your levels whenever needed, markets change
 - Improving quote design to run position checker for fill per order, not the set of orders as a whole
   
 
-# Contact
+## Contact
 ---------------
 
 If you have any questions or suggestions regarding the strategy, or just want to have a chat, my handles are below 👇🏼
