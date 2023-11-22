@@ -8,10 +8,11 @@ from collections import deque
 class PrivateDataSharedState:
 
 
-    def __init__(self, config_dir: str, param_dir: str) -> None:
-        self.binance_symbols = []       # these will only be imported if populated in config
-        self.bybit_symbols = []         # if statement to check if symbols exist, then create dicts
-        self.hyperliquid_symbols = []   # clutters code but easier integration of exchanges into SS
+    def __init__(self, params) -> None:
+        self.binance_symbols, self.bybit_symbols, self.hyperliquid_symbols = [], [], []
+
+        for exchange, ticker in params.symbols:
+                    getattr(self, f"{exchange.lower()}_symbols").append(ticker)
 
         self.binance = {
             "API": self._base_api_outline(),

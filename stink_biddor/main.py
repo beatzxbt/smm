@@ -7,10 +7,10 @@ from frameworks.sharedstate.private import PrivateDataSharedState
 
 
 async def main(configuration_directory: str, parameter_directory: str):
-    mdss = MarketDataSharedState(configuration_directory, parameter_directory)
-    pdss = PrivateDataSharedState(configuration_directory, parameter_directory)
     params = StrategyParameters(parameter_directory)
-
+    mdss = MarketDataSharedState(params)
+    pdss = PrivateDataSharedState(params)
+    
     # rememeber the data feeds being ran from sharedstate still needs to be
     # implemented. Modify any behaviour if it turns the mdss class a bit funny 
     # this also means that refreshing parameters will be managed within the class

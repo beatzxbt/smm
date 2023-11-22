@@ -4,22 +4,24 @@ from numpy_ringbuffer import RingBuffer
 class MarketDataSharedState:
 
     def __init__(self, params) -> None:
-        self.binance_symbols = [] 
-        self.bybit_symbols = [] 
-        self.hyperliquid_symbols = [] 
+        self.binance_symbols, self.bybit_symbols, self.hyperliquid_symbols = [], [], []
 
-        if self.binance_symbols:
-            from frameworks.exchange.binance.websockets.handlers.orderbook import OrderBookBinance
-            self.binance = {f"{symbol}": self._base_data_outline(OrderBookBinance()) for symbol in self.binance_symbols}
+        exchange_handlers = {
+            "BINANCE": "frameworks.exchange.binance.websockets.handlers.orderbook.OrderBookBinance",
+            "BYBIT": "frameworks.exchange.bybit.websockets.handlers.orderbook.OrderBookBybit",
+            "HYPERLIQUID": "frameworks.exchange.hyperliquid.websockets.handlers.orderbook.OrderBookHiperliquid",
+        }
 
-        if self.bybit_symbols:
-            from frameworks.exchange.bybit.websockets.handlers.orderbook import OrderBookBybit
-            self.bybit = {f"{symbol}": self._base_data_outline(OrderBookBybit()) for symbol in self.bybit_symbols}
+        for exchange, ticker in params.symbols:
+            getattr(self, f"{exchange.lower()}_symbols").append(ticker)
 
-        # if self.hyperliquid_symbols:
-        #     self.hyperliquid = {f"{symbol}": self._base_data_outline() for symbol in self.hyperliquid_symbols}
-        #     self.hyperliquid["book"] = OrderBookHyperliquid() 
-    
+        self.binance = self._create_exchange_dict(exchange_handlers["BINANCE"], self.binance_symbols)
+        self.bybit = self._create_exchange_dict(exchange_handlers["BYBIT"], self.bybit_symbols)
+        self.hyperliquid = self._create_exchange_dict(exchange_handlers["HYPERLIQUID"], self.hyperliquid_symbols)  
+
+    def _create_exchange_dict(self, handler_path, symbols):
+            handler_class = self._dynamic_import(handler_path)
+            return {symbol: self._base_data_outline(handler_class()) for symbol in symbols}
 
     def _base_data_outline(self, orderbook):
         """
@@ -46,6 +48,12 @@ class MarketDataSharedState:
             "tick_size": 0,
             "lot_size": 0
         }
+    
+    @staticmethod
+    def _dynamic_import(class_path):
+        module_path, class_name = class_path.rsplit('.', 1)
+        module = __import__(module_path, fromlist=[class_name])
+        return getattr(module, class_name)
 
 
 
