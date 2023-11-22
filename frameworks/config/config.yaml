@@ -1,0 +1,13 @@
+
+bybit:
+  api_key: "twitter.com/beatzxbt"
+  api_secret: "twitter.com/beatzxbt"
+
+binance: 
+  api_key: "twitter.com/levbeta"
+  api_secret: "twitter.com/levbeta"
+
+hyperliquid: 
+  api_key: "twitter.com/levbeta"
+  api_secret: "twitter.com/levbeta"
+    
