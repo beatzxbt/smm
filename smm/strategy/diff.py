@@ -1,18 +1,25 @@
 
 import asyncio
-from src.utils.jit_funcs import nabs
-from src.exchanges.bybit.post.order import Order
-from src.sharedstate import SharedState
+from frameworks.tools.numba_funcs import nabs
+from frameworks.exchange.bybit.post.order import BybitOrder
+from frameworks.sharedstate.private import PrivateDataSharedState
 
 
 class Diff:
 
 
-    def __init__(self, sharedstate: SharedState) -> None:
-        self.ss = sharedstate
+    def __init__(
+        self, 
+        pdss: PrivateDataSharedState
+    ) -> None:
+
+        self.pdss = pdss
 
 
-    def segregate_current_orders(self, orders: dict) -> tuple[list, list]:
+    def segregate_current_orders(
+        self, 
+        orders: dict
+        ) -> tuple[list, list]:
         """
         Segregate orders based on their side and sort them by price.
         """
@@ -76,22 +83,9 @@ class Diff:
         return buys, sells
 
 
-    def new_close_to_bba(self, new_orders) -> tuple[list, list]:
-        buys, sells = self.segregate_new_orders(new_orders)
-        return buys[:2], sells[:2]
-
-
-    def new_far_from_bba(self, new_orders, close_bids, close_asks) -> tuple[list, list]:
-        close_to_bba = close_bids + close_asks
-        far_from_bba = [order for order in new_orders 
-                        if order not in close_to_bba]
-
-        return self.segregate_new_orders(far_from_bba)
-
-
     async def amend_orders(self, current_orders, new_orders):
         tasks = [
-            asyncio.create_task(Order(self.ss).amend((current[0], new[1], new[2])))
+            asyncio.create_task(BybitOrder(self.ss).amend((current[0], new[1], new[2])))
             for current, new in zip(current_orders, new_orders)
             if current[1][1] != new[1]
         ]

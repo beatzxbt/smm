@@ -1,6 +1,7 @@
 
 import numpy as np
 
+from frameworks.tools.logging.logger import Logger
 from frameworks.tools.rounding import round_step_size
 from frameworks.tools.numba_funcs import nlinspace, nsqrt, nabs, npower, nround
 from frameworks.sharedstate.market import MarketDataSharedState
@@ -8,6 +9,7 @@ from frameworks.sharedstate.private import PrivateDataSharedState
 
 from smm.settings import StrategyParameters
 from smm.strategy.features.generate import CalculateFeatures
+from smm.strategy.inventory import CalculateInventory
 
 
 class BasicQuoteGenerator:
@@ -24,6 +26,8 @@ class BasicQuoteGenerator:
         self.pdss = pdss
         self.strategy = strategy_params
 
+        self.logging = Logger()
+
         # Ensure that all essential parameters for strategy as present
         self._verify_configuration(self.strategy)
         
@@ -32,7 +36,6 @@ class BasicQuoteGenerator:
         self, 
         strategy_params: dict
     ) -> None | Exception:
-
         """
         Verify the presence of essential parameters in the strategy configuration.
 
@@ -52,7 +55,8 @@ class BasicQuoteGenerator:
             not_exists = strategy_params.get(param) is None
 
             if not_exists:
-                raise ValueError(f"The parameter '{param}' doesn't exist in the configuration file.")
+                self.logging.critical(f"The parameter '{param}' doesn't exist in the configuration file")
+                raise ValueError
 
 
     def _skew(
@@ -67,22 +71,19 @@ class BasicQuoteGenerator:
         """
 
         skew = CalculateFeatures(self.mdss, "recheck this area").generate_skew()
+        inventory = CalculateInventory(self.pdss).position_delta() 
 
         # Calculate skew using conditional vectorization
         bid_skew = np.where(skew >= 0, np.clip(skew, 0, 1), 0)
         ask_skew = np.where(skew < 0, np.clip(skew, -1, 0), 0)
 
         # Neutralize inventory using conditional assignment
-        bid_skew[self.ss.inventory_delta < 0] += self.ss.inventory_delta
-        ask_skew[self.ss.inventory_delta > 0] -= self.ss.inventory_delta
-
-        # Handle extreme inventory cases using conditional assignment
-        bid_skew[self.ss.inventory_delta < -self.ss.inventory_extreme] = 1
-        ask_skew[self.ss.inventory_delta > self.ss.inventory_extreme] = 1
+        bid_skew[inventory < 0] += inventory
+        ask_skew[inventory > 0] -= inventory
 
         # Final skews
-        bid_skew = nabs(float(bid_skew))
-        ask_skew = nabs(float(ask_skew))
+        bid_skew = nround(nabs(float(bid_skew)), 2)
+        ask_skew = nround(nabs(float(ask_skew)), 2)
 
         return bid_skew, ask_skew
 

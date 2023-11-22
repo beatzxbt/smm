@@ -1,30 +1,31 @@
 
+from frameworks.tools.logging.logger import Logger
+from frameworks.sharedstate.private import PrivateDataSharedState
 
-class Inventory:
+
+class CalculateInventory:
     
 
-    def __init__(self, sharedstate) -> None:
-        self.ss = sharedstate
+    def __init__(
+        self, 
+        pdss: PrivateDataSharedState
+    ) -> None:
+
+        self.pdss = pdss
+        self.logging = Logger()
 
 
-    def position_delta(self, side: str, value: float, leverage: int) -> None:
+    def position_delta(
+        self
+    ) -> None:
         """
         Calculates the current position delta relative to account size
         """
         
-        try:
-            if side:
-                acc_max = (self.ss.account_size * leverage) / 2.05
+        balance = self.pdss.bybit["API"]["account_balance"]
+        leverage = self.pdss.bybit["Data"][symbol]["leverage"]
+        size = self.pdss.bybit["Data"][symbol]["position_size"]
 
-                if side == 'Buy':
-                    self.ss.inventory_delta = value / acc_max
+        account_max = (balance * leverage) / 2.05
 
-                elif side == 'Sell':
-                    self.ss.inventory_delta = -value / acc_max
-
-        except Exception as e:
-            print(e)
-            print(side, value, leverage)
-
-
-
+        return (size/account_max) if size > 0 else -(size/account_max)

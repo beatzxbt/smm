@@ -1,7 +1,6 @@
 
 import asyncio
 
-from frameworks.tools.misc import current_datetime as now
 from frameworks.tools.logging.logger import Logger
 from smm.strategy.quote_generators.basic import BasicQuoteGenerator
 from smm.settings import StrategyParameters
@@ -9,14 +8,6 @@ from smm.strategy.diff import Diff
 
 from frameworks.sharedstate.market import MarketDataSharedState
 from frameworks.sharedstate.private import PrivateDataSharedState
-
-
-class DataFeeds:
-
-
-    def __init__(self) -> None:
-        pass
-        
 
 
 class MarketMaker:
@@ -45,6 +36,7 @@ class MarketMaker:
             # Pause for 10ms to let websockets to process data
             await asyncio.sleep(0.01 * 100) # 1s override for now
             
+            # Add a switch here to let user swap between strategies (in realtime)
             new_orders = BasicQuoteGenerator(
                 mdss=self.mdss,
                 pdss=self.pdss,
