@@ -4,12 +4,12 @@ from numpy_ringbuffer import RingBuffer
 class MarketDataSharedState:
 
     def __init__(self, params) -> None:
-        self.binance_symbols, self.bybit_symbols, self.hyperliquid_symbols = [], [], []
+        self.binance_symbols, self.bybit_symbols, self.hyperlyquid_symbols = [], [], []
 
         exchange_handlers = {
             "BINANCE": "frameworks.exchange.binance.websockets.handlers.orderbook.OrderBookBinance",
             "BYBIT": "frameworks.exchange.bybit.websockets.handlers.orderbook.OrderBookBybit",
-            "HYPERLIQUID": "frameworks.exchange.hyperliquid.websockets.handlers.orderbook.OrderBookHiperliquid",
+            "HYPERLIQUID": "frameworks.exchange.hyperliquid.websockets.handlers.orderbook.OrderBookHyperLiquid",
         }
 
         for exchange, ticker in params.symbols:
@@ -17,7 +17,7 @@ class MarketDataSharedState:
 
         self.binance = self._create_exchange_dict(exchange_handlers["BINANCE"], self.binance_symbols)
         self.bybit = self._create_exchange_dict(exchange_handlers["BYBIT"], self.bybit_symbols)
-        self.hyperliquid = self._create_exchange_dict(exchange_handlers["HYPERLIQUID"], self.hyperliquid_symbols)  
+        self.hyperliquid = self._create_exchange_dict(exchange_handlers["HYPERLIQUID"], self.hyperluquid_symbols)  
 
     def _create_exchange_dict(self, handler_path, symbols):
             handler_class = self._dynamic_import(handler_path)
