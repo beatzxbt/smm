@@ -1,5 +1,6 @@
 import yaml
 import asyncio
+from typing import Dict
 
 class CustomParameters:
 
@@ -8,23 +9,20 @@ class CustomParameters:
             raise ValueError("Missing parameter file path!")
 
         self.param_dir = param_dir
-        self.symbol = None  # Initialize symbol attribute
-        self.load_initial_settings()
+        self._load_initial_parameters_()
 
-    def load_settings(self, settings):
+    def load_parameters(self, parameters):
+        """Process raw parameters dict from .yaml file and map to sharedstate"""
         raise NotImplementedError("Derived classes should implement this method")
 
-    def load_initial_settings(self):
+    def _load_initial_parameters_(self) -> Dict:
+        """Load parameters from .yaml file and process them"""
         with open(self.param_dir, "r") as f:
-            settings = yaml.safe_load(f)
-            self.load_settings(settings)
-            self.parse_symbol()
+            parameters = yaml.safe_load(f)
+            self.load_parameters(parameters)
 
-    async def refresh_settings(self):
+    async def refresh_parameters(self) -> Dict:
+        """Refresh parameters every 60s"""
         while True:
             await asyncio.sleep(60)
-            self.load_initial_settings()
-
-    def parse_symbol(self, default="BYBIT"):
-        if hasattr(self, 'symbol'):
-            self.symbols = list([[default, self.symbol]])
+            self._load_initial_parameters_()
