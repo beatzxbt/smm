@@ -6,7 +6,7 @@ import hmac
 import aiohttp
 import asyncio
 
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from frameworks.exchange.binance.endpoints import BaseEndpoints
 from frameworks.sharedstate.private import PrivateDataSharedState
 
@@ -39,8 +39,7 @@ class BinancePrivatePostClient:
 
 
     def __init__(self, sharedstate: PrivateDataSharedState) -> None:
-        self.pdss = sharedstate
-        self.binance = self.pdss.binance["API"]
+        self.binance = sharedstate.binance["API"]
         self.base_endpoint = BaseEndpoints.MAINNET1
         self.recvWindow = "5000"
 

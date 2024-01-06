@@ -2,7 +2,7 @@
 import orjson
 import websockets
 
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from frameworks.exchange.bybit.get.public import BybitPublicGet
 from frameworks.exchange.bybit.endpoints import WsStreamLinks
 from frameworks.exchange.bybit.websockets.handlers.kline import BybitKlineHandler

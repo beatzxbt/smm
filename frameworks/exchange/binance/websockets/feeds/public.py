@@ -2,7 +2,7 @@
 import orjson
 import websockets
 
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from frameworks.exchange.binance.get.public import BinancePublicGet
 from frameworks.exchange.binance.websockets.handlers.orderbook import BinanceBBAHandler
 from frameworks.exchange.binance.websockets.handlers.trades import BinanceTradesHandler
@@ -27,7 +27,7 @@ class BinanceMarketStream:
 
         # Dictionary to map topics to their respective handlers
         self.stream_handler_map = {
-            self.ws_topics[0]: self.binance[self.symbol]["book"].update,
+            self.ws_topics[0]: self.binance["book"].update,
             self.ws_topics[1]: BinanceBBAHandler(self.mdss).update,
             self.ws_topics[2]: BinanceTradesHandler(self.mdss).update,
         }

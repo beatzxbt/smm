@@ -1,11 +1,10 @@
 
 import asyncio
-import numpy as np
 
 from frameworks.exchange.bybit.post.order import BybitOrder
 from frameworks.tools.numba_funcs import nabs
 from frameworks.tools.rounding import round_step_size
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from frameworks.sharedstate.market import MarketDataSharedState
 from frameworks.sharedstate.private import PrivateDataSharedState
 

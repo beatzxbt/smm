@@ -60,9 +60,7 @@ class SimpleQuoteGenerator:
                 raise ValueError(f"The parameter '{param}' doesn't exist in the configuration file.")
 
 
-    def _skew(
-        self
-    ) -> tuple[float, float]:
+    def _skew_(self) -> tuple[float, float]:
         """
         Calculate the set of features and return process its values to produce a bid & ask
         skew value corrected for current inventory

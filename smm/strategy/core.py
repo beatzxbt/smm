@@ -1,7 +1,7 @@
 
 import asyncio
 
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from smm.strategy.quote_generators.basic import BasicQuoteGenerator
 from smm.settings import StrategyParameters
 from smm.strategy.diff import Diff

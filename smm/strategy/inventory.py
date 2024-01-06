@@ -1,5 +1,5 @@
 
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from frameworks.sharedstate.private import PrivateDataSharedState
 
 

@@ -6,7 +6,7 @@ import hmac
 import aiohttp
 import asyncio
 
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from frameworks.exchange.bybit.endpoints import BaseEndpoints
 from frameworks.sharedstate.private import PrivateDataSharedState
 

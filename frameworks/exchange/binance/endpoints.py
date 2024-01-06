@@ -15,8 +15,8 @@ class WsStreamLinks:
 
 @dataclass
 class PrivatePostLinks:
-    CREATE_ORDER = "/fapi/v1/order"
-    AMEND_ORDER = "/fapi/v1/order"
-    CANCEL_SINGLE = "/fapi/v1/order"
-    CANCEL_ALL = "/fapi/v1/allOpenOrders"
+    CREATE = "/fapi/v1/order" # POST
+    AMEND = "/fapi/v1/order" # PUT
+    CANCEL = "/fapi/v1/order" # DELETE
+    CANCEL_ALL = "/fapi/v1/allOpenOrders" # DELETE
     

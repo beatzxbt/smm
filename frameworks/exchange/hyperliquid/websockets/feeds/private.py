@@ -3,7 +3,7 @@ import asyncio
 import orjson
 import websockets
 
-from frameworks.tools.logging.logger import Logger
+from frameworks.tools.logger import Logger
 from frameworks.exchange.hyperliquid.get.private import HyperLiquidPrivateGet
 from frameworks.exchange.hyperliquid.endpoints import WsStreamLinks
 from frameworks.exchange.hyperliquid.websockets.handlers.execution import HyperLiquidExecutionHandler
