@@ -2,11 +2,13 @@ aiohttp==3.8.3
 numba==0.56.4
 numpy==1.23.3
 pandas==1.5.0
-PyYAML==6.0
-python-binance==1.0.16
 websockets==10.3
-orjson==3.9.1
 urllib3==1.26.12
-numpy-ringbuffer==0.2.2
+
+python-binance==1.0.16
 pybit==5.5.0
+
+PyYAML==6.0
 tomli
+orjson==3.9.1
+numpy-ringbuffer==0.2.2
