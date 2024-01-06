@@ -1,13 +1,15 @@
-
+import numpy as np
+import numba as nb
 from decimal import Decimal
 
-
-def round_step_size(quantity: float, step_size: float) -> float:
+def round_step_size(num: float, step: float) -> float:
     """
     Originally from binance.helpers.round_step_size
-    
-    Rounds a float to a given step size
     """
+    num = Decimal(str(num))
+    return float(num - num % Decimal(str(step)))
 
-    quantity = Decimal(str(quantity))
-    return float(quantity - quantity % Decimal(str(step_size)))
+@nb.njit(nb.float64(nb.float64, nb.float64))
+def round_step_size_fast(num: float, step: float) -> float:
+    p = int(1/step)
+    return np.floor(num*p)/p
