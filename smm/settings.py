@@ -1,23 +1,15 @@
+from frameworks.config.custom_parameters import CustomParameters
+from frameworks.sharedstate import SharedState
+from typing import Dict
 
-import asyncio
-import yaml
+class SmmParameters(CustomParameters):
 
-
-class StrategyParameters:
-
-    PARAMETER_FILE_DIRECTORY = ""
-
-    def __init__(self, param_dir: str) -> None:
-        self.param_dir = param_dir
+    def __init__(self, ss: SharedState, param_dir: str) -> None:
+        self.ss = ss
+        super().__init__(param_dir)
         
-        if not len(self.param_dir):
-            raise AttributeError("Missing parameter file path!")
-
-        self.load_initial_settings()
-
-
-    def load_settings(self, settings):
-        self.symbols = list(settings["symbols"])
+    def load_parameters(self, settings: Dict):
+        self.pairs = list(settings["symbols"])
 
         self.bollinger_band_length = int(settings["bollinger_band_length"])
         self.bollinger_band_std = int(settings["bollinger_band_std"])
@@ -31,18 +23,4 @@ class StrategyParameters:
         self.min_order_size = float(settings["min_order_size"])
         self.max_order_size = float(settings["max_order_size"])
         self.max_inventory_delta = float(settings["max_inventory_delta"])
-
-
-    def load_initial_settings(self):
-        with open(self.param_dir, "r") as f:
-            settings = yaml.safe_load(f)
-            self.load_settings(settings)
-
-
-    async def refresh_settings(self):
-        while True:
-            await asyncio.sleep(60)
-            with open(self.param_dir, "r") as f:
-                settings = yaml.safe_load(f)
-                self.load_settings(settings)
     

@@ -5,7 +5,7 @@ import hmac
 import aiohttp
 import asyncio
 from typing import Dict, List, Tuple, Optional, Union, _T
-from frameworks.sharedstate.sharedstate import SharedState
+from frameworks.sharedstate import SharedState
 from frameworks.exchange.base.rest.ratelimits import RateLimitManager
 
 

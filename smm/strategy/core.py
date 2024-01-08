@@ -1,52 +1,43 @@
-
 import asyncio
-
-from frameworks.tools.logger import Logger
+from frameworks.sharedstate import SharedState
+from smm.strategy.quote_generators.simple import SimpleQuoteGenerator
 from smm.strategy.quote_generators.basic import BasicQuoteGenerator
-from smm.settings import StrategyParameters
+from smm.settings import SmmParameters
 from smm.strategy.diff import Diff
-
-from frameworks.sharedstate.market import MarketDataSharedState
-from frameworks.sharedstate.private import PrivateDataSharedState
 
 
 class MarketMaker:
 
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        self.params  = SmmParameters()
+        self.logger = self.ss.logging
 
-    def __init__(
-        self, 
-        mdss: MarketDataSharedState, 
-        pdss: PrivateDataSharedState
-    ) -> None:
+        self.quote_generator = None
 
-        self.mdss = mdss
-        self.pdss = pdss
-        self.params  = StrategyParameters()
-        self.logger = Logger()
+    def _strategy_selector_(self) -> None:
+        if self.quote_generator is None:
+            if self.params["quote_generator"] == "simple":
+                self.quote_generator = SimpleQuoteGenerator(self.ss, self.params["simple"])
 
-
-    async def logic(self):
-        # Small delay to allow data arrays to initialize
+    async def _loop_(self):
         self.logger.info("Warming up data feeds...")
         await asyncio.sleep(5)
 
-        self.logger.info("Starting strategy...")
+        self.logger.info(f"Starting {self.params['quote_generator']} strategy...")
         
         while True:
-            # Pause for 10ms to let websockets to process data
-            await asyncio.sleep(0.01 * 100) # 1s override for now
+            await asyncio.sleep(0.01 * 100)
             
             # Add a switch here to let user swap between strategies (in realtime)
-            new_orders = BasicQuoteGenerator(
-                mdss=self.mdss,
-                pdss=self.pdss,
-                strategy_params=StrategyParameters()
-            )
+            new_orders = self.quote_generator(self.ss, self.params)
             
-            # Diff function will manage new order placements, if any
             await Diff(self.ss).diff(new_orders)
 
 
     async def run(self):
-        await self.logic()
+        await asyncio.gather(
+            await self.params.refresh_parameters(),
+            await self._loop_()
+        )
     
