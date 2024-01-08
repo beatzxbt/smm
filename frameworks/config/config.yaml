@@ -1,13 +1,21 @@
 
 bybit:
-  api_key: "twitter.com/beatzxbt"
-  api_secret: "twitter.com/beatzxbt"
+  key: "twitter.com/beatzxbt"
+  secret: "twitter.com/beatzxbt"
 
 binance: 
-  api_key: "twitter.com/levbeta"
-  api_secret: "twitter.com/levbeta"
+  key: "twitter.com/beatzxbt"
+  secret: "twitter.com/beatzxbt"
 
-hyperliquid: 
-  api_key: "twitter.com/levbeta"
-  api_secret: "twitter.com/levbeta"
+okx: 
+  key: "twitter.com/beatzxbt"
+  secret: "twitter.com/beatzxbt"
+
+kucoin: 
+  key: "twitter.com/beatzxbt"
+  secret: "twitter.com/beatzxbt"
+
+hyperliquid: # key = address, secret = private key
+  key: "twitter.com/beatzxbt"
+  secret: "twitter.com/beatzxbt"
     
