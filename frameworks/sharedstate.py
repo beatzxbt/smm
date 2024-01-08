@@ -33,9 +33,9 @@ class SharedState:
         self.clients = {}
 
         for pair in pairs:
+            self._initialize_client_pair_(pair)
             self._initialize_market_pair_(pair)
             self._initialize_private_pair_(pair)
-            self._initialize_client_pair_(pair)
     
     def _initialize_market_pair_(self, pair: Tuple[str, str]) -> Dict:
         exchange, symbol = self._pair_to_lower_(pair)
@@ -68,18 +68,18 @@ class SharedState:
                 "API": {
                     "key": None,
                     "secret": None,
-                    "rate_limits": {}, # TODO: Populated by OMS
-                    "taker_fees": None, # TODO: Initialized by OMS
-                    "maker_fees": None, # TODO: Initialized by OMS
+                    "rateLimits": {}, # TODO: Populated by OMS
+                    "takerFees": None, # TODO: Initialized by OMS
+                    "makerFees": None, # TODO: Initialized by OMS
                 }
             }
         
         self.private[exchange][symbol] = {
-            "open_orders": {},
+            "openOrders": {},
             "executions": RingBuffer(1000, dtype=(float, 10)),
 
             "currentPosition": None,
-            "currentUPNL": None,
+            "currentUPnl": None,
             "currentBalance": None,
             "leverage": None
         }
@@ -91,15 +91,19 @@ class SharedState:
         if exchange in self.clients:
             return None
 
-        if exchange in ["binance", "bybit", "hyperliquid"]:
-            # TODO: Initialize custom client here
-            # TODO: Use dependency injection within the brrrclient main script
-            order_client = getattr("brrrclient_rest", exchange)
-            ws_client = getattr("brrrclient_ws", exchange)
+        try:
+            if exchange in ["binance", "bybit", "hyperliquid"]:
+                # TODO: Initialize custom exchange, using dependency injection within the client
+                order_client = getattr("brrrclient_rest", exchange)
+                ws_client = getattr("brrrclient_ws", exchange)
 
-        else:
-            order_client = getattr(ccxt, exchange)
-            ws_client = getattr(ccxtpro, exchange)
+            else:
+                order_client = getattr(ccxt, exchange)
+                ws_client = getattr(ccxtpro, exchange)  
+
+        except Exception as e:
+            self.logging.critical(f"Error initializing {exchange}: {e}")
+            raise e
 
         self.clients[exchange] = {
             "order_client": order_client,
