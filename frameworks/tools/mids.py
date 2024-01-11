@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit, float64, int64, bool_
 from numpy.typing import NDArray
 
-@njit(float64[:](int64, bool_), cache=True)
+@njit(cache=True)
 def exponential_weights(window: int, reverse: bool=True) -> NDArray:
     alpha = 2 / float(window + 1)
     weights = np.empty(window, dtype=float64)
