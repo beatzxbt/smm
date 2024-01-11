@@ -1,31 +1,13 @@
 
-from frameworks.tools.logger import Logger
-from frameworks.sharedstate.private import PrivateDataSharedState
-
-
-class CalculateInventory:
+class InventoryTools:
     
+    def __init__(self, max_position: float):
+        self.max_position = max_position
 
-    def __init__(
-        self, 
-        pdss: PrivateDataSharedState
-    ) -> None:
+    def position_to_delta(self, position: float) -> float:
+        """Converts a position to the account's delta"""
+        return position/self.max_position
 
-        self.pdss = pdss
-        self.logging = Logger()
-
-
-    def position_delta(
-        self
-    ) -> None:
-        """
-        Calculates the current position delta relative to account size
-        """
-        
-        balance = self.pdss.bybit["API"]["account_balance"]
-        leverage = self.pdss.bybit["Data"][symbol]["leverage"]
-        size = self.pdss.bybit["Data"][symbol]["position_size"]
-
-        account_max = (balance * leverage) / 2.05
-
-        return (size/account_max) if size > 0 else -(size/account_max)
+    def delta_to_position(self, delta) -> float:
+        """Converts a delta to a position"""
+        return delta * self.max_position
