@@ -16,7 +16,7 @@ custom_clients = [
 
 class SharedState:
 
-    def __init__(self, pairs: List[Tuple[str, str]]) -> None:
+    def __init__(self) -> None:
         """
         Initialize the sharedstate class, to feed into all other classes
 
@@ -31,12 +31,26 @@ class SharedState:
         self.market = {}
         self.private = {}
         self.clients = {}
+    
+    def load_markets(self, pairs: List[Tuple[str, str]]) -> None:
+        """
+        Initialize a correct client, market & private dict in the general 
+        sharedstate dicts, to be accessible anywhere within the system.
 
+        Parameters
+        ----------
+        pairs : List[Tuple]
+            Contains pairs of (exchange, symbol)
+
+        Returns
+        -------
+        None
+        """
         for pair in pairs:
             self._initialize_client_pair_(pair)
             self._initialize_market_pair_(pair)
             self._initialize_private_pair_(pair)
-    
+
     def _initialize_market_pair_(self, pair: Tuple[str, str]) -> Dict:
         exchange, symbol = self._pair_to_lower_(pair)
 
