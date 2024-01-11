@@ -1,13 +1,13 @@
-from frameworks.config.custom_parameters import CustomParameters
-from frameworks.sharedstate import SharedState
 from typing import Dict
+from frameworks.config.custom_parameters import CustomParameters
+
 
 class SmmParameters(CustomParameters):
 
-    def __init__(self, ss: SharedState, param_dir: str) -> None:
-        self.ss = ss
+    def __init__(self, param_dir: str) -> None:
         super().__init__(param_dir)
-        
+    
+    
     def load_parameters(self, settings: Dict):
         self.pairs = list(settings["symbols"])
 
