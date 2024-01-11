@@ -1,10 +1,7 @@
-import pandas as pd
-from time import time
+from time import time_ns, strftime
 
-
-def now() -> pd.Timestamp:
-    return pd.to_datetime(time(), unit="s")
-
+def now() -> str:
+    return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:05d}"
 
 class Logger:
     def __init__(self) -> None:
