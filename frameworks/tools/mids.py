@@ -29,8 +29,8 @@ def vamp(asks: NDArray, bids: NDArray, depth: int) -> float:
 
 @njit(cache=True)
 def vamp_weighted(asks: NDArray, bids: NDArray, depth: int) -> float:
-    weights = exponential_weights(depth)
-    fair_prices = np.empty(depth, dtype=np.float64)
+    weights = exponential_weights(depth) # TODO: Cache this if possible
+    fair_prices = np.empty(depth, dtype=float64)
     bids_cum_qty_sum = np.cumsum(bids[:depth, 1])
     asks_cum_qty_sum = np.cumsum(asks[:depth, 1])
 
