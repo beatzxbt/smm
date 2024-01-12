@@ -1,6 +1,6 @@
 
 import numpy as np
-from frameworks.exchange.common.localorderbook import BaseOrderBook
+from frameworks.exchange.common.orderbook import BaseOrderBook
 from frameworks.sharedstate.market import MarketDataSharedState
 
 
