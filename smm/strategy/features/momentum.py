@@ -1,26 +1,10 @@
-
 import numpy as np
 from numba import njit
-from smm.indicators.ema import ema
-
-
-@njit
-def ema_weights(window: int) -> np.ndarray:
-    """
-    Calculate EMA-like weights of given window size.
-    """
-
-    alpha = 2 / float(window + 1)
-    weights = np.empty(window, dtype=float)
-
-    for i in range(window):
-        weights[i] = alpha * (1 - alpha) ** i
-
-    return weights[::-1]
-
+from numpy.typing import NDArray
+from numpy_ringbuffer import RingBuffer
 
 @njit
-def _tick_candles(trades: np.ndarray, bucket_size: int) -> np.ndarray:
+def _tick_candles(trades: NDArray, bucket_size: int) -> NDArray:
     n_candles = int(trades.shape[0]/bucket_size)
     tick_candles = np.empty((n_candles, 7), dtype=float)
 
@@ -40,14 +24,14 @@ def _tick_candles(trades: np.ndarray, bucket_size: int) -> np.ndarray:
     return tick_candles
 
 
-def _combine_trades_arr(arr1: np.ndarray, arr2: np.ndarray) -> np.ndarray:
+def _combine_trades_arr(arr1: NDArray, arr2: NDArray) -> NDArray:
     combined = np.concatenate((arr1, arr2))
     sorted_trades = combined[combined[:, 0].argsort()]
     return sorted_trades[arr1.shape[0]:]
 
 
 @njit
-def momentum_v1(candles: np.ndarray, lengths: np.ndarray) -> float:
+def momentum_v1(candles: NDArray, lengths: NDArray) -> float:
     """
     Make sure lengths are fed in from longest to shortest
     """
@@ -74,13 +58,13 @@ def momentum_v1(candles: np.ndarray, lengths: np.ndarray) -> float:
 
 
 @njit
-def momentum_v2(candles: np.ndarray, lengths: np.ndarray) -> float:
+def momentum_v2(candles: NDArray, lengths: NDArray) -> float:
     """
     Determines current strength of momentum, normalized output
 
     Args:
-        candles (np.ndarray): Array of [T, O, H, L, C, V, Turnover]
-        lengths (np.ndarray): Array of EMA lengths (Longest => Shortest)
+        candles (NDArray): Array of [T, O, H, L, C, V, Turnover]
+        lengths (NDArray): Array of EMA lengths (Longest => Shortest)
     
     Returns:
         float: A normalized value for current momentum
