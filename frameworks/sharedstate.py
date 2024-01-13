@@ -1,12 +1,11 @@
-import numpy as np
-import ccxt
 import ccxt.async_support as ccxt
 import ccxt.pro as ccxtpro
+import numpy as np
 from numpy_ringbuffer import RingBuffer
+from frameworks.tools.logger import Logger
+from frameworks.tools.orderbook import Orderbook
 from numpy.typing import NDArray
 from typing import Tuple, List, Dict
-from frameworks.tools.logger import Logger
-from frameworks.tools.common.orderbook import Orderbook
 
 custom_clients = [
     "binance", 
@@ -39,7 +38,7 @@ class SharedState:
 
         Parameters
         ----------
-        pairs : List[Tuple]
+        pairs : List[Tuples]
             Contains pairs of (exchange, symbol)
 
         Returns
@@ -58,6 +57,7 @@ class SharedState:
             self.market[exchange] = {}
         
         self.market[exchange][symbol] = {
+            "bba": np.ones((2, 2), dtype=float),
             "book": Orderbook(),
             "trades": RingBuffer(10000, dtype=(float, 4)),
             "ohlcv": RingBuffer(1000, dtype=(float, 6)),
@@ -82,7 +82,7 @@ class SharedState:
                 "API": {
                     "key": None,
                     "secret": None,
-                    "rateLimits": {}, # TODO: Populated by OMS
+                    "rateLimits": {}, # TODO: Populated by client directly
                     "takerFees": None, # TODO: Initialized by OMS
                     "makerFees": None, # TODO: Initialized by OMS
                 }
