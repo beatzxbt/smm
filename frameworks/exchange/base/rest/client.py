@@ -3,7 +3,6 @@ import aiohttp
 import orjson
 from time import time_ns
 from typing import Dict, Union
-from frameworks.sharedstate import SharedState
 from frameworks.exchange.base.rest.ratelimits import RateLimitManager
 
 
