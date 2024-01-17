@@ -1,4 +1,3 @@
-
 import numpy as np
 
 from frameworks.tools.rounding import round_step_size

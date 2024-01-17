@@ -11,7 +11,7 @@ async def main():
         params = SmmParameters(parameters_directory)
 
         ss = SharedState()
-        ss.load_markets(params.markets)
+        ss.load_markets(params.pairs)
 
         await asyncio.gather(
             asyncio.to_thread(params.refresh_parameters()),
