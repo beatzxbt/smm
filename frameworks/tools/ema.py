@@ -1,16 +1,12 @@
-
 import numpy as np
-from numba import njit
-
+from numba import njit, float64
+from numpy.typing import NDArray
 
 @njit(nogil=True)
-def ema(arr_in: np.ndarray, window: int) -> np.ndarray:
-    """
-    Hyper-fast EMA implementation
-    """
-    
+def ema(arr_in: NDArray, window: int) -> NDArray:
+    """Hyper-fast EMA implementation"""
     n = arr_in.size
-    ewma = np.empty(n, dtype=float)
+    ewma = np.empty(n, dtype=float64)
     alpha = 2 / float(window + 1)
     w = 1
     ewma_old = arr_in[0]
