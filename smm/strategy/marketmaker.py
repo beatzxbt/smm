@@ -32,7 +32,7 @@ class MarketMaker:
         
         while True:
             await asyncio.sleep(0.01 * 100)
-            new_orders = self.quote_generator(self.ss, self.params)
+            new_orders = self.quote_generator.generate_quotes()
             await self.oms.update(new_orders)
 
     async def run(self):
