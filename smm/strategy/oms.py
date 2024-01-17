@@ -1,5 +1,8 @@
+import asyncio
+import numpy as np
 from frameworks.sharedstate import SharedState
-from typing import List, Tuple
+from smm.strategy.inventory import InventoryTools
+from typing import Dict, List, Tuple, Union, Coroutine
 
 
 class OrderManagementSystem:
@@ -7,9 +10,13 @@ class OrderManagementSystem:
     Written to spec: [https://twitter.com/BeatzXBT/status/1731757053113147524]
     """
 
-    def __init__(self, ss: SharedState) -> None:
-        self.client = None # Point to client from sharedstate
-        self.inventory = None # InventoryTools class to convert delta into qty 
+    def __init__(self, ss: SharedState, pair: Tuple[str, str]) -> None:
+        self.ss = ss
+        self.exchange, self.symbol = pair
+        self.logging = self.ss.logging
+
+        self.client = self._client_()
+        self.it = InventoryTools() # TODO: Add the max position somehow here
         
         self.current_bba = None
         self.current_outer = None
@@ -19,24 +26,37 @@ class OrderManagementSystem:
         self.rate_limits = None
         self._update_local_rate_limits_()
 
-    @property
-    def __current_inventory_delta__(self) -> float:
-        """Pointer to inventory delta in PDSS"""
-        pass
+    def _client_(self):
+        """Reference the correct exchange client in sharedstate"""
+        return self.ss.clients[self.exchange]["order_client"]
     
-    @staticmethod
-    def __total_rate_limits_remaining__(self) -> Tuple[int, int]:
+    @property
+    def __market__(self) -> Dict:
+        return self.ss.market[self.exchange][self.symbol]
+
+    @property
+    def __private__(self) -> Dict:
+        return self.ss.private[self.exchange][self.symbol]
+
+    @property
+    def __api__(self) -> Dict:
+        return self.ss.private[self.exchange]["API"]
+
+    @property
+    def __current_delta__(self) -> float:
+        """Calculate current inventory delta"""
+        return self.it.position_to_delta(self.__private__["currentPosition"])
+    
+    @property
+    def __current_latency__(self) -> float:
+        return np.mean(self.__api__["latency"]._unwrap())
+
+    def _total_rate_limits_remaining_(self) -> Tuple[int, int]:
         """Total (replaces, amends) remaining"""
         return (
             min(self.rate_limits["create"], self.rate_limits["cancel"]),
             self.rate_limits["amend"]
         )
-
-    @staticmethod
-    def __is_latency_high__(self) -> bool:
-        """True if latency > 1000ms, False otherwise"""
-        pointer_to_latency_in_pdss = None
-        return pointer_to_latency_in_pdss > 1000
 
     def _split_current_orders_(self) -> Tuple[List, List]:
         """
@@ -73,7 +93,6 @@ class OrderManagementSystem:
                 "cancel_all": None
             }
 
-    
     def _generate_buffer_bounds_(self, value, benchmark, sensitivity) -> Tuple[float, float]:
         """Produces lower and upper bounds relative to distance from benchmark"""
         diff = benchmark/value if benchmark > value else value/benchmark
@@ -119,16 +138,18 @@ class OrderManagementSystem:
     async def prioritiser(self, target_delta: float) -> None:
         """The main processing func of orders""" 
 
-        delta_diff = target_delta - self.__current_inventory_delta__
+        delta_diff = target_delta - self.__current_delta__
         
         # --- High latency check --- #
     
-        if self.__is_latency_high__:
+        if self.__current_latency__ > 1000: # NOTE: Currently set to >1000ms
+            self.logging.warning(f"High latency detected ({self.__current_latency__}ms), cancelling...")
             await self.client.order_cancel_all()
 
-            if self.__current_inventory_delta__ != 0:
-                side = 0 if self.__current_inventory_delta__ > 0 else 1
-                qty = None # self.inventory._qty_from_delta_(self.__current_inventory_delta__)
+            if self.__current_delta__ != 0:
+                side = 0 if self.__current_delta__ > 0 else 1
+                qty = self.it.delta_to_position(self.__current_delta__)
+                self.logging.info(f"Neutralizing inventory of {'+' if side == 0 else '-'}{qty}...")
                 await self.client.order_market((side, qty))
 
             return None
@@ -177,3 +198,4 @@ class OrderManagementSystem:
         self.new_bba = new_orders[0]
         self.new_outer = new_orders[1]
         self.prioritiser(target_delta)
+        
