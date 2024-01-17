@@ -83,6 +83,7 @@ class SharedState:
                     "key": None,
                     "secret": None,
                     "rateLimits": {}, # TODO: Populated by client directly
+                    "latency": RingBuffer(100, dtype=float), # TODO: Populated by client directly
                     "takerFees": None, # TODO: Initialized by OMS
                     "makerFees": None, # TODO: Initialized by OMS
                 }
