@@ -1,25 +1,30 @@
-
 import asyncio
-from stink_biddor.strategy.core import Strategy
-from stink_biddor.settings import StrategyParameters
-from frameworks.sharedstate.market import MarketDataSharedState
-from frameworks.sharedstate.private import PrivateDataSharedState
+from frameworks.sharedstate import SharedState
+from stink_biddor.strategy.stinkbiddor import StinkBiddor
+from stink_biddor.settings import StinkBiddorParameters
+from frameworks.tools.logger import Logger, now
 
 
-async def main(configuration_directory: str, parameter_directory: str):
-    params = StrategyParameters(parameter_directory)
-    mdss = MarketDataSharedState(params)
-    pdss = PrivateDataSharedState(params)
-    
-    # rememeber the data feeds being ran from sharedstate still needs to be
-    # implemented. Modify any behaviour if it turns the mdss class a bit funny 
-    # this also means that refreshing parameters will be managed within the class
-    # and not outsourced into the strategy/main file, cluttering it 
-    await Strategy(mdss, pdss, params).run()
+async def main():
+    try:
+        parameters_directory = ""
+        params = StinkBiddorParameters(parameters_directory)
 
+        ss = SharedState()
+        ss.load_markets(params.pair)
 
+        await asyncio.gather(
+            asyncio.to_thread(params.refresh_parameters()),
+            asyncio.to_thread(StinkBiddor(ss, params).run())
+        )
+
+    except Exception as e:
+        Logger.critical(f"High level exception occurred, shutting down...")
+        # TODO: Implement shut down routine without sharedstate use
+        raise e
+
+    finally:
+        print(f"It's {now()}, goodnight...")
+        
 if __name__ == "__main__":
-    CONFIGURATION_DIR = ""
-    PARAMETERS_DIR = ""
-
-    asyncio.run(main(CONFIGURATION_DIR, PARAMETERS_DIR))
+    asyncio.run(main())
