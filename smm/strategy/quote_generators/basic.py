@@ -1,69 +1,97 @@
-
 import numpy as np
+from typing import Tuple, Dict, Union
 
-from frameworks.tools.logger import Logger
-from frameworks.tools.rounding import round_step_size
-from frameworks.tools.numba_funcs import nlinspace, nsqrt, nabs, npower, nround
-from frameworks.sharedstate.market import MarketDataSharedState
-from frameworks.sharedstate.private import PrivateDataSharedState
+from frameworks.tools.numba_funcs import nblinspace, nbround
+from frameworks.sharedstate import SharedState
+from smm.settings import SmmParameters
 
-from smm.settings import StrategyParameters
-from smm.strategy.features.generate import CalculateFeatures
-from smm.strategy.inventory import CalculateInventory
+from frameworks.tools.mids import mid, wmid, vamp, weighted_vamp
 
-from typing import Tuple, List
+
+class Features:
+    """
+    Configure your features here!
+    """
+
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+
+        self.settings = {
+            "momentum_tick_bucket_size": 10,
+            "momentum_ema_lengths": np.array([200, 100, 50, 25, 10]),
+        }
+
+        self.weights = {
+            "wmid": 0.25,
+            "vamp": 0.25,
+            "wvamp": 0.25,
+            "momentum": 0.25
+        }
+
+        self.cache = {
+            "tick_candles": None
+        }
+
+        self.skew = 0
+        
+    def _wmid_(self, bba) -> float:
+        return wmid(bba)
+
+    def _vamp_(self, orderbook) -> float:
+        return vamp(orderbook.asks, orderbook.bids)
+
+    def _wvamp_(self, orderbook) -> float:
+        return weighted_vamp(orderbook.asks, orderbook.bids)
+    
+    def _momentum_(self) -> float:
+        return 
+
+    def update(self):
+        self.skew = 0
+        self.skew += self._wmid_() * self.weights["wmid"]
+        self.skew += self._vamp_() * self.weights["vamp"]
+        self.skew += self._wvamp_() * self.weights["wvamp"]
+        self.skew += self._momentum_() * self.weights["momentum"]
 
 
 class BasicQuoteGenerator:
 
+    def __init__(self, ss: SharedState, params: SmmParameters) -> None:
+        self.ss = ss
+        self.params = params
+        self.logging = self.ss.logging
 
-    def __init__(
-        self, 
-        mdss: MarketDataSharedState, 
-        pdss: PrivateDataSharedState,
-        strategy_params: StrategyParameters
-    ) -> None:
+        self.features = Features(self.ss)
 
-        self.mdss = mdss
-        self.pdss = pdss
-        self.strategy = strategy_params
-
-        self.logging = Logger()
-
-        # Ensure that all essential parameters for strategy as present
-        self._verify_configuration(self.strategy)
+        self._verify_params_(self.params)
         
-
-    def _verify_configuration(
-        self, 
-        strategy_params: dict
-    ) -> None | Exception:
+    def _verify_params_(self: Dict) -> Union[bool, Exception]:
         """
-        Verify the presence of essential parameters in the strategy configuration.
+        Verify the presence of essential parameters in the strategy params for 
+        this strategy, and throw an exception if incorrect/missing.
 
-        This function is an essential part of the strategy framework, ensuring that
-        required configuration parameters are available for each strategy.
+        Parameters
+        ----------
+        self : @self
+            Uses self.params as the parameters dictionary
 
-        Args:
-            strategy_params (StrategyParameters): The instance containing strategy configuration
-
-        Returns: 
-            None if config is verified, otherwise raises Exception
+        Returns
+        -------
+        bool:
+            True if verified, False otherwise
         """
 
-        params = ["minimum_spread", "min_order_size", "max_order_size"]
+        required_params = ["min_spread", "min_order_size", "max_order_size"]
 
-        for param in params:
-            not_exists = strategy_params.get(param) is None
+        for rp in required_params:
+            not_exists = self.params.get(rp) is None
 
             if not_exists:
-                self.logging.critical(f"The parameter '{param}' doesn't exist in the configuration file")
+                self.logging.critical(f"The parameter '{rp}' doesn't exist in the configuration file")
                 raise ValueError
 
 
-    def _skew(
-        self
-    ) -> Tuple[float, float]:
+    def _skew_(self) -> Tuple[float, float]:
         """
         Calculate the set of features and return process its values to produce a bid & ask
         skew value corrected for current inventory
@@ -71,9 +99,6 @@ class BasicQuoteGenerator:
         Returns: 
             tuple[float, float]
         """
-
-        skew = CalculateFeatures(self.mdss, "recheck this area").generate_skew()
-        inventory = CalculateInventory(self.pdss).position_delta() 
 
         # Calculate skew using conditional vectorization
         bid_skew = np.where(skew >= 0, np.clip(skew, 0, 1), 0)
