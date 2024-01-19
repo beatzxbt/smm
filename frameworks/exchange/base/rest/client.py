@@ -1,53 +1,47 @@
 import asyncio
 import aiohttp
 import orjson
-from time import time_ns
 from typing import Dict, Union
-from frameworks.exchange.base.rest.ratelimits import RateLimitManager
+from frameworks.tools.logger import ms as time_ms
 
 
 class Client:
-
-    def __init__(self, rl: RateLimitManager) -> None:
-        self.rl = rl
-        self.logging = self.ss.logging
+    def __init__(self) -> None:
         self.session = aiohttp.ClientSession()
         self.recvWindow = "5000"
-        self.timestamp = str(time_ns()//1_000_000)
+        self.timestamp = str(time_ms())
 
         self.MAX_RETRIES = 3
 
-    def _update_timestamp_(self) -> str:
-        self.timestamp = str(time_ns()//1_000_000)
+    def update_timestamp(self) -> str:
+        self.timestamp = str(time_ms())
+        return None
 
     def _sign_(self, payload: str) -> Dict:
-        raise NotImplementedError("Must be implimented in parent class")
+        raise NotImplementedError("Must be implimented in inherited class!")
 
-    def _error_handler_(self, response: Dict) -> Union[dict, None]:
-        raise NotImplementedError("Must be implimented in parent class")
+    def _error_handler_(self, response: Dict) -> Union[Dict, None]:
+        raise NotImplementedError("Must be implimented in inherited class!")
 
-    async def post(self, endpoint: str, header: str, payload: Dict):
-        payload_to_str = orjson.dumps(payload)
-        
-        for attempt in range(1, self.MAX_RETRIES+1):
+    async def send(self, method: str, endpoint: str, header: str, payload: Dict):
+        str_payload = orjson.dumps(payload)
+        signed_payload = self._sign_(str_payload)
+
+        for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 request = await self.session.request(
-                    method="POST", 
-                    endpoint=endpoint, 
-                    headers=header, 
-                    data=payload_to_str
+                    method=method,
+                    endpoint=endpoint,
+                    headers=header,
+                    data=signed_payload,
                 )
 
-                response = orjson.loads(await request.text())
-                self.rl.update(endpoint, response)
+                return orjson.loads(await request.text())
 
             except Exception as e:
-                # Resign the payload and retry the request after sleeping for 1s
-                if attempt < self.MAX_RETRIES:  
-                    await asyncio.sleep(attempt)  
-                    self.signed_header = self._sign_(payload)
+                if attempt < self.MAX_RETRIES:
+                    await asyncio.sleep(attempt)
+                    signed_payload = self._sign_(str_payload)
 
                 else:
                     raise e
-
-        
