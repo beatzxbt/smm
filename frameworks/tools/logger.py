@@ -3,6 +3,9 @@ from time import time_ns, strftime
 def now() -> str:
     return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:05d}"
 
+def ms() -> int:
+    return time_ns()//1_000_000
+
 class Logger:
     def __init__(self) -> None:
         pass
