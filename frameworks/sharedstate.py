@@ -4,13 +4,14 @@ import numpy as np
 from numpy_ringbuffer import RingBuffer
 from frameworks.tools.logger import Logger
 from frameworks.tools.orderbook import Orderbook
-from numpy.typing import NDArray
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Coroutine
 
 custom_clients = [
     "binance", 
     "bybit", 
-    "hyperliquid"
+    "hyperliquid",
+    # "okx",
+    # "kucoin"
 ]
 
 class SharedState:
@@ -31,7 +32,7 @@ class SharedState:
         self.private = {}
         self.clients = {}
     
-    def load_markets(self, pairs: List[Tuple[str, str]]) -> None:
+    async def load_markets(self, pairs: List[Tuple[str, str]]) -> None:
         """
         Initialize a correct client, market & private dict in the general 
         sharedstate dicts, to be accessible anywhere within the system.
@@ -46,11 +47,12 @@ class SharedState:
         None
         """
         for pair in pairs:
-            self._initialize_client_pair_(pair)
-            self._initialize_market_pair_(pair)
-            self._initialize_private_pair_(pair)
-
-    def _initialize_market_pair_(self, pair: Tuple[str, str]) -> Dict:
+            self._create_client_pair_(pair)
+            self._create_market_pair_(pair)
+            self._create_private_pair_(pair)
+            await self._initialize_(pair)
+        
+    def _create_market_pair_(self, pair: Tuple[str, str]) -> Dict:
         exchange, symbol = self._pair_to_lower_(pair)
 
         if exchange not in self.market:
@@ -74,7 +76,7 @@ class SharedState:
             "lotSize": None
         }
 
-    def _initialize_private_pair_(self, pair: Tuple[str, str]) -> Dict:
+    def _create_private_pair_(self, pair: Tuple[str, str]) -> Dict:
         exchange, symbol = self._pair_to_lower_(pair)
 
         if exchange not in self.private:
@@ -82,10 +84,10 @@ class SharedState:
                 "API": {
                     "key": None,
                     "secret": None,
-                    "rateLimits": {}, # TODO: Populated by client directly
-                    "latency": RingBuffer(100, dtype=float), # TODO: Populated by client directly
-                    "takerFees": None, # TODO: Initialized by OMS
-                    "makerFees": None, # TODO: Initialized by OMS
+                    "rateLimits": {}, # TODO: Populated by client
+                    "latency": RingBuffer(100, dtype=float), # TODO: Populated by client
+                    "takerFees": None,
+                    "makerFees": None,
                 }
             }
         
@@ -99,7 +101,7 @@ class SharedState:
             "leverage": None
         }
 
-    def _initialize_client_pair_(self, pair: Tuple[str, str]) -> Dict:
+    def _create_client_pair_(self, pair: Tuple[str, str]) -> Dict:
         exchange, _ = self._pair_to_lower_(pair)
 
         # Exchange client already initialized...
@@ -125,6 +127,27 @@ class SharedState:
             "ws_client": ws_client
         }
     
+    async def _initialize_(self, pair: Tuple[str, str]) -> Coroutine:
+        """
+        Run initialization tasks on each pair, pulling:  
+
+        -> Acquire symbol's tick/lot sizes
+        -> Acquire user's maker/taker fees information
+        -> Acquire user's rate limits
+        -> Establishing the TCP connection to server (ping) 
+        -> Fill all relevant market data points (trades/ob/ohlcv)
+
+        Parameters
+        ----------
+        pair : Tuple[str, str]
+            (exchange, symbol)
+
+        Returns
+        -------
+        Coroutine
+        """
+        await self.clients[pair[0]]["order_client"].initialize()
+
     def _pair_to_lower_(self, pair: Tuple[str, str]) -> Tuple[str, str]:
         return tuple(i.lower() for i in pair)
     
