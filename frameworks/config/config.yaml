@@ -15,7 +15,7 @@ kucoin:
   key: "twitter.com/beatzxbt"
   secret: "twitter.com/beatzxbt"
 
-hyperliquid: # key = address, secret = private key
+hyperliquid: # NOTE: key = address, secret = private key
   key: "twitter.com/beatzxbt"
   secret: "twitter.com/beatzxbt"
     
