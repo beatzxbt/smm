@@ -2,12 +2,14 @@ import asyncio
 import aiohttp
 import orjson
 from frameworks.sharedstate import SharedState
+from frameworks.tools.logger import Logger
 from typing import Tuple, List, Dict, Optional, Union
 
 
 class WebsocketStream:
 
-    def __init__(self) -> None:
+    def __init__(self, logger: Logger) -> None:
+        self.logging = logger
         self.exchange = None
         self.ws_url = None
         self.ws_topics = None
@@ -29,7 +31,7 @@ class WebsocketStream:
         if self.active_session:
             try:
                 while True:
-                    recv = orjson.loads(await self.session.e())
+                    recv = orjson.loads(await self.session.recv())
 
                     if "success" not in recv:
                         handler = self.stream_handler_map.get(recv["stream"])
