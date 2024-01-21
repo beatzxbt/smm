@@ -45,6 +45,7 @@ class Binance(Exchange):
                 if rl_type != "ORDERS":
                     continue
 
+                self.__private__["API"]
                 
             self._exchange_info_cached_ = True
 

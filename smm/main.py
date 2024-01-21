@@ -1,6 +1,6 @@
 import asyncio
 from frameworks.sharedstate import SharedState
-from frameworks.tools.logger import Logger, now
+from frameworks.tools.logger import Logger
 from smm.strategy.marketmaker import MarketMaker
 from smm.settings import SmmParameters
 
@@ -11,7 +11,7 @@ async def main():
         params = SmmParameters(parameters_directory)
 
         ss = SharedState()
-        ss.load_markets(params.pairs)
+        ss.load_markets(params.primary_exchange, params.pairs)
 
         await asyncio.gather(
             asyncio.to_thread(params.refresh_parameters()),
@@ -24,7 +24,7 @@ async def main():
         raise e
 
     finally:
-        print(f"It's {now()}, goodnight...")
+        Logger.info("Its late now, goodnight...")
         
 if __name__ == "__main__":
     asyncio.run(main())
