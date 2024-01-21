@@ -2,7 +2,7 @@
 BinanceEndpoints = {
     "main1": "https://fapi.binance.com",
     "pub_ws": "wss://fstream.binance.com",
-    "priv_ws": "wss://fstream.binance.com",
+    "priv_ws": "wss://fstream-auth.binance.com",
 
     "ping": ("/fapi/v1/ping", "GET"),                         
     "exchangeInfo": ("/fapi/v1/exchangeInfo", "GET"),         
@@ -20,4 +20,4 @@ BinanceEndpoints = {
     "cancelOrder": ("/fapi/v1/order", "DELETE"),                
     "cancelAllOrders": ("/fapi/v1/allOpenOrders", "DELETE"),    
     "setLeverage": ("/fapi/v1/leverage", "POST"),             
-}   
+}
