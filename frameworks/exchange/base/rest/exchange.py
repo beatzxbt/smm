@@ -12,8 +12,6 @@ class Exchange:
         self.endpoints = endpoints
         self.formats = formats
 
-        self.pinged = False
-
     async def _send_(
         self, method: str, endpoint: str, payload: Dict
     ) -> Union[Dict, None]:
