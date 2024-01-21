@@ -31,14 +31,18 @@ class SharedState:
         self.market = {}
         self.private = {}
         self.clients = {}
-    
-    async def load_markets(self, pairs: List[Tuple[str, str]]) -> None:
+        self.primary_exchange = ""
+
+    async def load_markets(self, primary_exchange: str, pairs: List[Tuple[str, str]]) -> None:
         """
         Initialize a correct client, market & private dict in the general 
         sharedstate dicts, to be accessible anywhere within the system.
 
         Parameters
         ----------
+        primary_exchange : str
+            Exchange the user intends to quote on
+
         pairs : List[Tuples]
             Contains pairs of (exchange, symbol)
 
@@ -46,10 +50,13 @@ class SharedState:
         -------
         None
         """
+        self.primary_exchange = primary_exchange
+
         for pair in pairs:
-            self._create_client_pair_(pair)
-            self._create_market_pair_(pair)
-            self._create_private_pair_(pair)
+            primary = pair[0] == self.primary_exchange
+            self._create_client_pair_(pair, primary)
+            self._create_market_pair_(pair, primary)
+            self._create_private_pair_(pair, primary)
             await self._initialize_(pair)
         
     def _create_market_pair_(self, pair: Tuple[str, str]) -> Dict:
@@ -60,7 +67,7 @@ class SharedState:
         
         self.market[exchange][symbol] = {
             "bba": np.ones((2, 2), dtype=float),
-            "book": Orderbook(),
+            "book": Orderbook(500),
             "trades": RingBuffer(10000, dtype=(float, 4)),
             "ohlcv": RingBuffer(1000, dtype=(float, 6)),
             # "liquidations": RingBuffer(1000, dtype=(float, 4))
@@ -76,32 +83,35 @@ class SharedState:
             "lotSize": None
         }
 
-    def _create_private_pair_(self, pair: Tuple[str, str]) -> Dict:
+    def _create_private_pair_(self, pair: Tuple[str, str], primary: bool=False) -> Dict:
         exchange, symbol = self._pair_to_lower_(pair)
+
+        if not primary:
+            return True
 
         if exchange not in self.private:
             self.private[exchange] = {
                 "API": {
-                    "key": None,
-                    "secret": None,
+                    "key": "",
+                    "secret": "",
                     "rateLimits": {}, # TODO: Populated by client
                     "latency": RingBuffer(100, dtype=float), # TODO: Populated by client
                     "takerFees": None,
                     "makerFees": None,
-                }
+                },
+
+                "currentBalance": None
             }
         
         self.private[exchange][symbol] = {
             "openOrders": {},
             "executions": RingBuffer(1000, dtype=(float, 10)),
 
-            "currentPosition": None,
-            "currentUPnl": None,
-            "currentBalance": None,
+            "currentPosition": {},
             "leverage": None
         }
 
-    def _create_client_pair_(self, pair: Tuple[str, str]) -> Dict:
+    def _create_client_pair_(self, pair: Tuple[str, str], primary: bool=False) -> Dict:
         exchange, _ = self._pair_to_lower_(pair)
 
         # Exchange client already initialized...
@@ -109,7 +119,7 @@ class SharedState:
             return None
 
         try:
-            if exchange in ["binance", "bybit", "hyperliquid"]:
+            if exchange in custom_clients:
                 # TODO: Initialize custom exchange, using dependency injection within the client
                 order_client = getattr("brrrclient_rest", exchange)
                 ws_client = getattr("brrrclient_ws", exchange)
@@ -117,6 +127,7 @@ class SharedState:
             else:
                 order_client = getattr(ccxt, exchange)
                 ws_client = getattr(ccxtpro, exchange)  
+                # TODO: Add key/secret startup for CCXT clients
 
         except Exception as e:
             self.logging.critical(f"Error initializing {exchange}: {e}")
@@ -127,15 +138,18 @@ class SharedState:
             "ws_client": ws_client
         }
     
-    async def _initialize_(self, pair: Tuple[str, str]) -> Coroutine:
+    async def _initialize_(self, pair: Tuple[str, str], primary: bool=False) -> Coroutine:
         """
         Run initialization tasks on each pair, pulling:  
 
-        -> Acquire symbol's tick/lot sizes
         -> Acquire user's maker/taker fees information
         -> Acquire user's rate limits
         -> Establishing the TCP connection to server (ping) 
+        -> Acquire symbol's tick/lot sizes
         -> Fill all relevant market data points (trades/ob/ohlcv)
+
+        If the pair is not a primary exchange, then only the final 
+        two tasks are ran...
 
         Parameters
         ----------
@@ -146,7 +160,7 @@ class SharedState:
         -------
         Coroutine
         """
-        await self.clients[pair[0]]["order_client"].initialize()
+        await self.clients[pair[0]]["order_client"].initialize(primary)
 
     def _pair_to_lower_(self, pair: Tuple[str, str]) -> Tuple[str, str]:
         return tuple(i.lower() for i in pair)
