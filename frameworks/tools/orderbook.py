@@ -1,6 +1,7 @@
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import List, Union
 from numpy.typing import NDArray
+from frameworks.tools.logger import ms as time_ms
 
 
 class Orderbook:
@@ -10,6 +11,7 @@ class Orderbook:
         self.size = size
         self.asks = np.empty(shape=(self.size, 2), dtype=float)
         self.bids = np.empty_like(self.asks)
+        self.last_update = time_ms()
 
     def _sort_book_(self) -> NDArray:
         """Sort bids & asks"""
@@ -33,10 +35,12 @@ class Orderbook:
         self.bids = np.array(bids, float)
         self._sort_book_()
 
-    def update(self, asks: List[List[float]], bids: List[List[float]]) -> NDArray:
+    def update(self, asks: List[List[float]], bids: List[List[float]], timestamp: Union[int, float]) -> NDArray:
         """Update asks or bids with new levels, remove ones with qty=0, then sort"""
-        asks = np.array(asks, dtype=float)
-        bids = np.array(bids, dtype=float)
-        self.asks = self._process_book_(self.asks, asks)
-        self.bids = self._process_book_(self.bids, bids)
-        self._sort_book_()
+        if timestamp > self.last_update:
+            self.last_update = timestamp
+            asks = np.array(asks, dtype=float)
+            bids = np.array(bids, dtype=float)
+            self.asks = self._process_book_(self.asks, asks)
+            self.bids = self._process_book_(self.bids, bids)
+            self._sort_book_()
