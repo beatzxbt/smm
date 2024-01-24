@@ -3,6 +3,7 @@ Bybit Simple Market Maker
 
 This is a sample market making bot for [Bybit](https://www.bybit.com/en-US/).
 
+(Warning: There are known bugs, this branch is not working out of the box at the moment. You can follow the new upgrades coming soon at: https://github.com/beatzxbt/bybit-smm/tree/v.2.0-alpha)
 
 Getting Started
 ---------------
