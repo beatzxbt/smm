@@ -3,7 +3,7 @@ from frameworks.exchange.base.exchange import Exchange
 from typing import Dict
 
 
-class Ccxt(Exchange):
+class CcxtClient(Exchange):
     """
     Inherits the base exchange class, but doesnt use it.
     Remember to strictly conform with its (base class) functions wholly,
