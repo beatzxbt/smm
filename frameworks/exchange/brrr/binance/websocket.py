@@ -4,7 +4,7 @@ import hmac
 from typing import Dict, List, Tuple, Union, Optional
 
 from frameworks.tools.logger import Logger
-from frameworks.exchange.base.ws.stream import WebsocketStream
+from frameworks.exchange.base.stream import WebsocketStream
 from frameworks.exchange.brrr.binance.endpoints import BinanceEndpoints
 from frameworks.exchange.brrr.binance.handlers import (
     BinanceBbaHandler, BinanceOrderbookHandler, BinanceTradesHandler,
