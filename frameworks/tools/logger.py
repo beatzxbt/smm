@@ -7,23 +7,20 @@ def ms() -> int:
     return time_ns()//1_000_000
 
 class Logger:
-    def __init__(self) -> None:
-        pass
-
-    def success(self, msg: str) -> None:
+    def success(msg: str) -> None:
         print(f"{now()} | SUCCESS | {msg}")
 
-    def info(self, msg: str) -> None:
+    def info(msg: str) -> None:
         print(f"{now()} | INFO | {msg}")
 
-    def debug(self, msg: str) -> None:
+    def debug(msg: str) -> None:
         print(f"{now()} | DEBUG | {msg}")
 
-    def warning(self, msg: str) -> None:
+    def warning(msg: str) -> None:
         print(f"{now()} | WARNING | {msg}")
 
-    def error(self, msg: str) -> None:
+    def error(msg: str) -> None:
         print(f"{now()} | ERROR | {msg}")
 
-    def critical(self, msg: str) -> None:
+    def critical(msg: str) -> None:
         print(f"{now()} | CRITICAL | {msg}")
