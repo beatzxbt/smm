@@ -1,4 +1,5 @@
 import asyncio
+import ccxt.pro as ccxtpro
 from typing import Dict, List, Tuple, Union, Optional
 from frameworks.tools.logger import Logger
 from frameworks.exchange.base.stream import WebsocketStream
@@ -10,48 +11,88 @@ from frameworks.exchange.ccxt.handlers import (
 
 
 class CcxtWs(WebsocketStream):
-    def __init__(self, market: Dict, private: Dict, flag: Optional[bool]=False) -> None:
+    def __init__(self, exchange: str, market: Dict, private: Dict, flag: Optional[bool]=False) -> None:
+        self.exchange = exchange
         self.market, self.private = market, private
         self.flag = flag
-        self.logging = Logger
         self.key = self.__private__["API"]["key"]
         self.secret = self.__private__["API"]["secret"]
+        self.logging = Logger
+        self.client = self.initialize(self.exchange)
+    
+    def initialize(self, exchange: ccxtpro.Exchange) -> ccxtpro.Exchange:
+        try:
+            ws_client = getattr(ccxtpro, exchange)
+            ws_client({
+                "apiKey": self.key, 
+                "secret": self.secret, 
+                "options": {"defaultType": "swap"}
+            })
+            return ws_client
+        
+        except Exception as e:
+            self.logging.error(f"Error initializing {exchange}: {e}")
+            raise e
 
     @property
     def __market__(self) -> Dict:
-        return self.ss.market["binance"]
+        return self.market[self.exchange]
 
     @property
     def __private__(self) -> Dict:
-        return self.ss.private["binance"]
+        return self.private[self.exchange]
 
-    def _public_stream_(self) -> Union[Dict, Exception]:
-        async def bba(self) -> None:
-            while True:
-                async with self.lock:
-                    try:
-                        limit = self.ss.order_book_limits.get(self.exchange, 5)
+    async def _public_stream_(self) -> List[asyncio.Task]:
+        symbols = self.__market__.keys()
+        return [
+            asyncio.create_task(self._bba_streams_(symbols)),
+            asyncio.create_task(self._book_streams_(symbols)),
+            asyncio.create_task(self._trades_streams_(symbols)),
+            asyncio.create_task(self._ohlcv_streams_(symbols)),
+            asyncio.create_task(self._ticker_streams_(symbols))
+        ]
 
-                        bba_update = await self._pro_client_.watch_order_book(
-                            symbol=self.symbol, limit=limit
-                        )
+    async def _bba_streams_(self, symbols) -> None:
+        levels = 1
+        while True:
+            try:
+                recv = await self.client.watch_order_book_for_symbols(symbols, levels)
+                self.handler_map["bba"](recv)
 
-                        self.handler_map["bba"](bba_update)
-                        self.fp.calculate()
+            except Exception as e:
+                self.logging.error(f"Error on BBA feed: {e}")
 
-                    except Exception as e:
-                        self.logging.error(f"Error on BBA feed: {e}")
+    async def _book_streams_(self, symbols) -> None:
+        levels = 500
+        while True:
+            try:
+                recv = await self.client.watch_order_book_for_symbols(symbols, levels)
+                self.handler_map["book"](recv)
+            except Exception as e:
+                self.logging.error(f"Error on BBA feed: {e}")
 
-        async def ticker(self) -> None:
-            while True:
-                async with self.lock:
-                    try:
-                        ticker_update = await self._pro_client_.fetch_funding_rate(
-                            symbol=self.symbol
-                        )
+    async def _trades_streams_(self, symbols) -> None:
+        while True:
+            try:
+                recv = await self.client.watch_trades_for_symbols(symbols)
+                self.handler_map["trades"](recv)
+            except Exception as e:
+                self.logging.error(f"Error on BBA feed: {e}")
 
-                        self.handler_map["ticker"](ticker_update)
-                        self.fp.calculate()
+    async def _ohlcv_streams_(self, symbols) -> None:
+        symbols_w_tfs = None # TODO: Construct list
+        while True:
+            try:
+                recv = await self.client.watch_ohlcv_for_symbols(symbols_w_tfs)
+                self.handler_map["ohlcv"](recv)
 
-                except Exception as e:
-                    self.logging.error(f"Error on Ticker feed: {e}")
+            except Exception as e:
+                self.logging.error(f"Error on BBA feed: {e}")
+
+    async def _ticker_streams_(self, symbols) -> None:
+        while True:
+            try:
+                recv = await self.client.watch_tickers(symbols)
+                self.handler_map["ticker"](recv)
+            except Exception as e:
+                self.logging.error(f"Error on Ticker feed: {e}")
