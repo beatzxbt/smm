@@ -2,7 +2,7 @@ import numpy as np
 from numpy_ringbuffer import RingBuffer
 from typing import List, Dict
 
-class BinanceOhlcvHandler:
+class HyperliquidOhlcvHandler:
     def __init__(self, market: Dict) -> None:
         self.market = market
         self._cache_ = np.array([[1e10, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3]], dtype=float)
