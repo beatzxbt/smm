@@ -1,10 +1,11 @@
-import ccxt.async_support as ccxt
-import ccxt.pro as ccxtpro
 import numpy as np
 from numpy_ringbuffer import RingBuffer
+from collections import deque
 from frameworks.tools.logger import Logger
 from frameworks.tools.orderbook import Orderbook
-from typing import Tuple, List, Dict, Coroutine
+from typing import Tuple, List, Dict, Coroutine, Union
+from frameworks.exchange.brrr.brrrclient import BrrrClient
+from frameworks.exchange.ccxt.exchange import CcxtClient
 
 custom_clients = [
     "binance", 
@@ -15,6 +16,28 @@ custom_clients = [
 ]
 
 class SharedState:
+    """
+    A class for managing shared state across various components of a trading system. 
+    It handles the initialization and management of clients, market data, private account data, 
+    and more for different exchanges and trading pairs.
+
+    Attributes
+    ----------
+    logging : Logger
+        Logger instance for logging messages.
+
+    market : Dict
+        A dictionary to store market data keyed by exchange and symbol.
+
+    private : Dict
+        A dictionary to store private account data keyed by exchange.
+
+    clients : Dict
+        A dictionary to store instances of exchange clients keyed by exchange name.
+
+    primary_pair : str
+        The name of the primary exchange for quoting.
+    """
 
     def __init__(self) -> None:
         """
@@ -31,35 +54,52 @@ class SharedState:
         self.market = {}
         self.private = {}
         self.clients = {}
-        self.primary_exchange = ""
+        self.primary_pair = None
 
-    async def load_markets(self, primary_exchange: str, pairs: List[Tuple[str, str]]) -> None:
+    async def load_markets(self, primary_pair: Tuple[str, str], pairs: List[Tuple[str, str]]) -> None:
         """
-        Initialize a correct client, market & private dict in the general 
-        sharedstate dicts, to be accessible anywhere within the system.
+        Initializes the necessary clients, market data, and private data for 
+        specified exchange-symbol pairs and sets up the primary exchange.
+
+        More documentation found in self._initialize_().
 
         Parameters
         ----------
-        primary_exchange : str
-            Exchange the user intends to quote on
+        primary_pair : Tuple[str, str]
+            The exchange and symbol pair intended for primary quoting.
 
         pairs : List[Tuples]
-            Contains pairs of (exchange, symbol)
-
-        Returns
-        -------
-        None
+            A list of tuples containing exchange and symbol pairs.
         """
-        self.primary_exchange = primary_exchange
+        self.primary_pair = primary_pair
 
         for pair in pairs:
-            primary = pair[0] == self.primary_exchange
+            primary = pair[0] == self.primary_pair[0]
             self._create_client_pair_(pair, primary)
             self._create_market_pair_(pair, primary)
             self._create_private_pair_(pair, primary)
-            await self._initialize_(pair)
+        
+        initialized_exchanges = set()
+        for pair in pairs:
+            if pair[0] in initialized_exchanges:
+                continue
+            initialized_exchanges.add(pair[0])
+            await self._initialize_(pair[0])
         
     def _create_market_pair_(self, pair: Tuple[str, str]) -> Dict:
+        """
+        Creates market data structures for a given exchange-symbol pair.
+
+        Parameters
+        ----------
+        pair : Tuple[str, str]
+            The exchange-symbol pair for which to create market data.
+
+        Returns
+        -------
+        Dict
+            The initialized market data structure for the given pair.
+        """
         exchange, symbol = self._pair_to_lower_(pair)
 
         if exchange not in self.market:
@@ -83,11 +123,27 @@ class SharedState:
             "lotSize": None
         }
 
-    def _create_private_pair_(self, pair: Tuple[str, str], primary: bool=False) -> Dict:
+    def _create_private_pair_(self, pair: Tuple[str, str], primary: bool=False) -> Union[Dict, None]:
+        """
+        Creates private account data structures for a given exchange-symbol pair.
+
+        Parameters
+        ----------
+        pair : Tuple[str, str]
+            The exchange-symbol pair for which to create private account data.
+
+        primary : bool, optional
+            Flag to indicate if the pair is for the primary exchange.
+
+        Returns
+        -------
+        Dict or None
+            The initialized private account data for the given pair or None if not primary.
+        """
         exchange, symbol = self._pair_to_lower_(pair)
 
         if not primary:
-            return True
+            return None
 
         if exchange not in self.private:
             self.private[exchange] = {
@@ -105,63 +161,67 @@ class SharedState:
         
         self.private[exchange][symbol] = {
             "openOrders": {},
-            "executions": RingBuffer(1000, dtype=(float, 10)),
-
-            "currentPosition": {},
-            "leverage": None
+            "executions": deque(1000),
+            "currentPosition": {}
         }
 
     def _create_client_pair_(self, pair: Tuple[str, str], primary: bool=False) -> Dict:
+        """
+        Initializes and stores a client for a given exchange.
+
+        Parameters
+        ----------
+        pair : Tuple[str, str]
+            The exchange-symbol pair for which to create the client.
+
+        primary : bool, optional
+            Flag to indicate if the pair is for the primary exchange.
+
+        Returns
+        -------
+        Dict or None
+            The initialized client for the given exchange or None if already initialized.
+        """
         exchange, _ = self._pair_to_lower_(pair)
 
-        # Exchange client already initialized...
+        # NOTE: Exchange client already initialized...
         if exchange in self.clients:
             return None
 
         try:
             if exchange in custom_clients:
-                # TODO: Initialize custom exchange, using dependency injection within the client
-                order_client = getattr("brrrclient_rest", exchange)
-                ws_client = getattr("brrrclient_ws", exchange)
-
+                self.clients[exchange] = BrrrClient(exchange, self.market, self.private, primary)
             else:
-                order_client = getattr(ccxt, exchange)
-                ws_client = getattr(ccxtpro, exchange)  
-                # TODO: Add key/secret startup for CCXT clients
+                self.clients[exchange] = CcxtClient(exchange, self.market, self.private, primary)
 
         except Exception as e:
             self.logging.critical(f"Error initializing {exchange}: {e}")
             raise e
-
-        self.clients[exchange] = {
-            "order_client": order_client,
-            "ws_client": ws_client
-        }
     
-    async def _initialize_(self, pair: Tuple[str, str], primary: bool=False) -> Coroutine:
+    async def _initialize_(self, pair: Tuple[str, str], primary: bool=False) -> None:
         """
-        Run initialization tasks on each pair, pulling:  
-
+        Run initialization tasks on each pair, doing:  
         -> Acquire user's maker/taker fees information
         -> Acquire user's rate limits
         -> Establishing the TCP connection to server (ping) 
         -> Acquire symbol's tick/lot sizes
-        -> Fill all relevant market data points (trades/ob/ohlcv)
+        -> Fill all relevant market data points (trades/ob/ohlcv/ticker)
+        -> Start relevant websocket feeds
 
         If the pair is not a primary exchange, then only the final 
-        two tasks are ran...
+        two tasks are ran
 
         Parameters
         ----------
         pair : Tuple[str, str]
-            (exchange, symbol)
+            The exchange-symbol pair to initialize.
 
-        Returns
-        -------
-        Coroutine
+        primary : bool, optional
+            Flag to indicate if the pair is for the primary exchange.
         """
-        await self.clients[pair[0]]["order_client"].initialize(primary)
-
-    def _pair_to_lower_(self, pair: Tuple[str, str]) -> Tuple[str, str]:
+        await self.clients[pair[0]].initialize(primary)
+    
+    @staticmethod
+    def _pair_to_lower_(pair: Tuple[str, str]) -> Tuple[str, str]:
         return tuple(i.lower() for i in pair)
     
