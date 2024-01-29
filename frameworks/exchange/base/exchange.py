@@ -3,29 +3,19 @@ from frameworks.exchange.base.client import Client
 
 
 class Exchange:
-    """
-    Base exchange class
-    """
+    """Base exchange class"""
 
-    def __init__(self, client: Client, endpoints: Dict, formats: Dict) -> None:
+    def __init__(self, client: Client, base_endpoint: str, endpoints: Dict, formats: Dict) -> None:
         self.client = client
+        self.base_endpoint = base_endpoint
         self.endpoints = endpoints
-        self.base_endpoint = None
         self.formats = formats
-
-    def set_base_endpoint(self, endpoint: str) -> str:
-        self.base_endpoint = endpoint
 
     async def _send_(
         self, method: str, endpoint: str, payload: Dict
     ) -> Union[Dict, None]:
         """Submit a request to the client"""
         await self.client.send(method, self.base_endpoint+endpoint, payload)
-
-    async def ping(self) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["ping"]
-        payload = self.formats.ping()
-        return await self._send_(method, endpoint, payload)
 
     async def create_order(
         self,
@@ -44,7 +34,7 @@ class Exchange:
         self,
         orderId: str,
         amount: float,
-        price: Optional[float] = None,
+        price: float,
         tp: Optional[float] = None,
     ) -> Union[Dict, None]:
         endpoint, method = self.endpoints["amendOrder"]
