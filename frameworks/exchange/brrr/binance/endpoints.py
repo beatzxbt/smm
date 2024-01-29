@@ -2,7 +2,7 @@
 BinanceEndpoints = {
     "main1": "https://fapi.binance.com",
     "pub_ws": "wss://fstream.binance.com",
-    "priv_ws": "wss://fstream-auth.binance.com",
+    "priv_ws": "wss://fstream.binance.com",
 
     "ping": ("/fapi/v1/ping", "GET"),                         
     "exchangeInfo": ("/fapi/v1/exchangeInfo", "GET"),         
