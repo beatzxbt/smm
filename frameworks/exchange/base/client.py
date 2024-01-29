@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
 import orjson
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 from frameworks.tools.logger import ms as time_ms
 
 
@@ -18,21 +18,42 @@ class Client:
     def _sign_(self, payload: str) -> Dict:
         raise NotImplementedError("Must be implimented in inherited class!")
 
-    def _error_handler_(self, response: Dict) -> Union[Dict, None]:
+    def _error_handler_(self, recv: Dict) -> Union[Dict, None]:
         raise NotImplementedError("Must be implimented in inherited class!")
 
-    async def send(self, method: str, endpoint: str, header: str, payload: Union[Dict, str], pre_signed: bool=False) -> Union[Dict, Exception]:
+    def _latency_handler_(self, recv: Dict) -> Union[Dict, None]:
+        raise NotImplementedError("Must be implimented in inherited class!")
+
+    def _ratelimit_handler_(self, 
+        method: Optional[str]=None, 
+        endpoint: Optional[str]=None, 
+        recv: Optional[Dict]=None
+    ) -> None:
+        raise NotImplementedError("Must be implimented in inherited class!")
+
+    async def send(
+        self,
+        method: str,
+        endpoint: str,
+        header: str,
+        payload: Union[Dict, str],
+        pre_signed: bool=False,
+    ) -> Union[Dict, Exception]:
         for attempt in range(1, self.MAX_RETRIES + 1):
+            json = self._sign_(orjson.dumps(payload)) if not pre_signed else payload
             try:
                 request = await self.session.request(
                     method=method,
                     endpoint=endpoint,
                     headers=header,
-                    data=self._sign_(orjson.dumps(payload)) if not pre_signed else payload,
+                    json=json,
                 )
-
-                return orjson.loads(await request.text())
-
+                text = orjson.loads(request.text())
+                self._error_handler_(request)
+                self._latency_handler_(text)
+                self._ratelimit_handler_(endpoint, text)
+                return request, text
+                
             except Exception as e:
                 if attempt < self.MAX_RETRIES:
                     await asyncio.sleep(attempt)
