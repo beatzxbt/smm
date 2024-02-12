@@ -1,3 +1,4 @@
+import ssl
 import asyncio
 import aiohttp
 import orjson
@@ -6,8 +7,17 @@ from frameworks.tools.logger import ms as time_ms
 
 
 class Client:
+    _ssl_context = ssl.create_default_context()
+    _ssl_context.check_hostname = False
+    _ssl_context.verify_mode = ssl.CERT_REQUIRED # NOTE: ssl.CERT_NONE (faster) if you're feeling bold 
+    connector = aiohttp.TCPConnector(ssl=_ssl_context, limit=100, limit_per_host=50)
+
     def __init__(self) -> None:
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(
+            connector=self.connector, 
+            json_serialize=orjson.dumps, 
+            auto_decompress=True
+        )
         self.recvWindow = "5000"
         self.timestamp = str(time_ms())
         self.MAX_RETRIES = 3
