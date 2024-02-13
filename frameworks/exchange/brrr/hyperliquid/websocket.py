@@ -4,7 +4,7 @@ import hmac
 from typing import Dict, List, Tuple, Union
 
 from frameworks.sharedstate import SharedState
-from frameworks.exchange.base.stream import WebsocketStream
+from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.brrr.hyperliquid.endpoints import HyperliquidEndpoints
 from frameworks.exchange.brrr.hyperliquid.handlers import (
     HyperliquidBbaHandler, HyperliquidOrderbookHandler, HyperliquidTradesHandler,

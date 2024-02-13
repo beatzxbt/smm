@@ -2,7 +2,7 @@ import asyncio
 import ccxt.pro as ccxtpro
 from typing import Dict, List, Tuple, Union, Optional
 from frameworks.tools.logger import Logger
-from frameworks.exchange.base.stream import WebsocketStream
+from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.ccxt.handlers import (
     CcxtBbaHandler, CcxtOrderbookHandler, CcxtTradesHandler,
     CcxtOhlcvHandler, CcxtTickerHandler, CcxtOrdersHandler, 
