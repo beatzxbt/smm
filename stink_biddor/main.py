@@ -24,7 +24,7 @@ async def main():
         raise e
 
     finally:
-        print(f"It's {now()}, goodnight...")
+        Logger.info(f"It's {now()}, goodnight...")
         
 if __name__ == "__main__":
     asyncio.run(main())
