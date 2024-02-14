@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Union
 
 from frameworks.tools.logger import Logger
 from frameworks.exchange.base.websocket import WebsocketStream
@@ -16,11 +16,14 @@ from frameworks.exchange.brrr.binance.handlers.position import BinancePositionHa
 
 
 class BinanceWebsocket(WebsocketStream):
-    def __init__(self, market: Dict, private: Dict) -> None:
-        super().__init__()
-        self.market, self.private = market, private
-        self.endpoints = BinanceEndpoints
+    def __init__(self, client: Client, market: Dict[str, Any], private: Union[Dict[str, Any], bool]=False) -> None:        
+        self.client = client
+        self.market = market
+        self.private = private 
         self.logging = Logger
+        super().__init__(isinstance(self.private, Dict))
+        self._set_internal_logger_(self.logging)
+        self.endpoints = BinanceEndpoints
 
         self.public_handler_map = {
             "bookTicker": BinanceBbaHandler(self._market).process,
@@ -62,8 +65,8 @@ class BinanceWebsocket(WebsocketStream):
         except Exception as e:
             self.logging.error(f"binance public ws: {e}")
 
-    async def _gen_private_stream_info_(self, client) -> str:
-        listen_key = client.listen_key()
+    async def _gen_private_stream_info_(self) -> str:
+        listen_key = self.client.listen_key()
         url = self.endpoints["priv_ws"] + "/ws/" + listen_key
         return url[:-1]
     
@@ -71,17 +74,15 @@ class BinanceWebsocket(WebsocketStream):
         data = recv["data"]
         self.private_handler_map[data["e"]](data)
         
-    async def _private_stream_(self, symbols: List[str], client: Client):
+    async def _private_stream_(self):
         try:
-            url = self._gen_private_stream_info_(symbols, client)
+            url = self._gen_private_stream_info_()
             await self.private_stream(url, self._private_stream_handler_)
         except Exception as e:
             self.logging.error(f"binance private ws: {e}")
     
-    async def run(self, symbols: List[str], private: Optional[bool]=False, client: Optional[Client]=False) -> None:
+    async def start(self, symbols: List[str]) -> None:
         tasks = [asyncio.create_task(self._public_stream_(symbols))]
-        if private:
-            if not client:
-                raise Exception("Client is required to generate listen keys for private feeds!")
-            tasks.append(asyncio.create_task(self._private_stream_(client)))
+        if isinstance(self.private, Dict):
+            tasks.append(asyncio.create_task(self._private_stream_()))
         await asyncio.gather(*tasks)
