@@ -3,9 +3,9 @@ from numpy_ringbuffer import RingBuffer
 from collections import deque
 from frameworks.tools.logger import Logger
 from frameworks.tools.orderbook import Orderbook
-from typing import Tuple, List, Dict, Coroutine, Union
 from frameworks.exchange.brrr.brrrclient import BrrrClient
 from frameworks.exchange.ccxt.exchange import CcxtClient
+from typing import Tuple, List, Dict, Coroutine, Union, NoReturn
 
 custom_clients = [
     "binance", 
@@ -71,20 +71,17 @@ class SharedState:
         pairs : List[Tuples]
             A list of tuples containing exchange and symbol pairs.
         """
-        self.primary_pair = primary_pair
+        unique_exchanges = set()
 
         for pair in pairs:
-            primary = pair[0] == self.primary_pair[0]
-            self._create_client_pair_(pair, primary)
-            self._create_market_pair_(pair, primary)
+            pair = self._pair_to_lower_(pair)
+            primary = pair[0] == primary_pair[0]
+            unique_exchanges.add((pair[0], primary))
+            self._create_market_pair_(pair)
             self._create_private_pair_(pair, primary)
         
-        initialized_exchanges = set()
-        for pair in pairs:
-            if pair[0] in initialized_exchanges:
-                continue
-            initialized_exchanges.add(pair[0])
-            await self._initialize_(pair[0])
+        for exchange, primary in unique_exchanges:
+            self._create_client_pair_(exchange, primary)
         
     def _create_market_pair_(self, pair: Tuple[str, str]) -> Dict:
         """
@@ -100,7 +97,7 @@ class SharedState:
         Dict
             The initialized market data structure for the given pair.
         """
-        exchange, symbol = self._pair_to_lower_(pair)
+        exchange, symbol = pair
 
         if exchange not in self.market:
             self.market[exchange] = {}
@@ -118,7 +115,6 @@ class SharedState:
             "fundingRate": None,
             "fundingTimestamp": None,
             "24hVol": None,
-
             "tickSize": None,
             "lotSize": None
         }
@@ -140,10 +136,10 @@ class SharedState:
         Dict or None
             The initialized private account data for the given pair or None if not primary.
         """
-        exchange, symbol = self._pair_to_lower_(pair)
-
         if not primary:
             return None
+        
+        exchange, symbol = pair
 
         if exchange not in self.private:
             self.private[exchange] = {
@@ -155,7 +151,6 @@ class SharedState:
                     "takerFees": None,
                     "makerFees": None,
                 },
-
                 "currentBalance": None
             }
         
@@ -182,9 +177,8 @@ class SharedState:
         Dict or None
             The initialized client for the given exchange or None if already initialized.
         """
-        exchange, _ = self._pair_to_lower_(pair)
+        exchange = pair[0]
 
-        # NOTE: Exchange client already initialized...
         if exchange in self.clients:
             return None
 
