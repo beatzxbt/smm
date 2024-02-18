@@ -1,5 +1,5 @@
 from typing import Dict
-from frameworks.exchange.base.rest.exchange import Exchange
+from frameworks.exchange.base.exchange import Exchange
 
 
 class BrrrClient:
@@ -8,15 +8,13 @@ class BrrrClient:
         self.market, self.private = market, private
         return self._find_client_()
 
-    def _find_client_(self):
+    def _find_client_(self) -> Exchange:
         if self.exchange == "binance":
             from frameworks.exchange.brrr.binance.exchange import Binance
-
             return Binance(self.market, self.private)
 
         elif self.exchange == "bybit":
             from frameworks.exchange.brrr.bybit.exchange import Bybit
-
             return Bybit(self.market, self.private)
 
         # elif self.exchange == "okx":

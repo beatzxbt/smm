@@ -18,9 +18,9 @@ class BinanceFormats:
             **self._base_payload_,
             "symbol": symbol,
             "side": side,
-            "orderType": type,
+            "type": type,
             "price": price,
-            "qty": amount,
+            "quantity": amount,
         }
 
         if price is not None:
@@ -46,7 +46,7 @@ class BinanceFormats:
             **self._base_payload_,
             "orderId": orderId,
             "price": str(price),
-            "qty": str(amount),
+            "quantity": str(amount),
         }
 
         if tp is not None:
@@ -61,14 +61,6 @@ class BinanceFormats:
 
     def cancel_all_orders(self, symbol: str) -> Dict:
         return {**self._base_payload_, "symbol": symbol}
-
-    def set_leverage(self, symbol, leverage: int) -> Dict:
-        return {
-            **self._base_payload_,
-            "symbol": symbol,
-            "buyLeverage": str(leverage),
-            "sellLeverage": str(leverage),
-        }
 
     def ohlcv(self, symbol: str, interval: int) -> Dict:
         return {
@@ -85,7 +77,7 @@ class BinanceFormats:
             "limit": "1000",  # NOTE: [1,1000], default: 500
         }
 
-    def book(self, symbol: str) -> Dict:
+    def orderbook(self, symbol: str) -> Dict:
         return {
             **self._base_payload_,
             "symbol": symbol,
@@ -98,8 +90,14 @@ class BinanceFormats:
     def open_orders(self, symbol: str) -> Dict:
         return {**self._base_payload_, "symbol": symbol}
 
-    def current_position(self, symbol: str) -> Dict:
+    def open_position(self, symbol: str) -> Dict:
         return {**self._base_payload_, "symbol": symbol}
 
+    def listen_key(self) -> Dict:
+        return {}
+
     def account_info(self) -> Dict:
+        return self._base_payload_
+    
+    def exchange_info(self) -> Dict:
         return self._base_payload_

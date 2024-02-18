@@ -1,18 +1,37 @@
 import asyncio
 import hashlib
 import hmac
-from frameworks.tools.logger import ms as time_ms
+from frameworks.tools.logger import time_ms
 from frameworks.exchange.base.client import Client
 from frameworks.exchange.brrr.binance.endpoints import BinanceEndpoints
-from typing import Dict, Tuple, Union, Optional
+from typing import Any, Dict, Tuple, Union, Optional
 
 
 class BinanceClient(Client):
-    def __init__(self, api: Dict) -> None:
+    def __init__(self, private: Union[Dict[str, Any], bool]=False) -> None:
         super().__init__()
-        self.api = api
-        self.key, self.secret = api["key"], api["secret"]
+        self.private = private
         self.endpoints = BinanceEndpoints
+
+        if isinstance(self.private, Dict):
+            self.key = self.private["binance"]["API"]["key"]
+            self.secret = self.private["binance"]["API"]["secret"]
+
+            self._ratelimits_format_ = {
+                "remaining": 0,
+                "reset": 0,
+                "max": 0
+            }
+            
+            self._ratelimits_ = {
+                self.endpoints["createOrder"]: {**self._ratelimits_format_},
+                self.endpoints["amendOrder"]: {**self._ratelimits_format_},
+                self.endpoints["cancelOrder"]: {**self._ratelimits_format_},
+                self.endpoints["cancelAllOrders"]: {**self._ratelimits_format_}
+            }
+        else:
+            self.key = ""
+            self.secret = ""
 
         self._cached_header_ = {
             "timestamp": self.timestamp,
@@ -34,19 +53,6 @@ class BinanceClient(Client):
             "2012": (False, "Order cancel all rejected..."),
             "2013": (False, "Order does not exist..."),
             "2018": (False, "Insufficient balance..."),
-        }
-
-        self._ratelimits_ = {
-            "POST|/fapi/v1/order": self._ratelimits_format_.copy(),
-            "PUT|/fapi/v1/order": self._ratelimits_format_.copy(),
-            "DELETE|/fapi/v1/order": self._ratelimits_format_.copy(),
-            "POST|/fapi/v1/allOpenOrders": self._ratelimits_format_.copy()
-        }
-
-        self._ratelimits_format_ = {
-            "remaining": 0,
-            "reset": time_ms(),
-            "max": 0
         }
 
     def _sign_(self, payload: str) -> Dict:
@@ -82,4 +88,4 @@ class BinanceClient(Client):
         endpoint: Optional[str]=None
     ) -> None:
         if method is not None and endpoint is not None:
-            self._ratelimits_.get(f"{method}|{endpoint})
+            self._ratelimits_.get(f"{method}|{endpoint}")

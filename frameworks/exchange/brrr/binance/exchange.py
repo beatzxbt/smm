@@ -1,28 +1,52 @@
-from frameworks.exchange.base.rest.exchange import Exchange
+from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.brrr.binance.endpoints import BinanceEndpoints
 from frameworks.exchange.brrr.binance.formats import BinanceFormats
 from frameworks.exchange.brrr.binance.client import BinanceClient
-from typing import Dict, Coroutine
+from frameworks.exchange.brrr.binance.websocket import BinanceWebsocket
+from typing import Any, Dict, Union
 
 
 class Binance(Exchange):
-    def __init__(self, market: Dict, private: Dict) -> None:
-        self.market, self.private = market, private
+    def __init__(self, market: Dict[str, Any], private: Union[Dict[str, Any], bool]=False) -> None:
+        self.market = market
+        self.private = private
         self.endpoints = BinanceEndpoints
+        self.base_endpoint = self.endpoints["main1"]
         self.formats = BinanceFormats()
-        self.client = BinanceClient(self.__private__["API"])
-        super().__init__(self.client, self.endpoints, self.formats)
-        self._exchange_info_cached_ = False
-    
+        self.client = BinanceClient(self._private_)
+        self.websocket = BinanceWebsocket(self.client, self._market_, self._private_)
+        super().__init__(self.client, self.base_endpoint, self.endpoints, self.formats)
+        self._initialize_()
+
     @property
-    def __market__(self) -> Dict:
+    def _market_(self) -> Dict:
         return self.market["binance"]
 
     @property
-    def __private__(self) -> Dict:
+    def _private_(self) -> Dict:
         return self.private["binance"]
 
-    async def initialize(self, symbol: str) -> Coroutine:
+    async def exchange_info(self) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["exchangeInfo"]
+        payload = self.formats
+        return await self._send_(method, endpoint, payload)
+    
+    async def listen_key(self, symbol: str) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["listenKey"]
+        payload = self.formats.listen_key(symbol)
+        return await self._send_(method, endpoint, payload)
+    
+    async def cancel_all_orders(self, symbol: str) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["cancelAllOrders"]
+        payload = self.formats.cancel_all_orders(symbol)
+        return await self._send_(method, endpoint, payload)
+    
+    async def cancel_all_orders(self, symbol: str) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["cancelAllOrders"]
+        payload = self.formats.cancel_all_orders(symbol)
+        return await self._send_(method, endpoint, payload)
+
+    async def _initialize_(self) -> None:
         """
         Called only from sharedstate._cache_info_(), full docstring found there
 
@@ -36,39 +60,22 @@ class Binance(Exchange):
         None
         """
 
-        if not self._exchange_info_cached_:
-            await self.ping()
-            for rl_type in (await self.exchange_info())["rateLimits"]:
-                if rl_type != "ORDERS":
-                    continue
+        await self.ping()
 
-                self.__private__["API"]["rateLimits"] = {
-                    ""
-                }
-                
-            self._exchange_info_cached_ = True
-
-        # "rateLimits": [
-        #     {
-        #         "interval": "MINUTE",
-        #         "intervalNum": 1,
-        #         "limit": 2400,
-        #         "rateLimitType": "REQUEST_WEIGHT" 
-        #     },
-        #     {
-        #         "interval": "MINUTE",
-        #         "intervalNum": 1,
-        #         "limit": 1200,
-        #         "rateLimitType": "ORDERS"
-        #     }
-        # ],
-
-        for symbols in (await self.exchange_info())["symbols"]:
-            if symbol != symbols["symbol"]:
+        for ratelimit in (await self.exchange_info())["rateLimits"]:
+            if ratelimit["rateLimitType"] != "ORDERS":
                 continue
-            
-            for filter in symbols["filters"]:
-                if filter["filterType"] == "PRICE_FILTER":
-                    self.__market__[symbol]["tickSize"] = filter["tickSize"]
-                elif filter["filterType"] == "LOT_SIZE":
-                    self.__market__[symbol]["lotSize"] = filter["stepSize"]
+
+            self._private_["API"]["rateLimits"] = {
+                ""
+            }
+
+    for symbols in (await self.exchange_info())["symbols"]:
+        if symbol != symbols["symbol"]:
+            continue
+        
+        for filter in symbols["filters"]:
+            if filter["filterType"] == "PRICE_FILTER":
+                self.__market__[symbol]["tickSize"] = filter["tickSize"]
+            elif filter["filterType"] == "LOT_SIZE":
+                self.__market__[symbol]["lotSize"] = filter["stepSize"]
