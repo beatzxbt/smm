@@ -271,7 +271,7 @@ class BasicQuoteGenerator:
         """
         Final quote generator 
         """
-
+        
         def _append(orders, side, prices, sizes):
             for i in range(len(prices)):
                 price = round_step_size(prices[i], self.tick_size)
