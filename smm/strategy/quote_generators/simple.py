@@ -2,11 +2,10 @@ import numpy as np
 
 from frameworks.tools.rounding import round_step_size
 from frameworks.tools.numba_funcs import nlinspace, nsqrt, nabs, npower, nround
-from frameworks.sharedstate.market import MarketDataSharedState
-from frameworks.sharedstate.private import PrivateDataSharedState
+from frameworks.sharedstate import SharedState
 
-from smm.settings import StrategyParameters
-from smm.strategy.features.generate import CalculateFeatures
+from smm.settings import SmmParameters
+from smm.features.generate import Features
 
 
 class SimpleQuoteGenerator:

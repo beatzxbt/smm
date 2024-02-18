@@ -3,8 +3,7 @@ import aiohttp
 import hashlib
 import hmac
 from numpy_ringbuffer import RingBuffer
-from frameworks.exchange.base.rest.client import Client
-from frameworks.exchange.base.rest.ratelimits import Ratelimit
+from frameworks.exchange.base.client import Client
 from frameworks.exchange.brrr.bybit.endpoints import endpoints
 from typing import Dict, List, Union
 
