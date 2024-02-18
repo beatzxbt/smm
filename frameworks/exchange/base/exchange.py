@@ -3,8 +3,14 @@ from frameworks.exchange.base.client import Client
 
 
 class Exchange:
-    """Base exchange class"""
+    """
+    Base exchange class
 
+    Contains only essential functions which likely all strategies
+    will use. If additional functions are required (for basic exchange 
+    information initialization like tick/lot sizes), these should be 
+    added to the inherited class.
+    """
     def __init__(self, client: Client, base_endpoint: str, endpoints: Dict, formats: Dict) -> None:
         self.client = client
         self.base_endpoint = base_endpoint
@@ -17,6 +23,11 @@ class Exchange:
         """Submit a request to the client"""
         await self.client.send(method, self.base_endpoint+endpoint, payload)
 
+    async def ping(self) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["ping"]
+        payload = self.formats.ping()
+        return await self._send_(method, endpoint, payload)
+    
     async def create_order(
         self,
         symbol: str,
@@ -51,11 +62,6 @@ class Exchange:
         payload = self.formats.cancel_all_orders(symbol)
         return await self._send_(method, endpoint, payload)
 
-    async def set_leverage(self, leverage: int) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["setLeverage"]
-        payload = self.formats.set_leverage(leverage)
-        return await self._send_(method, endpoint, payload)
-
     async def ohlcv(self, symbol: str, interval: int) -> Union[Dict, None]:
         endpoint, method = self.endpoints["ohlcv"]
         payload = self.formats.ohlcv(symbol, interval)
@@ -71,27 +77,13 @@ class Exchange:
         payload = self.formats.orderbook(symbol, limit)
         return await self._send_(method, endpoint, payload)
 
-    async def instrument_info(self, symbol: str) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["instrumentInfo"]
-        payload = self.formats.instrument_info(symbol)
-        return await self._send_(method, endpoint, payload)
-
     async def open_orders(self, symbol: str) -> Union[Dict, None]:
         endpoint, method = self.endpoints["allOpenOrders"]
         payload = self.formats.open_orders(symbol)
         return await self._send_(method, endpoint, payload)
 
-    async def current_position(self, symbol: str) -> Union[Dict, None]:
+    async def open_position(self, symbol: str) -> Union[Dict, None]:
         endpoint, method = self.endpoints["currentPosition"]
-        payload = self.formats.current_position(symbol)
+        payload = self.formats.open_position(symbol)
         return await self._send_(method, endpoint, payload)
 
-    async def account_info(self) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["accountInfo"]
-        payload = self.formats.account_info()
-        return await self._send_(method, endpoint, payload)
-
-    async def exchange_info(self) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["exchangeInfo"]
-        payload = self.formats.exchange_info()
-        return await self._send_(method, endpoint, payload)
