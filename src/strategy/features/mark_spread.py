@@ -1,12 +1,9 @@
-
 import numpy as np
 from numba import njit
 
-
 @njit
-def mark_price_spread(mark_price: float, wmid: float) -> float:
+def log_price_difference(p1: float, p2: float) -> float:
     """
-    Difference between mark price and weighted-mid-price
+    Log difference between price1 relative to price2
     """
-
-    return np.log(mark_price/wmid) * 100
+    return np.log(p1/p2) * 100
