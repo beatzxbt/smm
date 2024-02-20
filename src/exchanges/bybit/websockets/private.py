@@ -1,64 +1,87 @@
-
 import json
-import time
 import hmac
 import hashlib
-
+from typing import List, Tuple
+from src.utils.misc import time_ms
 
 class BybitPrivateWs:
+    """
+    Manages the WebSocket connection for Bybit's private streams, including authentication and subscription requests.
 
+    Attributes
+    ----------
+    key : str
+        The API key for authentication.
+    secret : str
+        The API secret for authentication.
+    expires : str
+        The expiry time for the authentication message.
 
-    def __init__(self, api_key: str, api_secret: str):
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.expires = str(int((time.time() + 5) * 1000))
+    Methods
+    -------
+    authentication() -> str:
+        Generates an authentication payload for a private WebSocket connection.
+    multi_stream_request(topics: List[str]) -> Tuple[str, List[str]]:
+        Creates a WebSocket request for subscribing to multiple topics.
+    """
 
-
-    def auth(self) -> json:
+    def __init__(self, key: str, secret: str) -> None:
         """
-        Generates an authentication JSON for a private WS connection
-        """
+        Initializes the BybitPrivateWs with API credentials and an expiry time for the authentication.
 
+        Parameters
+        ----------
+        key : str
+            The API key for Bybit.
+        secret : str
+            The API secret for Bybit.
+        """
+        self.key = key
+        self.secret = secret
+        self.expires = str(time_ms() + 5000)
+
+    def authentication(self) -> str:
+        """
+        Constructs the authentication payload for establishing a private WebSocket connection.
+
+        Returns
+        -------
+        str
+            The authentication payload as a JSON string.
+        """
         signature = hmac.new(
-            key=bytes(self.api_secret, "utf-8"),
+            key=bytes(self.secret, "utf-8"),
             msg=bytes(f"GET/realtime{self.expires}", "utf-8"),
             digestmod=hashlib.sha256,
-        )
+        ).hexdigest()
 
-        req = json.dumps({
+        return json.dumps({
             "op": "auth",
-            "args": [self.api_key, self.expires, str(signature.hexdigest())],
+            "args": [self.key, self.expires, signature],
         })
 
-        return req
-
-
-    def multi_stream_request(self, topics: list) -> tuple:
+    def multi_stream_request(self, topics: List[str]) -> Tuple[str, List[str]]:
         """
-        Creates a tuple of (JSON, list) \n
-        Containing the websocket request [0] and list of streams [1]
+        Generates a request for subscribing to multiple private topics.
 
-        _______________________________________________________________
+        Parameters
+        ----------
+        topics : List[str]
+            A list of topics to subscribe to, such as "Position", "Execution", and "Order".
 
-        Current supported topics are: \n
-        -> Position \n
-        -> Execution \n
-        -> Order
+        Returns
+        -------
+        Tuple[str, List[str]]
+            A tuple containing the subscription request as a JSON string and a list of topics.
         """
-
-        topiclist = []
-
+        list_of_topics = []
         for topic in topics:
-            
             if topic == "Position":
-                topiclist.append("position")
+                list_of_topics.append("position")
+            elif topic == "Execution":
+                list_of_topics.append("execution")
+            elif topic == "Order":
+                list_of_topics.append("order")
 
-            if topic == "Execution":
-                topiclist.append("execution")
-
-            if topic == "Order":
-                topiclist.append("order")
-
-        req = json.dumps({"op": "subscribe", "args": topiclist})
-
-        return req, topiclist
+        req = json.dumps({"op": "subscribe", "args": list_of_topics})
+        return req, list_of_topics

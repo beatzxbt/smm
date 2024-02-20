@@ -1,35 +1,31 @@
-
+from typing import Dict
 from src.sharedstate import SharedState
 
 
 class BybitOrderHandler:
+    _opened_ = ["New", "PartiallyFilled"]
+    _closed_ = ["Rejected", "Filled", "Cancelled"]
 
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
 
-    def __init__(self, sharedstate: SharedState) -> None:
-        self.ss = sharedstate
-
-    
-    def sync(self, recv: dict) -> None:
-
-        data = recv["result"]["list"]
-
+    def sync(self, recv: Dict) -> None:
         self.ss.current_orders = {
-            o["orderId"]: {"price": float(o["price"]), "qty": float(o["qty"]), "side": o["side"]} 
-            for o in data
+            order["orderId"]: {"side": order["side"], "price": float(order["price"]), "qty": float(order["qty"])} 
+            for order in recv["result"]["list"]
         }
 
-    def process(self, data: dict) -> None:
-
+    def process(self, data: Dict) -> None:
         new_orders = {
-            order["orderId"]: {"price": order["price"], "qty": order["qty"], "side": order["side"]}
+            order["orderId"]: {"side": order["side"], "price": float(order["price"]), "qty": float(order["qty"])}
             for order in data
-            if order.get("orderStatus") == "New"
+            if order["orderStatus"] in self._opened_
         }
 
         filled_orders = set(
             order["orderId"] 
             for order in data 
-            if order["orderStatus"] == "Filled"
+            if order["orderStatus"] in self._closed_
         )
 
         # Update the orders

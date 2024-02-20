@@ -1,24 +1,35 @@
-
 import numpy as np
 from numba import njit
+from numpy.typing import NDArray
 
+@njit(cache=True)
+def ema(arr_in: NDArray, window: int) -> NDArray:
+    """
+    Calculates the Exponential Moving Average (EMA) of an input array.
 
-@njit(nogil=True)
-def ema(arr_in: np.ndarray, window: int) -> np.ndarray:
+    Parameters
+    ----------
+    arr_in : NDArray
+        The input array for which the EMA is calculated. Typically, this is an array of closing prices.
+    window : int
+        The window size for the EMA calculation, specifying the number of periods to consider for the moving average.
+
+    Returns
+    -------
+    NDArray
+        An array of the same length as `arr_in`, containing the calculated EMA values.
+
+    Notes
+    -----
+    - The first EMA value is simply the first value of `arr_in`, as there's no preceding data to average.
+    - This implementation initializes the EMA calculation with the first data point in the input array.
     """
-    Hyper-fast EMA implementation
-    """
-    
-    n = arr_in.shape[0]
-    ewma = np.empty(n, dtype=float)
-    alpha = 2 / float(window + 1)
-    w = 1
-    ewma_old = arr_in[0]
-    ewma[0] = ewma_old
+    n = arr_in.size
+    ewma = np.empty(n, dtype=np.float64)
+    alpha = 2 / (window + 1)
+    ewma[0] = arr_in[0]
 
     for i in range(1, n):
-        w += (1-alpha)**i
-        ewma_old = ewma_old*(1-alpha) + arr_in[i]
-        ewma[i] = ewma_old / w
-        
+        ewma[i] = (arr_in[i] * alpha) + (ewma[i-1] * (1 - alpha))
+
     return ewma
