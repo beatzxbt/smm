@@ -1,101 +1,80 @@
-
-import json
-import time
 import hashlib
 import hmac
 import aiohttp
+import orjson
 import asyncio
-
+from typing import Dict
+from src.utils.misc import time_ms, datetime_now as dt_now
 from src.exchanges.bybit.endpoints import BaseEndpoints
-from src.utils.misc import curr_dt
+from src.sharedstate import SharedState
 
 
 class BybitPrivatePostClient:
+    max_retries = 3
+    recv_window = "5000"
+    _success_ = ["OK", "success", "SUCCESS", ""]
+    _retry_ = [100016] # NOTE: Add more
+    _skip_ = [10006, 110001, 110012] # NOTE: Add more
 
-
-    def __init__(self, api_key: str, api_secret: str) -> None:
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        self.key, self.secret = self.ss.api_key, self.ss.api_secret
         self.base_endpoint = BaseEndpoints.MAINNET1
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.recvWindow = "5000"
-    
-    
-    def _sign(self, payload) -> dict:
-        self.timestamp = str(int(time.time()*1000))
-        param_str = "".join([self.timestamp, self.api_key, self.recvWindow, str(payload)])
+        self.timestamp = time_ms()
 
-        header = {
+        self.static_headers = {
             "X-BAPI-TIMESTAMP": self.timestamp,
-            "X-BAPI-API-KEY": self.api_key,
-            "X-BAPI-RECV-WINDOW": self.recvWindow,
+            "X-BAPI-RECV-WINDOW": self.recv_window,
+            "X-BAPI-API-KEY": self.key, 
+            "X-BAPI-SIGN": ""
         }
 
+        self.static_partial_str = "".join([self.key, self.recv_window])
+
+    def _update_timestamp_(self) -> None:
+        self.timestamp = str(time_ms())
+
+    def _sign_(self, payload: str) -> Dict:
+        self._update_timestamp_()
+        param_str = "".join([self.timestamp, self.static_partial_str, payload])
         hash_signature = hmac.new(
-            bytes(self.api_secret, "utf-8"), 
+            bytes(self.secret, "utf-8"), 
             param_str.encode("utf-8"), 
             hashlib.sha256
-        )
-
-        header["X-BAPI-SIGN"] = hash_signature.hexdigest()
-
-        return header
-
+        ).hexdigest()
+        self.static_headers["X-BAPI-TIMESTAMP"] = self.timestamp
+        self.static_headers["X-BAPI-SIGN"] = hash_signature
+        return self.static_headers
 
     async def submit(self, session: aiohttp.ClientSession, endpoint: str, payload: dict):
-        payload_str = json.dumps(payload)
-        self.signed_header = self._sign(payload_str)
+        str_payload = orjson.dumps(payload).decode()
+        signed_header = self._sign_(str_payload)
         full_endpoint = self.base_endpoint + endpoint
-
-        max_retries = 3  
+        max_retries = self.max_retries
         
         for attempt in range(max_retries):
-
             try:
-                # Submit request to the session
-                req = await session.request("POST", full_endpoint, headers=self.signed_header, data=payload_str)
-                response = json.loads(await req.text())
+                req = await session.request("POST", full_endpoint, headers=signed_header, data=str_payload)
+                response = orjson.loads(await req.text())
+                code, msg = response["retCode"], response["retMsg"]
 
-                # If submission is successful, return orderId and latency
-                if response["retMsg"] == "OK" or response["retMsg"] == "success":
-
-                    ret = {
-                        "return" : response["result"],
+                if msg in self._success_:
+                    return {
+                        "result" : response["result"],
                         "latency": int(response["time"]) - int(self.timestamp)
                     }
 
-                    return ret
-
-                # Error handling
                 else:
-                    code = response["retCode"]
-                    msg = response["retMsg"]
-
-                    # If rate limits hit, close session
-                    if msg == "too many visit":
-                        print(f"{curr_dt()}: Rate limits exceeded!")
-                        break
-
-                    # If order doesnt exist anymore
-                    elif code == "110001":       
-                        print(f"{curr_dt()}: {msg} | Endpoint: {endpoint}")
-                        break
+                    if code in self._retry_: 
+                        raise Exception(f"Error: {code}/{msg} | Endpoint: {endpoint}")
                     
-                    # Enter other error handling here
                     else:            
-                        print(f"{curr_dt()}: {msg} | Endpoint: {endpoint}")
+                        print(f"{dt_now()}: Error: {code}/{msg} | Endpoint: {endpoint}")
                         break
-
 
             except Exception as e:
-                
-                # Resign the payload and retry the request after sleeping for 1s
                 if attempt < max_retries - 1:  
-
                     await asyncio.sleep(attempt)  
-
-                    self.timestamp = str(int(time.time()*1000))
-                    self.signed_header = self._sign(payload)
-
-                # Re-raise the last exception if all retries failed
+                    signed_header = self._sign_(payload)
                 else:
                     raise e 
