@@ -1,42 +1,28 @@
-
 import numpy as np
-from numba import njit, float64, int32
+from numba import njit, float64, uint8
+from numpy.typing import NDArray
 
-# Using ** for power is often faster with Numba #
-
-@njit(float64(float64, int32))
-def nsqrt(value: float, n: int) -> float:
-    """
-    Return the n'th root of a value
-    """
-
-    if n == 1:
-        return value**0.5
-
-    else:
-        for _ in range(n):
-            value = value**0.5
-
-        return value
-
-
-@njit(float64(float64, int32))
-def npower(value: float, n: int) -> float:
-    """
-    Return the n'th square of a value
-    """
-    return value**n 
-
-
-@njit(float64(float64))
-def nabs(value: float) -> float:
-    """
-    Return the absolute of a value
-    """
-    return np.abs(value)
-
-
-@njit(float64[:](float64, float64, int32))
-def nlinspace(start: float, end: float, n: int) -> np.ndarray:
+@njit(float64[:](float64, float64, uint8), cache=True)
+def nblinspace(start: float, end: float, n: int) -> NDArray:
     return np.linspace(start, end, n)
+
+@njit(float64[:](float64, float64, uint8), cache=True)
+def nbgeomspace(start: float, end: float, n: int) -> NDArray:
+    return np.geomspace(start, end, n)
+
+@njit(float64(float64, uint8), cache=True)
+def nbround(num: float, digit: int) -> float:
+    return np.around(num, digit)
+
+@njit(float64(float64), cache=True)
+def nbabs(val: float) -> float:
+    return np.abs(val)
     
+@njit(float64(float64, float64, float64), cache=True)
+def nbclip(val: float, min: float, max: float) -> float:
+    if val < min:
+        return min
+    elif val > max:
+        return max
+    else:
+        return val
