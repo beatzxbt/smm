@@ -83,7 +83,7 @@ class SharedState:
         self.account_size = float(settings["account_size"])
         self.bb_length = int(settings["bollinger_band_length"])
         self.bb_std = int(settings["bollinger_band_std"])
-        self.quote_offset = float(settings["quote_offset"])
+        self.price_offset = float(settings["price_offset"])
         self.size_offset = float(settings["size_offset"])
         self.volatility_offset = float(settings["volatility_offset"])
         self.base_spread = float(settings["base_spread"])

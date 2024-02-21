@@ -5,14 +5,14 @@ binance_symbol: ETHUSDT
 bybit_symbol: ETHUSDT 
 
 # Master offsets 
-quote_offset: 0.0 
+price_offset: 0.0 
 size_offset: 0.0  
 volatility_offset: 0.0 
 
 # Market Maker Settings
-base_spread: 1
-min_order_size: 0.02
-max_order_size: 0.2
+base_spread: 5
+min_order_size: 0.01
+max_order_size: 0.1
 inventory_extreme: 0.5 
 
 # Volatility settings

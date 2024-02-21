@@ -147,8 +147,8 @@ class MarketMaker:
         bid_lower = best_bid - (base_range * (1 - bid_skew))
         ask_upper = best_ask + (base_range * (1 - ask_skew))
             
-        bid_prices = nbgeomspace(best_bid, bid_lower, self.max_orders/2) 
-        ask_prices = nbgeomspace(best_ask, ask_upper, self.max_orders/2) 
+        bid_prices = nbgeomspace(best_bid, bid_lower, self.max_orders/2) + self.ss.price_offset
+        ask_prices = nbgeomspace(best_ask, ask_upper, self.max_orders/2) + self.ss.price_offset
 
         return bid_prices, ask_prices
 
@@ -200,13 +200,13 @@ class MarketMaker:
             start=bid_min if bid_skew >= ask_skew else self.ss.min_order_size, 
             end=bid_upper, 
             n=self.max_orders/2
-        )
+        ) + self.ss.size_offset
 
         ask_sizes = nbgeomspace(
             start=ask_min if ask_skew >= bid_skew else self.ss.min_order_size, 
             end=ask_upper, 
             n=self.max_orders/2
-        )
+        ) + self.ss.size_offset
 
         return bid_sizes, ask_sizes
 
