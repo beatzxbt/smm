@@ -1,8 +1,6 @@
 import asyncio
 import uvloop
-
 from dotenv import load_dotenv
-
 load_dotenv()
 
 from src.strategy.core import Strategy
@@ -26,6 +24,5 @@ async def main():
         raise e
 
 if __name__ == "__main__":
-    # Set uvloop as the event loop policy to enhance performance.
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
     asyncio.run(main())
