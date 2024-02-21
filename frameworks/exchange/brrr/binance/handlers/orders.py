@@ -1,10 +1,11 @@
 from typing import Dict
 
 class BinanceOrdersHandler:
+    _overwrite_ = ["NEW", "PARTIALLY_FILLED"]
+    _remove_ = ["CANCELLED", "EXPIRED", "FILLED", "EXPIRED_IN_MATCH"]
+
     def __init__(self, private: Dict) -> None:
         self.private = private
-        self._overwrite_ = ["NEW", "PARTIALLY_FILLED"]
-        self._remove_ = ["CANCELLED", "EXPIRED", "FILLED", "EXPIRED_IN_MATCH"]
 
     def process(self, recv: Dict) -> Dict:
         E = float(recv["E"])
