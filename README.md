@@ -1,68 +1,69 @@
 Bybit Simple Market Maker
 ===================
 
-This is a sample market making bot for [Bybit](https://www.bybit.com/en-US/).
+This is a sample market making bot for [Bybit](https://www.bybit.com/en/).
 
-(Warning: There are known bugs, this branch is not working out of the box at the moment. You can follow the new upgrades coming soon at: https://github.com/beatzxbt/bybit-smm/tree/v.2.0-alpha)
+
+Disclaimer
+---------------
+
+Nothing in this repository is financial advice for obvious reasons, it is primarily for learning purposes, it is highly unlikely you will make money trading this strategy and is meant as a stepping stone for your own MM systems. Feel free to copy pasta this repository and spin it off as your own personal MM, adding features and/or quote generators (or whatever you want honestly, but if you feel it can be improved without leaking much alpha then please do help everyone else by submitting a PR!)
+
 
 Getting Started
 ---------------
 
-1. Assuming you already have a Bybit account, generate API keys and secrets using [this guide](https://learn.bybit.com/bybit-guide/how-to-create-a-bybit-api-key/)
-2. Swap your key/secret into the config file found in /config/bybit.yaml/
-3. Install all packages required by running 'pip install -r requirements.txt' 
-4. Input the contract details in the parameters.yaml file (tick size/lot size) according to the symbol you want to make
-5. Alter the spreads, order sizes, offsets (any setting in the .yaml file) as you wish, even whilst the bot is live!
+NOTE: I have tested this with Python 3.11.7, i recommend you use a similar version (likely any 3.9 <-> 3.11 should do)
 
-** Note, changing the primary data feed between Binance <-> Bybit will require a restart to the script **
+1. Assuming you already have a Bybit account, generate an API key/secret using [this guide](https://learn.bybit.com/bybit-guide/how-to-create-a-bybit-api-key/).
+2. Swap your key/secret into the config file found in /config/bybit.yaml/
+3. Install all packages required by running 'pip install -r requirements.txt' into the terminal.
+4. Input the contract details in the parameters.yaml file (tick size/lot size) according to the symbol you want to make.
+5. Alter the market maker parameters, offsets, symbols (any setting in the .yaml file) as you wish, even whilst the bot is live!
+
+NOTE: Changing the primary data feeds or symbols will require a restart to the script
 
 
 Strategy Design/Overview
 ---------------
 
-1. Prices from Bybit (and optionally Binance) are streamed into a common shared class
-2. A market maker function generates quotes, with bias based on price based features
-  * Multiple features work on comparing orderbook, trades & price behaviours to calculate skew
-  * Prices and quantities are generated, with prices within a volatility range, and min/max quantity defined manually
-  * The above leads to behaviour shown in examples below:
-    * (Ex) If binance mid price is lower than then bybit mid price -> skew is negative -> asks are more concentrated near mid price than bids
-    * (Ex) If binance price is higher than then bybit price -> skew is positive -> bids have more qty than asks
-    * (Ex) If inventory is extremely long, quotes are killed on the long side to try neutralize the position
-3. Orders are sent to the exchange via diff function, which minimizes rate limit usage to shift between order states
+1. Prices from Bybit (and optionally Binance) are streamed using websockets into a common shared class
+2. Features are calculated from the updated market data, and a market maker class generates optimal quotes
+  * Multiple features work on comparing different mid-prices to each other (trying to predict where price is likely to go).
+  * Both bid/ask skew is then calculated, based on the feature values but corrected for the current inventory (filled position).
+  * Prices & sizes are generated based on the skew, with edge cases for extreme inventory cases.
+  * Spread is adjusted for volatility (as a multiple of the base spread), widening when short term movements increase.
+  * Quotes are generated using all the above, formatted for the local client and returned
+3. Orders are sent via a Order Management System (currently disabled), which transitions between current and new states, and tries to do so in the most ratelimit-efficient way possible.
   
 
-New upgrades
+New upgrades/add-ons
 ---------------
 
-- Fast local orderbooks for both Binance & Bybit, useful for creating [orderbook based features](https://twitter.com/BeatzXBT/status/1680152557388197888)
-- Highly abstracted code (add/remove features with ease)
-- Access to Binance data feeds (LOB/Trades) 
+- Extensively documented codebase, with beginner friendliness as a priority
 
 
 Current known bugs
 ---------------
 
-- None so far
+- None so far (If any are encountered, please DM me on Twitter/Discord)
 
 
 Improvements/Additions
 ---------------
 
-- Setting up logger {High Priority}
-- Testing for order generation, get/post clients and websocket feeds {High Priority}
-- Simpler execution and order feed handlers (reworked for time-based and orderId based indexing) {Medium Priority}
-- Customized rounding for [bid/ask](https://twitter.com/kursatcalk/status/1686685226028666880) {Low Priority}
-
-
-Upcoming upgrades
----------------
-
-- Optional TWAP to reduce inventory (alongside purging quotes)
-- Avellaneda and Stoikov's basic market making model
-- More advanced orderbook & trades features
+- None planned for this repository in its current state, although i'm working on a major upgrade in [this branch](https://github.com/beatzxbt/bybit-smm/tree/v.2.0-alpha). It is faster, has a exchange-agnostic framework and supports multi-symbol execution. However, this is still very much WIP and will not work out of the box, so explore it only for learning purposes (or to take bits and bobs for your own system)!
 
 ---------------
 
 If you have any questions or suggestions regarding the repo, or just want to have a chat, my handles are below 👇🏼
 
 Twitter: [@beatzXBT](https://twitter.com/BeatzXBT) | Discord: gamingbeatz
+
+---------------
+
+Also if you want to buy me a coffee (much appreciated :D), my addresses is below:
+
+USDC: 0x84a16e23c38f84709395720b08348d86883acf81 (Arbitrum)
+USDC: 9mJw3Wyifr19vqHJp6SLK86sDXrE6Ayk96U7F4Wano2H (Solana)
+ETH: 0x84a16e23c38f84709395720b08348d86883acf81 (ERC20)
