@@ -1,20 +1,20 @@
-account_size: 10 # ($)
-primary_data_feed: Bybit # Choices: ["Binance", "Bybit"]
+account_size: 100
+primary_data_feed: Binance # Choices: ["Binance", "Bybit"]
 
-binance_symbol: BTCUSDT # Derivatives symbol, if not used then just leave as any string
-bybit_symbol: GPTUSDT # Derivatives symbol
+binance_symbol: ETHUSDT 
+bybit_symbol: ETHUSDT 
 
 # Master offsets 
-quote_offset: 0.0 # In base units
-size_offset: 0.0  # In quote units
-volatility_offset: 0.0 # In quote units
+quote_offset: 0.0 
+size_offset: 0.0  
+volatility_offset: 0.0 
 
 # Market Maker Settings
-base_spread: 0.00002 # In quote units 
-min_order_size: 100  # In base units
-max_order_size: 1000  # In base units
-inventory_extreme: 0.5 # Between 0 <-> 1
+base_spread: 1
+min_order_size: 0.02
+max_order_size: 0.2
+inventory_extreme: 0.5 
 
 # Volatility settings
 bollinger_band_length: 20
-bollinger_band_std: 2
+bollinger_band_std: 2.5
