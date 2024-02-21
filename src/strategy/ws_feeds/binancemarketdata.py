@@ -1,6 +1,6 @@
 import orjson
 import websockets
-from typing import Coroutine
+from typing import Coroutine, Union
 
 from src.utils.misc import datetime_now as dt_now
 from src.exchanges.binance.get.client import BinancePublicGet
@@ -57,7 +57,7 @@ class BinanceMarketData:
             self.ws_topics[2]: BinanceTradesHandler(self.ss).process,
         }
 
-    async def _initialize_(self) -> Coroutine:
+    async def _initialize_(self) -> None:
         """
         Fetches the latest order book and trades data to initialize the market data before streaming.
         """
@@ -66,7 +66,7 @@ class BinanceMarketData:
         self.ss.binance_book.process_snapshot(book)
         BinanceTradesHandler(self.ss).initialize(trades)
 
-    async def _get_precision_(self) -> Coroutine:
+    async def _get_precision_(self) -> None:
         """
         Fetches and assigns the symbol's tick & lot size to the shared market data before streaming.
         """
@@ -74,7 +74,7 @@ class BinanceMarketData:
         self.ss.binance_tick_size = float(info["filters"][0]["tickSize"])
         self.ss.binance_lot_size = float(info["filters"][1]["stepSize"])
 
-    async def _stream_(self):
+    async def _stream_(self) -> Union[Coroutine, None]:
         """
         Asynchronously listens for messages on the WebSocket and dispatches them to the appropriate handlers.
         """

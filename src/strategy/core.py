@@ -60,10 +60,14 @@ class Strategy:
         """
         while True: 
             await asyncio.sleep(1)  # Check every second
-            if self.ss.primary_data_feed == "BINANCE" and self.ss.binance_ws_connected:
-                break
-            elif self.ss.bybit_ws_connected: 
-                break
+
+            if not self.ss.bybit_ws_connected:
+                continue
+
+            if self.ss.primary_data_feed == "BINANCE" and not self.ss.binance_ws_connected:
+                continue
+
+            break
 
     async def primary_loop(self) -> None:
         """
