@@ -42,7 +42,8 @@ class OrderBookBybit(BaseOrderBook):
         bids = np.array(recv["data"]["b"], dtype=float)
 
         if recv["type"] == "snapshot":
-            self.process_snapshot(asks.tolist(), bids.tolist())
+            self.process_snapshot(asks, bids)
+            
         elif recv["type"] == "delta":
             self.asks = self.update_book(self.asks, asks)
             self.bids = self.update_book(self.bids, bids)
