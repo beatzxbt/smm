@@ -1,7 +1,7 @@
 account_size: 10 # ($)
 primary_data_feed: Bybit # Choices: ["Binance", "Bybit"]
 
-binance_symbol: XMRUSDT # Derivatives symbol, if not used then just leave as any string
+binance_symbol: BTCUSDT # Derivatives symbol, if not used then just leave as any string
 bybit_symbol: GPTUSDT # Derivatives symbol
 
 # Master offsets 

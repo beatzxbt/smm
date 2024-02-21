@@ -1,5 +1,10 @@
 import asyncio
 import uvloop
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from src.strategy.core import Strategy
 from src.sharedstate import SharedState
 
