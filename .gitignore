@@ -155,3 +155,6 @@ test.ipynb
 
 # Parameter configs
 parameters.yaml
+
+# API config file
+.env
