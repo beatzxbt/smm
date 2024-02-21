@@ -1,5 +1,6 @@
 import asyncio
 import numpy as np
+import os
 import yaml
 from collections import deque
 from numpy_ringbuffer import RingBuffer
@@ -16,15 +17,11 @@ class SharedState:
 
     Attributes
     ----------
-    CONFIG_DIR : str
-        The directory path to the configuration file containing API credentials.
     PARAM_DIR : str
         The directory path to the parameters file containing trading settings.
 
     Methods
     -------
-    load_config() -> None:
-        Loads API credentials from the configuration file.
     load_settings(settings: Dict) -> None:
         Updates trading parameters and settings from a given dictionary.
     load_initial_settings() -> None:
@@ -39,18 +36,20 @@ class SharedState:
         Calculates the volume-weighted average mid-price (VAMP) based on the specified depth.
     """
 
-    CONFIG_DIR = "/Users/beatz/Documents/Github/bybit-smm/config/bybit.yaml"  
-    PARAM_DIR = "/Users/beatz/Documents/Github/bybit-smm/src/parameters.yaml"  
+    PARAM_PATH = os.path.dirname(os.path.realpath(__file__)) + "/../parameters.yaml"  
 
     def __init__(self) -> None:
         """
         Initializes the SharedState with paths to configuration and parameters files,
         loads initial configurations and settings, and initializes market data attributes.
         """
-        if not self.CONFIG_DIR or not self.PARAM_DIR:
-            raise ValueError("Missing config and/or param directories!")
+        self.api_key = os.getenv("API_KEY")
+        self.api_secret = os.getenv("API_SECRET")
+        if not self.api_key or not self.api_secret:
+            raise ValueError("Missing API key and/or secret!")
 
-        self._load_config_()
+        if not self.PARAM_PATH:
+            raise ValueError("Missing config and/or param directories!")
         self._load_initial_settings_()
 
         # Initialize market data attributes for Binance and Bybit
@@ -73,17 +72,6 @@ class SharedState:
         self.volatility_value = 0
         self.inventory_delta = 0
 
-    def _load_config_(self) -> None:
-        """
-        Loads API credentials from the YAML configuration file.
-        """
-        with open(self.CONFIG_DIR, "r") as f:
-            config = yaml.safe_load(f)
-            self.api_key = config["api_key"]
-            self.api_secret = config["api_secret"]
-
-            if not self.api_key or not self.api_secret:
-                raise ValueError("Missing API key and/or secret!")
 
     def _load_settings_(self, settings: Dict) -> None:
         """
@@ -107,7 +95,7 @@ class SharedState:
         """
         Loads initial trading settings from the parameters YAML file.
         """
-        with open(self.PARAM_DIR, "r") as f:
+        with open(self.PARAM_PATH, "r") as f:
             settings = yaml.safe_load(f)
             self._load_settings_(settings)
 
@@ -117,7 +105,7 @@ class SharedState:
         """
         while True:
             await asyncio.sleep(60)  # Refresh every 60 seconds
-            with open(self.PARAM_DIR, "r") as f:
+            with open(self.PARAM_PATH, "r") as f:
                 settings = yaml.safe_load(f)
                 self._load_settings_(settings)
 

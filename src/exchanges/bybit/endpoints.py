@@ -1,15 +1,19 @@
 from dataclasses import dataclass
+import os
+
+if_testnet = "-testnet" if os.getenv("TESTNET") == "True" else ""
 
 @dataclass
 class BaseEndpoints:
-    MAINNET1 = "https://api.bybit.com"
-    MAINNET2 = "https://api.bytick.com"
+    MAINNET1 = f"https://api{if_testnet}.bybit.com"
+    MAINNET2 = f"https://api{if_testnet}.bytick.com"
 
 @dataclass
 class WsStreamLinks:
-    SPOT_PUBLIC_STREAM = "wss://stream.bybit.com/v5/public/spot"
-    FUTURES_PUBLIC_STREAM = "wss://stream.bybit.com/v5/public/linear"
-    COMBINED_PRIVATE_STREAM = "wss://stream.bybit.com/v5/private"
+    domain = f"stream{if_testnet}.bybit.com"
+    SPOT_PUBLIC_STREAM = f"wss://{domain}/v5/public/spot"
+    FUTURES_PUBLIC_STREAM = f"wss://{domain}/v5/public/linear"
+    COMBINED_PRIVATE_STREAM = f"wss://{domain}/v5/private"
 
 @dataclass
 class PrivateGetLinks:
