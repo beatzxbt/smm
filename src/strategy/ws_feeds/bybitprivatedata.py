@@ -1,7 +1,7 @@
 import asyncio
 import orjson
 import websockets
-from typing import Coroutine
+from typing import Coroutine, Union
 
 from src.utils.misc import datetime_now as dt_now
 from src.exchanges.bybit.get.private import BybitPrivateGet
@@ -82,7 +82,7 @@ class BybitPrivateData:
             self.position_handler.sync(current_position)
             await asyncio.sleep(10)
 
-    async def _stream_(self) -> Coroutine:
+    async def _stream_(self) -> Union[Coroutine, None]:
         """
         Connects to Bybit's combined private WebSocket stream and handles incoming updates.
         """

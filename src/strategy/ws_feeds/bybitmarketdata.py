@@ -1,6 +1,6 @@
 import orjson
 import websockets
-from typing import Coroutine
+from typing import Coroutine, Union
 
 from src.utils.misc import datetime_now as dt_now
 from src.exchanges.bybit.get.public import BybitPublicClient
@@ -66,7 +66,7 @@ class BybitMarketData:
             self.ws_topics[4]: BybitKlineHandler(self.ss).process,
         }
 
-    async def _initialize_(self):
+    async def _initialize_(self) -> None:
         """
         Fetches the latest klines and trades data to initialize the market data before streaming.
         """
@@ -75,7 +75,7 @@ class BybitMarketData:
         BybitKlineHandler(self.ss).initialize(klines["result"]["list"])
         BybitTradesHandler(self.ss).initialize(trades["result"]["list"])
 
-    async def _get_precision_(self) -> Coroutine:
+    async def _get_precision_(self) -> None:
         """
         Fetches and assigns the symbol's tick & lot size to the shared market data before streaming.
         """
@@ -83,7 +83,7 @@ class BybitMarketData:
         self.ss.bybit_tick_size = float(info["priceFilter"]["tickSize"])
         self.ss.bybit_lot_size = float(info["lotSizeFilter"]["qtyStep"])
 
-    async def _stream_(self):
+    async def _stream_(self) -> Union[Coroutine, None]:
         """
         Asynchronously listens for messages on the WebSocket and dispatches them to the appropriate handlers.
         """
