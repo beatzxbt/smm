@@ -79,7 +79,7 @@ class Strategy:
 
         while True:
             await asyncio.sleep(1)  # Strategy iteration delay
-            new_orders, spread = MarketMaker(self.ss).generate_quotes(debug=True)
+            new_orders, spread = MarketMaker(self.ss).generate_quotes(debug=False)
             await OMS(self.ss).run(new_orders, spread)
 
     async def run(self) -> None:
