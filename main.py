@@ -8,12 +8,17 @@ async def main():
     The main entry point of the application. Initializes the shared state and strategy,
     then concurrently refreshes parameters and runs the trading strategy.
     """
-    sharedstate = SharedState()
+    try:
+        sharedstate = SharedState()
+        await asyncio.gather(
+            asyncio.create_task(sharedstate.refresh_parameters()),  
+            asyncio.create_task(Strategy(sharedstate).run())  
+        )
 
-    await asyncio.gather(
-        asyncio.create_task(sharedstate.refresh_parameters()),  
-        asyncio.create_task(Strategy(sharedstate).run())  
-    )
+    except Exception as e:
+        print(f"Critical exception occured: {e}")
+        # TODO: Add shutdown sequence here
+        raise e
 
 if __name__ == "__main__":
     # Set uvloop as the event loop policy to enhance performance.
