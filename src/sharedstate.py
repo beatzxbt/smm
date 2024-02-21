@@ -104,7 +104,7 @@ class SharedState:
         Periodically refreshes trading parameters from the parameters file.
         """
         while True:
-            await asyncio.sleep(60)  # Refresh every 60 seconds
+            await asyncio.sleep(10)  # Refresh every 10 seconds
             with open(self.PARAM_PATH, "r") as f:
                 settings = yaml.safe_load(f)
                 self._load_settings_(settings)
