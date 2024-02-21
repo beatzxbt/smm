@@ -122,9 +122,9 @@ class OMS:
         # print("1st check triggered here!")
         await Order(self.ss).cancel_all()
         await Order(self.ss).order_limit_batch(new_orders)
-        print(f"New orders: {self._orders_within_spread_(new_orders, spread)}")
+        # print(f"New orders: {self._orders_within_spread_(new_orders, spread)}")
         current_bids, current_asks = self.segregate_current_orders()
-        print(f"Current orders: {self._orders_within_spread_(current_bids + current_asks, spread)}")
+        # print(f"Current orders: {self._orders_within_spread_(current_bids + current_asks, spread)}")
         return None
 
         # Sorting/segregating current & new orders
