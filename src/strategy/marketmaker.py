@@ -1,297 +1,252 @@
-
 import numpy as np
-
-from src.utils.rounding import round_step_size
-from src.utils.jit_funcs import nlinspace, nsqrt, nabs, npower
-from src.strategy.features.momentum import trend_feature, trend_feature_v2
-from src.strategy.features.mark_spread import mark_price_spread
-from src.strategy.features.bba_imbalance import bba_imbalance
-
+from numpy.typing import NDArray
+from typing import List, Tuple
+from src.utils.rounding import round_step
+from src.utils.jit_funcs import nblinspace, nbgeomspace, nbround, nbabs, nbclip
+from src.strategy.features.generate import Features
 from src.sharedstate import SharedState
 
 
-class CalculateFeatures:
-    """
-    Some features are disabled for Bybit-only streams    
-    """
-
-    def __init__(self, sharedstate: SharedState) -> None:
-        self.ss = sharedstate
-
-        self.depths = np.array([200, 100, 50, 25, 10])
-        self.klines = self.ss.bybit_klines._unwrap()
-        self.bybit_trades = self.ss.bybit_trades._unwrap()
-        self.binance_trades = self.ss.binance_trades._unwrap()
-
-
-    def momentum_klines(self):
-        return trend_feature(
-            klines=self.klines, 
-            lengths=self.depths
-        )
-
-
-    def bybit_mark_wmid_spread(self):
-        return mark_price_spread(
-            mark_price=self.ss.bybit_mark_price, 
-            wmid=self.ss.bybit_weighted_mid_price
-        )
-
-
-    def binance_bybit_wmid_spread(self):
-        return mark_price_spread(
-            mark_price=self.ss.binance_weighted_mid_price, 
-            wmid=self.ss.bybit_weighted_mid_price
-        )
-
-    
-    def bybit_bba_imbalance(self):
-        return bba_imbalance(
-            bid=self.ss.bybit_bba[0][1], 
-            ask=self.ss.bybit_bba[1][1]
-        )
-
-    
-    def binance_bba_imbalance(self):
-        return bba_imbalance(
-            bid=self.ss.binance_bba[0][1], 
-            ask=self.ss.binance_bba[1][1]
-        )
-
-
-    def generate_skew(self):
-        
-        total_skew = 0
-
-        if self.ss.primary_data_feed == "BINANCE":
-            momentum_weight = 0.4
-            bybit_spread_weight = 0.2
-            binance_spread_weight = 0.2
-            bybit_bba_imb_weight = 0.1
-            binance_bba_imb_weight = 0.1
-
-            # Generate all feature values
-            total_skew += self.momentum_klines() * momentum_weight
-            total_skew += self.bybit_mark_wmid_spread() * bybit_spread_weight
-            total_skew += self.binance_bybit_wmid_spread() * binance_spread_weight
-            total_skew += self.bybit_bba_imbalance() * bybit_bba_imb_weight
-            total_skew += self.binance_bba_imbalance() * binance_bba_imb_weight
-
-        else:
-            momentum_weight = 0.5
-            bybit_spread_weight = 0.3
-            bybit_bba_imb_weight = 0.2
-
-            # Generate all feature values
-            total_skew += self.momentum_klines() * momentum_weight
-            total_skew += self.bybit_mark_wmid_spread() * bybit_spread_weight
-            total_skew += self.bybit_bba_imbalance() * bybit_bba_imb_weight
-
-        return total_skew
-
-
-
 class MarketMaker:
+    """
+    Implements market making strategies including quote generation based on skew,
+    spread adjustment for volatility, and order size calculations.
 
+    Attributes
+    ----------
+    ss : SharedState
+        Shared application state containing configuration and market data.
+    features : Features
+        A class instance for calculating market features like skew.
+    tick_size : float
+        The minimum price movement of an asset.
+    lot_size : float
+        The minimum quantity movement of an asset.
+    spread : float
+        The adjusted spread based on market volatility.
 
-    def __init__(self, sharedstate: SharedState) -> None:
-        self.ss = sharedstate
-        self.calculate_features = CalculateFeatures(self.ss)
-        self.max_orders = self.ss.num_orders
+    Methods
+    -------
+    _skew_() -> Tuple[float, float]:
+        Calculates bid and ask skew based on inventory and market conditions.
+    _adjusted_spread_() -> float:
+        Adjusts the base spread according to market volatility.
+    _prices_(bid_skew: float, ask_skew: float) -> Tuple[np.ndarray, np.ndarray]:
+        Generates bid and ask prices based on market conditions and skew.
+    _sizes_(bid_skew: float, ask_skew: float) -> Tuple[np.ndarray, np.ndarray]:
+        Calculates the sizes for bid and ask orders based on skew.
+    generate_quotes() -> List[Tuple[str, float, float]]:
+        Generates a list of quotes to be submitted to the exchange.
+    """
+
+    max_orders = 8
+
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        self.features = Features(self.ss)
         self.tick_size = self.ss.bybit_tick_size
         self.lot_size = self.ss.bybit_lot_size
+        self.spread = self._adjusted_spread_()
 
-        self.spread = self._adjspread()
-
-
-    def _skew(self) -> tuple[float, float]:
+    def _skew_(self) -> Tuple[float, float]:
         """
-        Generates bid & ask skew 
+        Calculates the skew for bid and ask orders based on the current inventory level and generated skew value.
 
-        _______________________________________________________________
-
-        -> If inventory within bounds, skew = feature values
-
-        -> Otherwise, quotes skewed to reduce inventory
-        """
-
-        skew = self.calculate_features.generate_skew()
-        skew = np.round(skew, 1)
-
-        # Calculate skew using conditional vectorization
-        bid_skew = np.where(skew >= 0, np.clip(skew, 0, 1), 0)
-        ask_skew = np.where(skew < 0, np.clip(skew, -1, 0), 0)
-
-        # Neutralize inventory using conditional assignment
-        bid_skew[self.ss.inventory_delta < 0] += self.ss.inventory_delta
-        ask_skew[self.ss.inventory_delta > 0] -= self.ss.inventory_delta
-
-        # Handle extreme inventory cases using conditional assignment
-        bid_skew[self.ss.inventory_delta < -self.ss.inventory_extreme] = 1
-        ask_skew[self.ss.inventory_delta > self.ss.inventory_extreme] = 1
-
-        # Final skews
-        bid_skew = nabs(float(bid_skew))
-        ask_skew = nabs(float(ask_skew))
-
-        return bid_skew, ask_skew
-
-
-    def _adjspread(self) -> float:
-        """
-        Increases the base spread in volatile moments
-        """
-        multiplier = (self.ss.volatility_value * 100) / self.ss.bybit_mid_price
-        multiplier = np.clip(multiplier, 1, 10)
-
-        return self.ss.base_spread * multiplier
-
-
-    def _num_orders(self, bid_skew, ask_skew) -> tuple[float, float]:
-        """
-        Returns the number of bids & asks to generate
-        """
-
-        if bid_skew > ask_skew:
-            num_bids = int((self.max_orders / 2) * (1 + npower(bid_skew, 1.5)))
-            num_asks = self.max_orders - num_bids
-
-        else:
-            num_asks = int((self.max_orders / 2) * (1 + npower(ask_skew, 1.5)))
-            num_bids = self.max_orders - num_asks
-
-        # Extreme inventory kills quotes on one side
-        num_bids = None if ask_skew >= 1 else num_bids
-        num_asks = None if bid_skew >= 1 else num_asks
-
-        return num_bids, num_asks
-
-
-    def _prices(self, bid_skew, ask_skew, num_bids, num_asks) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Generates bid & ask prices
-
-        _______________________________________________________________
-
-        -> Volatility (range of quotes) is split into half (bid/ask)
-        -> Upper limits are defined by the skew values (reduces the upper quote distance from base)
-        -> A linear range from the mark price to the upper limit is generated 
-        """
+        Steps:
+        1. Generate a base skew value from market features.
+        2. Adjust the skew based on the current inventory level to encourage balancing.
+        3. Limit skew adjustment to prevent extreme order placement if inventory is beyond predefined thresholds.
         
-        best_bid = self.ss.bybit_bba[0][0]
-        best_ask = self.ss.bybit_bba[1][0]
+        Returns
+        -------
+        Tuple[float, float]
+            The absolute values of bid and ask skew, ensuring they are positive.
+        """
+        skew = self.features.generate_skew()
+        skew = nbround(skew, 2) # NOTE: Temporary, prevents heavy OMS use
 
-        # If bid skew is too high, dont quote asks
+        # Set the initial values
+        bid_skew = nbclip(skew, 0, 1)
+        ask_skew = nbclip(skew, -1, 0)  
+
+        # Adjust for current inventory delta 
+        bid_skew += self.ss.inventory_delta if self.ss.inventory_delta < 0 else 0
+        ask_skew -= self.ss.inventory_delta if self.ss.inventory_delta > 0 else 0
+
+        # Clip values if inventory reaches extreme levels
+        bid_skew = bid_skew if self.ss.inventory_delta > -self.ss.inventory_extreme else 1
+        ask_skew = ask_skew if self.ss.inventory_delta < self.ss.inventory_extreme else 1
+        
+        # Edge case where skew is extreme for no apparent reason (0 delta is rare here)
+        if (bid_skew == 1 or ask_skew == 1) and (self.ss.inventory_delta == 0):
+            return 0, 0
+        
+        return nbabs(bid_skew), nbabs(ask_skew)
+
+    def _adjusted_spread_(self) -> float:
+        """
+        Adjusts the base spread of orders based on current market volatility.
+
+        Steps:
+        1. Calculate a multiplier based on the current volatility and mid price.
+        2. Adjust the base spread by this multiplier, within a clipped range to prevent extreme spreads.
+
+        Returns
+        -------
+        float
+            The adjusted spread value.
+        """
+        multiplier = (self.ss.volatility_value * 100) / self.ss.bybit_mid
+        return self.ss.base_spread * nbclip(multiplier, 1, 10)
+
+    def _prices_(self, bid_skew: float, ask_skew: float) -> Tuple[NDArray, NDArray]:
+        """
+        Generates a list of bid and ask prices based on market conditions and skew.
+
+        Steps:
+        1. Determine base bid and ask prices from the current BBA.
+        2. Adjust the prices based on the skew to generate a range for orders.
+        3. Create linearly spaced prices within this range.
+
+        Parameters
+        ----------
+        bid_skew : float
+            The skew value for bid orders.
+        ask_skew : float
+            The skew value for ask orders.
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Arrays of bid and ask prices.
+        """
+        best_bid, best_ask = self.ss.bybit_bba[:, 0]
+
+        # If inventory is too long, dont quote bids
         if bid_skew >= 1:
-            bid_lower = best_bid - (self.tick_size * num_bids)
-            bid_prices = nlinspace(best_bid, bid_lower, num_bids)
-
+            bid_lower = best_bid - (self.spread * self.max_orders)
+            bid_prices = nblinspace(best_bid, bid_lower, self.max_orders)
             return bid_prices, None
         
-        # If ask skew is too high, dont quote bids
+        # If inventory is too short, dont quote asks
         elif ask_skew >= 1:
-            ask_upper = best_ask + (self.tick_size * num_asks)
-            ask_prices = nlinspace(best_ask, ask_upper, num_asks)
-
+            ask_upper = best_ask + (self.spread * self.max_orders)
+            ask_prices = nblinspace(best_ask, ask_upper, self.max_orders)
             return None, ask_prices
 
         # If skew is normal, quote both sides
         elif bid_skew >= ask_skew:
-            best_bid = best_ask - self.tick_size
-            best_ask = best_bid + self.spread            
+            best_bid = best_ask - self.spread * 0.33
+            best_ask = best_bid + self.spread * 0.67       
 
         elif bid_skew < ask_skew:
-            best_ask = best_bid + self.tick_size
-            best_bid = best_ask - self.spread
+            best_ask = best_bid + self.spread * 0.33
+            best_bid = best_ask - self.spread * 0.67 
         
-        # Prices for both sides
         base_range = self.ss.volatility_value/2
         bid_lower = best_bid - (base_range * (1 - bid_skew))
         ask_upper = best_ask + (base_range * (1 - ask_skew))
             
-        bid_prices = nlinspace(best_bid, bid_lower, num_bids) 
-        ask_prices = nlinspace(best_ask, ask_upper, num_asks) 
+        bid_prices = nbgeomspace(best_bid, bid_lower, self.max_orders/2) + self.ss.price_offset
+        ask_prices = nbgeomspace(best_ask, ask_upper, self.max_orders/2) + self.ss.price_offset
 
         return bid_prices, ask_prices
 
-
-    def _sizes(self, bid_skew, ask_skew, num_bids, num_asks) -> tuple[np.ndarray, np.ndarray]:
+    def _sizes_(self, bid_skew: float, ask_skew: float) -> Tuple[NDArray, NDArray]:
         """
-        Generates bid/ask sizes 
+        Calculates order sizes for bid and ask orders, adjusting based on skew and inventory levels.
 
-        _______________________________________________________________
+        Steps:
+        1. Set increased sizes for orders closer to the current price to entice trades that balance inventory.
+        2. Decrease sizes for orders further from the current price to manage risk.
 
+        Parameters
+        ----------
+        bid_skew : float
+            The skew value for bid orders.
+        ask_skew : float
+            The skew value for ask orders.
 
-        -> Produce a linear range of values between minimum and maximum order sizen
-        -> Upper limits are defined by the skew values (reduces the upper quote size)n
-        -> If skew is high, then pull quotes from one side and have fixed, heavy size on the othern
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Arrays of sizes for bid and ask orders.
         """
-
-        # If bid skew is too high, dont quote asks
+        # If inventory is too long, dont quote bids
         if bid_skew >= 1:
             bid_sizes = np.full(
-                shape=num_bids, 
-                fill_value = np.median([self.ss.min_order_size, self.ss.max_order_size / 2])
+                shape=self.max_orders, 
+                fill_value=np.median([self.ss.min_order_size, self.ss.max_order_size / 2])
             )
-
             return bid_sizes, None
         
-        # If ask skew is too high, dont quote bids
+        # If inventory is too short, dont quote asks
         elif ask_skew >= 1:
             ask_sizes = np.full(
-                shape=num_asks, 
-                fill_value = np.median([self.ss.min_order_size, self.ss.max_order_size / 2])
+                shape=self.max_orders, 
+                fill_value=np.median([self.ss.min_order_size, self.ss.max_order_size / 2])
             )
-
             return None, ask_sizes
 
-        # Increased size near best bid, decreased size near worst bid
-        bid_min = self.ss.min_order_size * (1 + nsqrt(bid_skew, 1))
+        # Increased size near best bid, decreased size near furthest bid
+        bid_min = self.ss.min_order_size * (1 + bid_skew**0.5)
         bid_upper = self.ss.max_order_size * (1 - bid_skew)
 
-        # Increased size near best ask, decreased size near worst ask
-        ask_min = self.ss.min_order_size * (1 + nsqrt(ask_skew, 1))
+        # Increased size near best ask, decreased size near furthest ask
+        ask_min = self.ss.min_order_size * (1 + ask_skew**0.5)
         ask_upper = self.ss.max_order_size * (1 - ask_skew)
 
-        bid_sizes = nlinspace(
+        bid_sizes = nbgeomspace(
             start=bid_min if bid_skew >= ask_skew else self.ss.min_order_size, 
             end=bid_upper, 
-            n=num_bids
-        )
+            n=self.max_orders/2
+        ) + self.ss.size_offset
 
-        ask_sizes = nlinspace(
+        ask_sizes = nbgeomspace(
             start=ask_min if ask_skew >= bid_skew else self.ss.min_order_size, 
             end=ask_upper, 
-            n=num_asks
-        )
+            n=self.max_orders/2
+        ) + self.ss.size_offset
 
         return bid_sizes, ask_sizes
 
-
-    def generate_quotes(self) -> list[tuple[str, float, float]]:
+    def generate_quotes(self, debug=False) -> List[Tuple[str, float, float]]:
         """
-        Output: List of tuples | struct (side: str, price: str, qty: str)
+        Generates a list of market making quotes to be placed on the exchange.
+
+        Steps:
+        1. Calculate skew values to determine the direction of inventory adjustment.
+        3. Generate prices and sizes for both bid and ask orders.
+        4. Aggregate and return the quotes for submission.
+
+        Returns
+        -------
+        List[Tuple[str, float, float]]
+            A list of quotes, where each quote is a tuple containing the side, price, and size.
         """
+        bid_skew, ask_skew = self._skew_()
+        bid_prices, ask_prices = self._prices_(bid_skew, ask_skew)
+        bid_sizes, ask_sizes = self._sizes_(bid_skew, ask_skew)
 
-        def _append(orders, side, prices, sizes):
-            for i in range(len(prices)):
-                price = round_step_size(prices[i], self.tick_size)
-                size = round_step_size(sizes[i], self.lot_size)
-                orders.append([side, price, size])
+        bids, asks = [], []
 
-        bid_skew, ask_skew = self._skew()
-        num_bids, num_asks = self._num_orders(bid_skew, ask_skew)
-        bid_prices, ask_prices = self._prices(bid_skew, ask_skew, num_bids, num_asks)
-        bid_sizes, ask_sizes = self._sizes(bid_skew, ask_skew, num_bids, num_asks)
-
-        orders = []
-
-        # If inventory is extremely long, num_bids will be None
-        if num_bids is not None:
-            _append(orders, 'Buy', bid_prices, bid_sizes)   
+        if isinstance(bid_prices, np.ndarray):
+            bids = [
+                ["Buy", round_step(price, self.tick_size), round_step(size, self.lot_size)]
+                for price, size in zip(bid_prices, bid_sizes)
+            ]
         
-        # If inventory is extremely short, num_asks will be None
-        if num_asks is not None:
-            _append(orders, 'Sell', ask_prices, ask_sizes)  
+        if isinstance(ask_prices, np.ndarray):
+            asks = [
+                ["Sell", round_step(price, self.tick_size), round_step(size, self.lot_size)]
+                for price, size in zip(ask_prices, ask_sizes)
+            ]
 
-        return orders
+        if debug:
+            print("-----------------------------")
+            print(f"Skews: {bid_skew} |  {ask_skew}")
+            print(f"Inventory: {self.ss.inventory_delta}")
+            print(f"Bids: {bids}")
+            print(f"Asks: {asks}")
+
+        return bids + asks, self.spread

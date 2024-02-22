@@ -1,66 +1,111 @@
-
 import orjson
 import websockets
+from typing import Coroutine, Union
 
-from src.utils.misc import curr_dt
+from src.utils.misc import datetime_now as dt_now
 from src.exchanges.binance.get.client import BinancePublicGet
 from src.exchanges.binance.websockets.handlers.orderbook import BinanceBBAHandler
 from src.exchanges.binance.websockets.handlers.trades import BinanceTradesHandler
 from src.exchanges.binance.websockets.public import BinancePublicWs
 from src.sharedstate import SharedState
 
-
 class BinanceMarketData:
+    """
+    Handles market data streams from Binance, including order book, BBA, and trades.
 
+    Attributes
+    ----------
+    ss : SharedState
+        An instance of SharedState for managing and sharing application data.
+    public_ws : BinancePublicWs
+        A BinancePublicWs instance for WebSocket connections.
+    ws_url : str
+        The WebSocket URL for subscribing to the market data streams.
+    ws_topics : list
+        A list of topics for which the WebSocket connection is established.
+    stream_handler_map : dict
+        A mapping of topics to their corresponding handler functions.
 
-    def __init__(self, sharedstate: SharedState) -> None:
-        self.ss = sharedstate
+    Methods
+    -------
+    _initialize_() -> Coroutine:
+        Initializes the market data by fetching the latest order book and trades.
+    _stream_():
+        Establishes a WebSocket connection and listens for incoming messages.
+    start_feed() -> Coroutine:
+        Starts the WebSocket stream to receive live market data.
+    """
 
+    _topics_ = ["Orderbook", "BBA", "Trades"]
+
+    def __init__(self, ss: SharedState) -> None:
+        """
+        Initializes the BinanceMarketData with a SharedState instance and sets up WebSocket connections.
+
+        Parameters
+        ----------
+        ss : SharedState
+            The shared state instance for managing application data.
+        """
+        self.ss = ss
         self.public_ws = BinancePublicWs(self.ss)
+        self.ws_url, self.ws_topics = self.public_ws.multi_stream_request(topics=self._topics_)
 
-        self.ws_url, self.ws_topics = self.public_ws.multi_stream_request(
-            topics=["Orderbook", "BBA", "Trades"]
-        )
-
-        # Dictionary to map topics to their respective handlers
         self.stream_handler_map = {
             self.ws_topics[0]: self.ss.binance_book.process,
             self.ws_topics[1]: BinanceBBAHandler(self.ss).process,
             self.ws_topics[2]: BinanceTradesHandler(self.ss).process,
         }
 
+    async def _initialize_(self) -> None:
+        """
+        Fetches the latest order book and trades data to initialize the market data before streaming.
+        """
+        book = await BinancePublicGet(self.ss).orderbook(500)
+        trades = await BinancePublicGet(self.ss).trades(1000)
+        self.ss.binance_book.process_snapshot(book)
+        BinanceTradesHandler(self.ss).initialize(trades)
 
-    async def initialize_data(self):
-        init_ob = await BinancePublicGet(self.ss).orderbook_snapshot(500)
-        self.ss.binance_book.process_snapshot(init_ob)
+    async def _get_precision_(self) -> None:
+        """
+        Fetches and assigns the symbol's tick & lot size to the shared market data before streaming.
+        """
+        info = await BinancePublicGet(self.ss).instrument_info()
+        self.ss.binance_tick_size = float(info["filters"][0]["tickSize"])
+        self.ss.binance_lot_size = float(info["filters"][1]["stepSize"])
 
-        init_trades = await BinancePublicGet(self.ss).trades_snapshot(1000)
-        BinanceTradesHandler(self.ss)._init(init_trades)
-
-
-    async def binance_data_feed(self):
-        await self.initialize_data()
+    async def _stream_(self) -> Union[Coroutine, None]:
+        """
+        Asynchronously listens for messages on the WebSocket and dispatches them to the appropriate handlers.
+        """
+        await self._initialize_()
+        await self._get_precision_()
 
         async for websocket in websockets.connect(self.ws_url):
-            print(f"{curr_dt()}: Subscribing to BINANCE {self.ws_topics} feeds...")
+            print(f"{dt_now()}: Connected to {self.ws_topics} binance feeds...")
+            self.ss.binance_ws_connected = True
 
             try:
                 while True:
                     recv = orjson.loads(await websocket.recv())
 
-                    if "success" not in recv:
-                        handler = self.stream_handler_map.get(recv["stream"])
+                    if "success" in recv:
+                        continue
 
-                        if handler:
-                            handler(recv)
+                    handler = self.stream_handler_map.get(recv["stream"])
+
+                    if handler:
+                        handler(recv)
 
             except websockets.ConnectionClosed:
                 continue
 
             except Exception as e:
-                print(e)
-                raise
+                print(f"{dt_now()}: Error with binance public feed: {e}")
+                raise e
 
-
-    async def start_feed(self):
-        await self.binance_data_feed()
+    async def start_feed(self) -> Coroutine:
+        """
+        Starts the WebSocket stream to continuously receive and handle live market data.
+        """
+        await self._stream_()

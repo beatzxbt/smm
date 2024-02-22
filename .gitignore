@@ -152,3 +152,9 @@ cython_debug/
 #.idea/
 test.ipynb
 .DS_Store
+
+# Parameter configs
+parameters.yaml
+
+# API config file
+.env

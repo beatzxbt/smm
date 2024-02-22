@@ -1,0 +1,20 @@
+account_size: 100
+primary_data_feed: Binance # Choices: ["Binance", "Bybit"]
+
+binance_symbol: ETHUSDT 
+bybit_symbol: ETHUSDT 
+
+# Master offsets 
+price_offset: 0.0 
+size_offset: 0.0  
+volatility_offset: 0.0 
+
+# Market Maker Settings
+base_spread: 5
+min_order_size: 0.01
+max_order_size: 0.1
+inventory_extreme: 0.5 
+
+# Volatility settings
+bollinger_band_length: 20
+bollinger_band_std: 2.5

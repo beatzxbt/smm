@@ -1,37 +1,37 @@
-
 import numpy as np
-
+from typing import List
 from src.indicators.bbw import bbw
 from src.sharedstate import SharedState
 
 
 class BybitKlineHandler:
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
 
+    def _update_volatility_(self) -> None:
+        self.ss.volatility_value = bbw(
+            klines=self.ss.bybit_klines._unwrap(), 
+            length=self.ss.bb_length, 
+            multiplier=self.ss.bb_std
+        )
 
-    def __init__(self, sharedstate: SharedState) -> None:
-        self.ss = sharedstate
+        self.ss.volatility_value += self.ss.volatility_offset
 
-
-    def _init(self, data: list) -> None:
+    def initialize(self, data: List) -> None:
         """
         Initialize the klines array and update volatility value
         """
-
         for candle in data:
-            arr = np.array(candle, dtype=float)
+            arr = np.array(candle, dtype=np.float64)
             self.ss.bybit_klines.appendleft(arr)
 
-        self.update_volatility()
+        self._update_volatility_()
 
-
-    def process(self, recv: list) -> None:
+    def process(self, recv: List) -> None:
         """
         Used to attain close values and calculate volatility
         """
-
-        data = recv["data"]
-
-        for candle in data:
+        for candle in recv["data"]:
             new = np.array([
                 float(candle["start"]),
                 float(candle["open"]),
@@ -42,7 +42,7 @@ class BybitKlineHandler:
                 float(candle["turnover"]),
             ])
 
-            # If prev time same, then overwrite, else append
+            # If previous time same, then overwrite, else append
             if self.ss.bybit_klines[-1][0] != new[0]:
                 self.ss.bybit_klines.append(new)
 
@@ -50,15 +50,4 @@ class BybitKlineHandler:
                 self.ss.bybit_klines.pop()
                 self.ss.bybit_klines.append(new)
 
-            self.update_volatility()
-
-
-    def update_volatility(self):
-
-        self.ss.volatility_value = bbw(
-            klines=self.ss.bybit_klines._unwrap(), 
-            length=self.ss.bb_length, 
-            multiplier=self.ss.bb_std
-        )
-
-        self.ss.volatility_value += self.ss.volatility_offset
+            self._update_volatility_()

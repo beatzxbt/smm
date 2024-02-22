@@ -1,8 +1,7 @@
+from time import time_ns, strftime
 
-import pandas as pd
-from time import time
+def datetime_now() -> str:
+    return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:05d}"
 
-
-def curr_dt() -> pd.Timestamp:
-    return pd.to_datetime(time(), unit='s')
-    
+def time_ms() -> int:
+    return time_ns()//1_000_000
