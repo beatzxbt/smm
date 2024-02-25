@@ -106,7 +106,7 @@ class MarketMaker:
         Steps:
         1. Determine base bid and ask prices from the current BBA.
         2. Adjust the prices based on the skew to generate a range for orders.
-        3. Create linearly spaced prices within this range.
+        3. Create linearly or geometrically spaced prices within this range.
 
         Parameters
         ----------
@@ -122,13 +122,13 @@ class MarketMaker:
         """
         best_bid, best_ask = self.ss.bybit_bba[:, 0]
 
-        # If inventory is too long, dont quote bids
+        # Inventory is too short, dont quote asks
         if bid_skew >= 1:
             bid_lower = best_bid - (self.spread * self.max_orders)
             bid_prices = nblinspace(best_bid, bid_lower, self.max_orders)
             return bid_prices, None
         
-        # If inventory is too short, dont quote asks
+        # Inventory is too long, dont quote bids
         elif ask_skew >= 1:
             ask_upper = best_ask + (self.spread * self.max_orders)
             ask_prices = nblinspace(best_ask, ask_upper, self.max_orders)
@@ -172,7 +172,7 @@ class MarketMaker:
         Tuple[np.ndarray, np.ndarray]
             Arrays of sizes for bid and ask orders.
         """
-        # If inventory is too long, dont quote bids
+        # Inventory is too short, dont quote asks
         if bid_skew >= 1:
             bid_sizes = np.full(
                 shape=self.max_orders, 
@@ -180,7 +180,7 @@ class MarketMaker:
             )
             return bid_sizes, None
         
-        # If inventory is too short, dont quote asks
+        # Inventory is too long, dont quote bids
         elif ask_skew >= 1:
             ask_sizes = np.full(
                 shape=self.max_orders, 
