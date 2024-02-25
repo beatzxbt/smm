@@ -73,13 +73,15 @@ class SharedState:
         self.inventory_delta = 0
 
 
-    def _load_settings_(self, settings: Dict) -> None:
+    def _load_settings_(self, settings: Dict, reload: bool=False) -> None:
         """
         Updates trading parameters and settings from a dictionary of settings.
         """
-        self.primary_data_feed = str(settings["primary_data_feed"]).upper()
-        self.binance_symbol = str(settings["binance_symbol"])
-        self.bybit_symbol = str(settings["bybit_symbol"])
+        if not reload:
+            self.primary_data_feed = str(settings["primary_data_feed"]).upper()
+            self.binance_symbol = str(settings["binance_symbol"])
+            self.bybit_symbol = str(settings["bybit_symbol"])
+
         self.account_size = float(settings["account_size"])
         self.bb_length = int(settings["bollinger_band_length"])
         self.bb_std = int(settings["bollinger_band_std"])
@@ -107,7 +109,7 @@ class SharedState:
             await asyncio.sleep(10)  # Refresh every 10 seconds
             with open(self.PARAM_PATH, "r") as f:
                 settings = yaml.safe_load(f)
-                self._load_settings_(settings)
+                self._load_settings_(settings, reload=True)
 
     @property
     def binance_mid(self) -> float:
