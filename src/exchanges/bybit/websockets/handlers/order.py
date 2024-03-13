@@ -10,10 +10,11 @@ class BybitOrderHandler:
         self.ss = ss
 
     def sync(self, recv: Dict) -> None:
-        self.ss.current_orders = {
-            order["orderId"]: {"side": order["side"], "price": float(order["price"]), "qty": float(order["qty"])} 
-            for order in recv["result"]["list"]
-        }
+        if recv is not None:
+            self.ss.current_orders = {
+                order["orderId"]: {"side": order["side"], "price": float(order["price"]), "qty": float(order["qty"])} 
+                for order in recv["result"]["list"]
+            }
 
     def process(self, data: Dict) -> None:
         new_orders = {
