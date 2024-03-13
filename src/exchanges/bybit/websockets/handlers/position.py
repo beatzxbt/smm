@@ -9,7 +9,8 @@ class BybitPositionHandler:
         self.inventory = Inventory(self.ss)
     
     def sync(self, recv: Dict) -> None:
-        self.process(recv["result"]["list"][0])
+        if recv is not None:
+            self.process(recv["result"]["list"][0])
 
     def process(self, data: Union[Dict, List]) -> None:
         if isinstance(data, list):
