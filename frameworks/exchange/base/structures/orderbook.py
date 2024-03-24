@@ -1,7 +1,6 @@
 import numpy as np
-from typing import List, Union
+from typing import Union
 from numpy.typing import NDArray
-from frameworks.tools.logger import ms as time_ms
 
 
 class Orderbook:
@@ -23,16 +22,12 @@ class Orderbook:
 
     bba : NDArray
         Array to store best bid and ask, each with price and quantity.
-
-    last_update : int
-        Timestamp of the last update to the order book.
     """
     def __init__(self, size: int):
         self.size = size
         self.asks = np.empty(shape=(self.size, 2), dtype=np.float64)
         self.bids = np.empty_like(self.asks)
         self.bba = np.empty((2, 2), dtype=np.float64)
-        self.last_update = time_ms()
 
     def _sort_book_(self) -> NDArray:
         """
@@ -76,7 +71,7 @@ class Orderbook:
         non_zero_qty_new_data = new_data[new_data[:, 1] != 0]
         return np.vstack((book, non_zero_qty_new_data))
 
-    def initialize(self, asks: NDArray[np.float64], bids: NDArray[np.float64]) -> NDArray:
+    def initialize(self, asks: NDArray, bids: NDArray) -> NDArray:
         """
         Initializes the order book with given ask and bid data and sorts the book.
 
@@ -88,14 +83,13 @@ class Orderbook:
         bids : NDArray
             Initial bid orders data, formatted as [[price, quantity], ...].
         """
-        self.asks = np.array(asks, dtype=float)
-        self.bids = np.array(bids, float)
+        self.asks = np.array(asks, dtype=np.float64)
+        self.bids = np.array(bids, np.float64)
         self._sort_book_()
 
-    def update(self, asks: NDArray[np.float64], bids: NDArray[np.float64], timestamp: Union[int, float]) -> NDArray:
+    def update_book(self, asks: NDArray, bids: NDArray) -> NDArray:
         """
-        Updates the order book with new ask and bid data. If the new timestamp 
-        is greater than the last update, the order book is updated and sorted.
+        Updates the order book with new ask and bid data.
 
         Parameters
         ----------
@@ -108,8 +102,6 @@ class Orderbook:
         timestamp : Union[int, float]
             Timestamp of the update.
         """
-        if timestamp > self.last_update:
-            self.last_update = timestamp
-            self.asks = self._process_book_(self.asks, asks)
-            self.bids = self._process_book_(self.bids, bids)
-            self._sort_book_()
+        self.asks = self._process_book_(self.asks, asks)
+        self.bids = self._process_book_(self.bids, bids)
+        self._sort_book_()

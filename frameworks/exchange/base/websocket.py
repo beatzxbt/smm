@@ -1,95 +1,97 @@
-import zmq
 import asyncio
 import aiohttp
 import orjson
-from typing import List, Dict, Callable, Optional
-from frameworks.tools.logger import Logger
+from abc import ABC
+from typing import List, Dict, Callable, Optional, Coroutine
+from frameworks.tools.logging import Logger
 
 
-class WebsocketStream:
+class WebsocketStream(ABC):
+    _success_ = set((aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY))
+    _failure_ = set((aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR))
+    _conns_ = 5
+
     def __init__(self, private: bool=False) -> None:
+        self._enable_private_ = private
         self.public = aiohttp.ClientSession()
-        self._public_connected_ = False
+        self.private = aiohttp.ClientSession()
         self.logging = None
 
-        if private:
-            self.private = aiohttp.ClientSession()
-            self._private_connected_ = False
+    async def set_logger(self, logging: Logger) -> None:
+        if self.logging is None:
+            self.logging = logging
+        else:
+            raise Exception("Logger is not set in inherited class!")
 
-        self._success_ = [aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY]
-        self._failure_ = [aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR]
-
-    def _set_internal_logger_(self, logger: Logger) -> None:
-        self.logging = logger
-        return None
-
-    async def send(self, stream: aiohttp.ClientWebSocketResponse, payload: Dict):
+    async def send(
+        self, ws: aiohttp.ClientWebSocketResponse, stream_str: str, payload: Dict
+    ) -> None:
         """Send payload through websocket stream"""
         try:
-            await stream.send_json(payload)
+            await ws.send_json(payload)
         except Exception as e:
-            self.logging.error(f"failed to send payload to ws...")
+            self.logging.error(f"Failed to submit {stream_str.lower()} ws payload: {payload}")
             raise e
- 
-    async def public_stream(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]]=[]) -> zmq.Frame:
-        """Start the public websocket connection"""
+
+    async def _single_conn_(
+        self,
+        url: str,
+        handler_map: Callable,
+        on_connect: Optional[List[Dict]],
+        private: bool = False,
+    ) -> bool:
+        session = self.private if private else self.public
+        stream_str = "Private" if private else "Public"
+
         try:
-            self.public_ws = await self.public.ws_connect(url)
-            self._public_connected_ = True
-            await asyncio.sleep(0.5)
-            for payload in on_connect:
-                await self.send(self.public_ws, payload)
+            async with session.ws_connect(url) as ws: 
+                for payload in on_connect:
+                    await self.send(ws, stream_str, payload)
 
-            while True:
-                msg = await self.public_ws.receive()
+                async for msg in ws:
+                    if msg.type in self._success_:
+                        handler_map(orjson.loads(msg.data))
 
-                if msg.type in self._success_:
-                    handler_map(orjson.loads(msg.data))
+                    elif msg.type in self._failure_:
+                        self.logging.warning(f"{stream_str} ws closed/error occurred, reconnecting...")
 
-                elif msg.type in self._failure_:
-                    self.logging.error("public ws closed/error occurred, reconnecting...")
-                    self.public_ws = await self.public.ws_connect(url)
-                    await asyncio.sleep(0.5)
-                    for payload in on_connect:
-                        await self.send(self.public_ws, payload)
+                    else:
+                        raise Exception(f"Unknown websocket aioHTTP message type: {msg.type}")
+
+        except asyncio.CancelledError:
+            return False
 
         except Exception as e:
-            self._public_connected_ = False
-            raise e
-        
-    async def private_stream(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]]=[]) -> zmq.Frame:
-        """Start the private websocket connection"""
-        try:
-            self.private_ws = await self.private.ws_connect(url)
-            self._private_connected_ = True
-            for payload in on_connect:
-                await self.send(self.private_ws, payload)
+            self.logging.error(f"Issue with {stream_str.lower()} occured: {e}")
+            return True
 
-            while True:
-                msg = await self.private_ws.receive()
+    async def _create_reconnect_task_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]]) -> None:
+        while True:
+            reconnect = await self._single_conn_(url, handler_map, on_connect, self._enable_private_)
+            if not reconnect:
+                break 
+            await asyncio.sleep(1)
 
-                if msg.type in self._success_:
-                    handler_map(orjson.loads(msg.data))
+    async def _manage_connections_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]]) -> None:
+        tasks = [self._create_reconnect_task_(url, handler_map, on_connect) for _ in range(self._conns_)]
+        await asyncio.gather(*tasks)
 
-                elif msg.type in self._failure_:
-                    self.logging.error("private ws closed/error occurred, reconnecting...")
-                    self.private_ws = await self.private.ws_connect(url)
-                    for payload in on_connect:
-                        await self.send(self.private_ws, payload)
+    async def start_public_ws(
+        self,
+        url: str,
+        handler_map: Callable,
+        on_connect: Optional[List[Dict]] = [],
+    ) -> Coroutine:
+        await self._manage_connections_(url, handler_map, on_connect)
 
-        except Exception as e:
-            self._private_connected_ = False
-            raise e
-    
-    async def close_public(self):
-        await self.public_ws.close()
+    async def start_private_ws(
+        self,
+        url: str,
+        handler_map: Callable,
+        on_connect: Optional[List[Dict]] = [],
+    ) -> Coroutine:
+        await self._manage_connections_(url, handler_map, on_connect)
+
+    async def stop_streams(self) -> None:
         await self.public.close()
-
-    async def close_private(self):
-        await self.private_ws.close()
         await self.private.close()
-
-    async def close_all(self):
-        await self.close_public()
-        await self.close_private()
-
