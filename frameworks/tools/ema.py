@@ -15,7 +15,7 @@ class EMA:
         The window size for the EMA calculation.
 
     alpha : float
-        The smoothing factor for the EMA. If set to 0, it is calculated as 2 / (window + 1).
+        The smoothing factor for the EMA. If set to 0, it is calculated as 3 / (window + 1).
 
     arr : RingBuffer
         A ring buffer to store EMA values.
@@ -37,7 +37,7 @@ class EMA:
             The smoothing factor. If 0, it is calculated based on the window size.
         """
         self.window = window
-        self.alpha = 2 / float(window + 1) if alpha == 0 else alpha
+        self.alpha = 3 / float(window + 1) if alpha == 0 else alpha
         self.arr = None
         self.value = 0.0
 
@@ -74,7 +74,7 @@ class EMA:
         new_val : float
             The new value to include in the EMA calculation.
         """
-        updated_value = _recursive_ema_(self.value, new_val, self.alpha)
+        updated_value = self.alpha * new_val + (1 - self.alpha) * self.value
         self.arr.append(updated_value)
         self.value = updated_value
 
@@ -117,27 +117,3 @@ def _ema_(arr_in: NDArray, alpha: float) -> NDArray:
         ewma[i] = ewma_old / w
 
     return ewma
-
-
-@njit(cache=True)
-def _recursive_ema_(ema_val: float, update: float, alpha: float) -> float:
-    """
-    Recursively updates the EMA value with a new data point.
-
-    Parameters
-    ----------
-    ema_val : float
-        The current EMA value.
-
-    update : float
-        The new data point to update the EMA.
-
-    alpha : float
-        The smoothing factor for the EMA.
-
-    Returns
-    -------
-    float
-        The updated EMA value.
-    """
-    return alpha * update + (1 - alpha) * ema_val
