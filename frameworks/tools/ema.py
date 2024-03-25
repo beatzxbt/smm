@@ -38,18 +38,13 @@ class EMA:
         """
         self.window = window
         self.alpha = 3 / float(window + 1) if alpha == 0 else alpha
-        self.arr = None
+        self._arr_ = None
         self.value = 0.0
 
     @property
-    def __value__(self) -> float:
-        """Returns the latest value of the EMA."""
-        return self.value
-
-    @property
-    def __arr__(self) -> NDArray:
+    def array(self) -> NDArray:
         """Unwraps and returns the internal ring buffer as an NDArray."""
-        return self.arr._unwrap()
+        return self._arr_._unwrap()
 
     def initialize(self, arr_in: NDArray) -> None:
         """
@@ -60,10 +55,10 @@ class EMA:
         arr_in : NDArray
             An array of input values to initialize the EMA calculation.
         """
-        self.arr = RingBuffer(arr_in.size, dtype=np.float64)
+        self._arr_ = RingBuffer(arr_in.size, dtype=np.float64)
         for val in _ema_(arr_in, self.alpha):
-            self.arr.append(val)
-        self.value = self.arr[-1]
+            self._arr_.append(val)
+        self.value = self._arr_[-1]
 
     def update(self, new_val: float) -> None:
         """
@@ -75,7 +70,7 @@ class EMA:
             The new value to include in the EMA calculation.
         """
         updated_value = self.alpha * new_val + (1 - self.alpha) * self.value
-        self.arr.append(updated_value)
+        self._arr_.append(updated_value)
         self.value = updated_value
 
 
