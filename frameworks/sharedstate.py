@@ -10,14 +10,16 @@ from frameworks.exchange.base.structures.orderbook import Orderbook
 
 
 class SharedState(ABC):
-    PARAM_PATH = os.path.dirname(os.path.realpath(__file__)) + "/../parameters.yaml"  
-
     def __init__(self) -> None:
         self.logging = Logger
+        self.param_path = self.set_parameters_path()
         self.load_config()
+
+        self.exchange = ""
+        self.symbol = ""
+        self.parameters = {}
         self.load_parameters()
 
-        self.symbol = ""
         self.ohlcv = RingBuffer(1000, dtype=(np.float64, 6))
         self.trades = RingBuffer(1000, dtype=(np.float64, 4))
         self.orderbook = Orderbook(50) # NOTE: Modify OB size if required!
@@ -26,6 +28,10 @@ class SharedState(ABC):
         self.current_orders = {}
         self.account_balance = 0.
         self.misc = {"tick_size": 0, "lot_size": 0}
+
+    @abstractmethod
+    def set_parameters_path(self) -> str:
+        pass
 
     @abstractmethod
     def process_parameters(self, parameters: Dict, reload: bool) -> None:
@@ -54,7 +60,7 @@ class SharedState(ABC):
         """
         Loads initial trading settings from the parameters YAML file.
         """
-        with open(self.PARAM_PATH, "r") as f:
+        with open(self.param_path, "r") as f:
             params = yaml.safe_load(f)
             self.process_parameters(params, reload)
 
