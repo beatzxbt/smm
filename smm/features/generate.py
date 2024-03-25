@@ -5,7 +5,7 @@ from frameworks.sharedstate import SharedState
 from frameworks.tools.numba_funcs import nblinspace, nbround, nbclip, nbabs
 from frameworks.tools.mids import mid, wmid, vamp, weighted_vamp
 from smm.features.impact_ratio import ImpactRatio
-from smm.settings import SmmParameters
+from smm.sharedstate import SmmParameters
 
 class Features:
     """Configure your features here!"""
