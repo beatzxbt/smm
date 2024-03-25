@@ -4,10 +4,11 @@ exchange: "Binance"
 symbol: ""
 
 # ""
-quote_generator: "simple" # Choices: "simple", "basic" ,..., etc
+quote_generator: "simple" # Choices: "simple", "advanced" ,..., etc
 
 parameters:
-  minimum_spread: 0.1         # Value in BPS (basis points)
+  num_orders: 10
+  minimum_spread: 5         # Value in BPS (basis points)
   min_order_size: 0.1         # Value in $ 
   max_order_size: 0.45        # Value in $
-  max_inventory_delta: 0.5    # Value in $
+  max_position: 0.5    # Value in $
