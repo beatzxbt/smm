@@ -1,31 +1,13 @@
 
-primary_pair: ["bybit", "XMRUSDT"] # Where you'll be quoting
+# "Binance", "Bybit", "Hyperliquid", "Paradex", ...
+exchange: "Binance"
+symbol: ""
 
-pairs: [
-  ["binance", "XMRUSDT"], 
-  ["bybit", "XMRUSDT"]
-]
-
+# ""
 quote_generator: "simple" # Choices: "simple", "basic" ,..., etc
 
 parameters:
-  basic:
-    base_spread: 0.1 
-    min_order_size: 0.1  
-    max_order_size: 0.45  
-    max_inventory_delta: 0.5
-
-  simple:
-    base_spread: 0.1 
-    min_order_size: 0.1  
-    max_order_size: 0.45  
-    max_inventory_delta: 0.5
-
-features:
-  volatility:
-    lookback: 123
-    
-  momentum:
-    tick_batch_size: 123
-
-
+  minimum_spread: 0.1         # Value in BPS (basis points)
+  min_order_size: 0.1         # Value in $ 
+  max_order_size: 0.45        # Value in $
+  max_inventory_delta: 0.5    # Value in $
