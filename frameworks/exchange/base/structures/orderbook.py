@@ -63,10 +63,7 @@ class Orderbook:
         """
         book = book[~np.isin(
             book[:, 0],
-            np.concatenate([
-                new_data[new_data[:, 1] == 0, 0],
-                new_data[:, 0]
-            ])
+            new_data[new_data[:, 1] == 0, 0],
         )]
         non_zero_qty_new_data = new_data[new_data[:, 1] != 0]
         return np.vstack((book, non_zero_qty_new_data))
