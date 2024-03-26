@@ -24,7 +24,7 @@ class OrdersHandler(ABC):
 
         2. For each order in the list:
             -> Overwrite self.single_order with the respective values
-            -> self.current_orders[OrderId] = self.single_order
+            -> self.current_orders[OrderId] = self.single_order.copy()
         """
         pass
 
@@ -41,7 +41,7 @@ class OrdersHandler(ABC):
 
         2. For each order in your payload:
             -> Overwrite self.single_order with the respective values
-            -> self.current_orders[OrderId] = self.single_order
+            -> self.current_orders[OrderId] = self.single_order.copy()
 
         3. If any orders need to be deleted:
             -> del self.orders[OrderId]

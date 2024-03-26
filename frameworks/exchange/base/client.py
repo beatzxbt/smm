@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
 import orjson
-from typing import Dict, Union, Optional
+from typing import Dict, Union
 from frameworks.tools.logging import time_ms
 from abc import ABC, abstractmethod
 
@@ -21,10 +21,6 @@ class Client(ABC):
     
     @abstractmethod
     def error_handler(self, recv: Dict) -> Union[Dict, None]:
-        pass
-    
-    @abstractmethod
-    def latency_handler(self, recv: Dict) -> Union[Dict, None]:
         pass
     
     async def send(

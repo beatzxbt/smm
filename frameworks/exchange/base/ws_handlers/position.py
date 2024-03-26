@@ -5,7 +5,6 @@ class PositionHandler(ABC):
     def __init__(self, current_position: Dict) -> None:
         self.current_position = current_position
         self.position = {
-            "side": "",
             "price": 0,
             "size": 0,
             "uPnL": 0
@@ -16,7 +15,6 @@ class PositionHandler(ABC):
         """
         1. Extract the position from your recv payload
             -> Make sure you have the following data points:
-                - Side
                 - Price
                 - Size
                 - Unrealized PnL
@@ -31,7 +29,6 @@ class PositionHandler(ABC):
         """
         1. Extract the position from your recv payload
             -> Make sure you have the following data points:
-                - Side
                 - Price
                 - Size
                 - Unrealized PnL

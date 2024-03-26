@@ -9,7 +9,7 @@ from frameworks.tools.logging import Logger
 class WebsocketStream(ABC):
     _success_ = set((aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY))
     _failure_ = set((aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR))
-    _conns_ = 5
+    _conns_ = 1
 
     def __init__(self, private: bool=False) -> None:
         self._enable_private_ = private
