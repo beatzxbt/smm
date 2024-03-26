@@ -10,7 +10,7 @@ class TradesHandler(ABC):
             0., # Time
             0., # Side 
             0., # Price     
-            0. # Size 
+            0.  # Size 
         ])
     
     @abstractmethod
