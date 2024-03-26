@@ -1,10 +1,10 @@
 import numpy as np
 
 from frameworks.tools.rounding import round_step_size
-from frameworks.tools.numba_funcs import nlinspace, nsqrt, nabs, npower, nround
+from frameworks.tools.numba import nlinspace, nsqrt, nabs, npower, nround
 from frameworks.sharedstate import SharedState
 
-from smm.settings import SmmParameters
+from smm.sharedstate import SmmSharedState
 from smm.features.generate import Features
 
 
@@ -16,47 +16,11 @@ class SimpleQuoteGenerator:
     Explanation: https://twitter.com/BeatzXBT/status/1711348007688364263
     """
 
-    def __init__(
-        self, 
-        mdss: MarketDataSharedState, 
-        pdss: PrivateDataSharedState,
-        strategy_params: StrategyParameters
-    ) -> None:
-
-        self.mdss = mdss
-        self.pdss = pdss
-        self.strategy = strategy_params
-
-        # Ensure that all essential parameters for strategy as present
-        self._verify_configuration(self.strategy)
-
-
-    def _verify_configuration(
-        self, 
-        strategy_params: dict
-    ) -> None | Exception:
-
-        """
-        Verify the presence of essential parameters in the strategy configuration.
-
-        This function is an essential part of the strategy framework, ensuring that
-        required configuration parameters are available for each strategy.
-
-        Args:
-            strategy_params (StrategyParameters): The instance containing strategy configuration
-
-        Returns: 
-            None if config is verified, otherwise raises Exception
-        """
-
-        params = ["min_order_size", "max_order_size"]
-
-        for param in params:
-            not_exists = strategy_params.get(param) is None
-
-            if not_exists:
-                raise ValueError(f"The parameter '{param}' doesn't exist in the configuration file.")
-
+    def __init__(self, ss: SmmSharedState) -> None:
+        self.params = ss.parameters
+        
+        self.tick_size = ss.misc["tick_size"]
+        self.lot_size = ss.misc["lot_size"]
 
     def _skew_(self) -> tuple[float, float]:
         """

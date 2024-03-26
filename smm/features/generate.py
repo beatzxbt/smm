@@ -2,7 +2,7 @@ import numpy as np
 from typing import Tuple, Dict, Union
 
 from frameworks.sharedstate import SharedState
-from frameworks.tools.numba_funcs import nblinspace, nbround, nbclip, nbabs
+from frameworks.tools.numba import nblinspace, nbround, nbclip, nbabs
 from frameworks.tools.mids import mid, wmid, vamp, weighted_vamp
 from smm.features.impact_ratio import ImpactRatio
 from smm.sharedstate import SmmParameters
