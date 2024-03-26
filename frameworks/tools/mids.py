@@ -11,12 +11,12 @@ def exponential_weights(window: int, reverse: bool=True) -> NDArray:
         weights[i] = alpha * (1 - alpha) ** i
     return weights[::-1] if reverse else weights
 
-def mid(bba: NDArray) -> float:
-    return (bba[1][0] + bba[0][0])/2
+def mid(orderbook: Orderbook) -> float:
+    return (orderbook.bba[1, 0] + orderbook.bba[0, 0])/2
 
-def wmid(bba: NDArray) -> float:
-    imb = bba[0][1] / (bba[0][1] + bba[1][1])
-    return bba[1][0] * imb + bba[0][0] * (1 - imb)
+def wmid(orderbook: Orderbook) -> float:
+    imb = orderbook.bba[0, 1] / (orderbook.bba[0, 1] + orderbook.bba[1, 1])
+    return orderbook.bba[1, 0] * imb + orderbook.bba[0, 0] * (1 - imb)
 
 def vamp(orderbook: Orderbook, depth: float) -> float:
     bid_cum_size = np.cumsum(orderbook.bids[:, 1])
