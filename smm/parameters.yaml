@@ -3,12 +3,12 @@
 exchange: "Binance"
 symbol: ""
 
-# ""
-quote_generator: "simple" # Choices: "simple", "advanced" ,..., etc
+# "simple", "advanced" ,...
+quote_generator: "simple" # Choices: 
 
 parameters:
-  num_orders: 10
-  minimum_spread: 5         # Value in BPS (basis points)
+  num_orders: 10    
+  minimum_spread: 5           # Value in BPS (basis points)
   min_order_size: 0.1         # Value in $ 
   max_order_size: 0.45        # Value in $
-  max_position: 0.5    # Value in $
+  max_position: 0.5           # Value in $
