@@ -11,8 +11,7 @@ class WebsocketStream(ABC):
     _failure_ = set((aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR))
     _conns_ = 1
 
-    def __init__(self, private: bool=False) -> None:
-        self._enable_private_ = private
+    def __init__(self) -> None:
         self.public = aiohttp.ClientSession()
         self.private = aiohttp.ClientSession()
         self.logging = None
@@ -38,7 +37,7 @@ class WebsocketStream(ABC):
         url: str,
         handler_map: Callable,
         on_connect: Optional[List[Dict]],
-        private: bool = False,
+        private: bool,
     ) -> bool:
         session = self.private if private else self.public
         stream_str = "Private" if private else "Public"
@@ -65,15 +64,15 @@ class WebsocketStream(ABC):
             self.logging.error(f"Issue with {stream_str.lower()} occured: {e}")
             return True
 
-    async def _create_reconnect_task_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]]) -> None:
+    async def _create_reconnect_task_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]], private: bool) -> None:
         while True:
-            reconnect = await self._single_conn_(url, handler_map, on_connect, self._enable_private_)
+            reconnect = await self._single_conn_(url, handler_map, on_connect, private)
             if not reconnect:
                 break 
             await asyncio.sleep(1)
 
-    async def _manage_connections_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]]) -> None:
-        tasks = [self._create_reconnect_task_(url, handler_map, on_connect) for _ in range(self._conns_)]
+    async def _manage_connections_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]], private: bool) -> None:
+        tasks = [self._create_reconnect_task_(url, handler_map, on_connect, private) for _ in range(self._conns_)]
         await asyncio.gather(*tasks)
 
     async def start_public_ws(
@@ -82,7 +81,7 @@ class WebsocketStream(ABC):
         handler_map: Callable,
         on_connect: Optional[List[Dict]] = [],
     ) -> Coroutine:
-        await self._manage_connections_(url, handler_map, on_connect)
+        await self._manage_connections_(url, handler_map, on_connect, private=False)
 
     async def start_private_ws(
         self,
@@ -90,8 +89,8 @@ class WebsocketStream(ABC):
         handler_map: Callable,
         on_connect: Optional[List[Dict]] = [],
     ) -> Coroutine:
-        await self._manage_connections_(url, handler_map, on_connect)
+        await self._manage_connections_(url, handler_map, on_connect, private=True)
 
-    async def stop_streams(self) -> None:
+    async def shutdown(self) -> None:
         await self.public.close()
         await self.private.close()
