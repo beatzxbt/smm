@@ -1,81 +1,69 @@
 from frameworks.exchange.base.exchange import Exchange
-from frameworks.exchange.brrr.binance.endpoints import BinanceEndpoints
-from frameworks.exchange.brrr.binance.formats import BinanceFormats
-from frameworks.exchange.brrr.binance.client import BinanceClient
-from frameworks.exchange.brrr.binance.websocket import BinanceWebsocket
-from typing import Any, Dict, Union
+from frameworks.exchange.binance.endpoints import BinanceEndpoints
+from frameworks.exchange.binance.formats import BinanceFormats
+from frameworks.exchange.binance.client import BinanceClient
+from frameworks.exchange.binance.websocket import BinanceWebsocket
+from frameworks.sharedstate import SharedState
+from typing import Any, Dict,Coroutine, Union, Optional
 
 
 class Binance(Exchange):
-    def __init__(self, market: Dict[str, Any], private: Union[Dict[str, Any], bool]=False) -> None:
-        self.market = market
-        self.private = private
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+
+        self.client = BinanceClient(self.ss.api_key, self.ss.api_secret)
+        super().__init__(self.client)
+        self.websocket = BinanceWebsocket(self.ss, self.client)
+
         self.endpoints = BinanceEndpoints
-        self.base_endpoint = self.endpoints["main1"]
         self.formats = BinanceFormats()
-        self.client = BinanceClient(self._private_)
-        self.websocket = BinanceWebsocket(self.client, self._market_, self._private_)
-        super().__init__(self.client, self.base_endpoint, self.endpoints, self.formats)
-        self._initialize_()
 
-    @property
-    def _market_(self) -> Dict:
-        return self.market["binance"]
-
-    @property
-    def _private_(self) -> Dict:
-        return self.private["binance"]
+    async def create_order(self, symbol: str, side: str, type: float, size: float, price: Optional[float]=None) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["createOrder"]
+        payload = self.formats.create_order(symbol, side, type, size, price)
+        return await self.submit(method, endpoint, payload)
+    
+    async def amend_order(self, symbol: str, side: int, price: float, size: float) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["amendOrder"]
+        payload = self.formats.amend_order(symbol, side, price, size)
+        return await self.submit(method, endpoint, payload)
+    
+    async def cancel_order(self, symbol: str, orderId: str) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["cancelOrder"]
+        payload = self.formats.cancel_order(symbol, orderId)
+        return await self.submit(method, endpoint, payload)
+    
+    async def cancel_all_orders(self, symbol: str) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["cancelAllOrder"]
+        payload = self.formats.cancel_all_orders(symbol)
+        return await self.submit(method, endpoint, payload)
 
     async def exchange_info(self) -> Union[Dict, None]:
         endpoint, method = self.endpoints["exchangeInfo"]
-        payload = self.formats
-        return await self._send_(method, endpoint, payload)
+        payload = self.formats.get_exchange_info()
+        return await self.submit(method, endpoint, payload)
     
-    async def listen_key(self, symbol: str) -> Union[Dict, None]:
+    async def listen_key(self) -> Union[Dict, None]:
         endpoint, method = self.endpoints["listenKey"]
-        payload = self.formats.listen_key(symbol)
-        return await self._send_(method, endpoint, payload)
+        payload = self.formats.get_listen_key()
+        return await self.submit(method, endpoint, payload)
     
-    async def cancel_all_orders(self, symbol: str) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["cancelAllOrders"]
-        payload = self.formats.cancel_all_orders(symbol)
-        return await self._send_(method, endpoint, payload)
-    
-    async def cancel_all_orders(self, symbol: str) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["cancelAllOrders"]
-        payload = self.formats.cancel_all_orders(symbol)
-        return await self._send_(method, endpoint, payload)
+    async def start(self) -> Coroutine:
+        try:
+            for symbol in (await self.exchange_info())["symbols"]:
+                if self.ss.symbol != symbol["symbol"]:
+                    continue
+                
+                for filter in symbol["filters"]:
+                    if filter["filterType"] == "PRICE_FILTER":
+                        self.ss.misc["tick_size"] = float(filter["tickSize"])
+                    elif filter["filterType"] == "LOT_SIZE":
+                        self.ss.misc["lot_size"] = float(filter["stepSize"])
 
-    async def _initialize_(self) -> None:
-        """
-        Called only from sharedstate._cache_info_(), full docstring found there
+            self.websocket.start()
 
-        Parameters
-        ----------
-        symbol : str
-            
+        except Exception as e:
+            self.ss.logging.error(f"Binance Exchange Error: {e}")
 
-        Returns
-        -------
-        None
-        """
-
-        await self.ping()
-
-        for ratelimit in (await self.exchange_info())["rateLimits"]:
-            if ratelimit["rateLimitType"] != "ORDERS":
-                continue
-
-            self._private_["API"]["rateLimits"] = {
-                ""
-            }
-
-    for symbols in (await self.exchange_info())["symbols"]:
-        if symbol != symbols["symbol"]:
-            continue
-        
-        for filter in symbols["filters"]:
-            if filter["filterType"] == "PRICE_FILTER":
-                self.__market__[symbol]["tickSize"] = filter["tickSize"]
-            elif filter["filterType"] == "LOT_SIZE":
-                self.__market__[symbol]["lotSize"] = filter["stepSize"]
+        finally:
+            self.websocket.shutdown()
