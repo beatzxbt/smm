@@ -42,7 +42,6 @@ class Client(ABC):
                 )
                 text = orjson.loads(request.text())
                 self.error_handler(request)
-                self.latency_handler(text)
                 return request, text
                 
             except Exception as e:
