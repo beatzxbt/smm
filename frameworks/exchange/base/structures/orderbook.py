@@ -110,9 +110,6 @@ class Orderbook:
 
         bids : NDArray
             Initial bid orders data, formatted as [[price, size], ...].
-            
-        timestamp : Union[int, float]
-            Timestamp of the update.
         """
         self.asks = self._process_book_(self.asks, asks)
         self.bids = self._process_book_(self.bids, bids)
@@ -215,7 +212,7 @@ class Orderbook:
         ----------
         book : NDArray
             The order book data for the side (bids or asks) being considered.
-            
+
         size : float
             The size of the hypothetical order for which slippage is being calculated.
 
