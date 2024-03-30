@@ -114,5 +114,8 @@ class BinanceFormats:
     def get_listen_key(self) -> Dict:
         return {}
     
+    def ping_listen_key(self) -> Dict:
+        return {}
+    
     def get_exchange_info(self) -> Dict:
         return {}

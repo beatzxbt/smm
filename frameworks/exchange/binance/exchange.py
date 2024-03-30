@@ -43,9 +43,14 @@ class Binance(Exchange):
         payload = self.formats.get_exchange_info()
         return await self.submit(method, endpoint, payload)
     
-    async def listen_key(self) -> Union[Dict, None]:
+    async def get_listen_key(self) -> Union[Dict, None]:
         endpoint, method = self.endpoints["listenKey"]
         payload = self.formats.get_listen_key()
+        return await self.submit(method, endpoint, payload)
+    
+    async def ping_listen_key(self) -> Union[Dict, None]:
+        endpoint, method = self.endpoints["pingListenKey"]
+        payload = self.formats.ping_listen_key()
         return await self.submit(method, endpoint, payload)
     
     async def start(self) -> Coroutine:
@@ -63,7 +68,7 @@ class Binance(Exchange):
             self.websocket.start()
 
         except Exception as e:
-            self.ss.logging.error(f"Binance Exchange Error: {e}")
+            self.ss.logging.error(f"Binance exchange: {e}")
 
         finally:
             self.websocket.shutdown()

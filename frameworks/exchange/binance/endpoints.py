@@ -14,7 +14,8 @@ BinanceEndpoints = {
     "accountInfo": ("/fapi/v2/account", "GET"),               
     "positionInfo": ("/fapi/v2/positionRisk", "GET"),         
     "feeRate": ("/fapi/v1/commissionRate", "GET"),           
-    "listenKey": ("/fapi/v1/listenKey", "POST"), 
+    "listenKey": ("/fapi/v1/listenKey", "POST"),           
+    "pingListenKey": ("/fapi/v1/listenKey", "PUT"), 
 
     "createOrder": ("/fapi/v1/order", "POST"),                
     "amendOrder": ("/fapi/v1/order", "PUT"),                 
