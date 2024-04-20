@@ -41,6 +41,8 @@ API_KEY=YOUR_API_KEY_HERE
 API_SECRET=YOUR_API_SECRET_HERE
 ```
 
+The account **must** be a Unified Trading Account (UTA).
+
 _Optional: If you are using the testnet to trade, set the `TESTNET` flag to True within the `.env` file:_
 ```
 TESTNET=True
