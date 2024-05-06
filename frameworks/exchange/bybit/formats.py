@@ -1,105 +1,119 @@
 from typing import Dict, Optional
+from frameworks.tools.logging import time_ms
+from frameworks.exchange.bybit.types import BybitOrderSides, BybitOrderTypes
 
 
 class BybitFormats:
     def __init__(self) -> None:
-        self._base_payload_ = {"category": self.category}
+        self.convert_side = BybitOrderSides
+        self.convert_type = BybitOrderTypes
+        self.base_payload = {"category": "linear"}
 
     def create_order(
         self,
         symbol: str,
-        side: str,
-        type: str,
-        amount: float,
-        price: Optional[float] = None,
-        tp: Optional[float] = None,
+        side: float,
+        orderType: float,
+        size: float,
+        price: Optional[float],
     ) -> Dict:
         format = {
-            **self._base_payload_,
+            **self.base_payload,
             "symbol": symbol,
-            "side": side,
-            "orderType": type,
-            "price": price,
-            "qty": amount,
+            "side": self.convert_side.to_side(side),
+            "orderType": self.convert_type.to_type(orderType),
+            "qty": str(size)
         }
-
-        if price is not None:
+        
+        # Market order
+        if orderType == 1:
+            return format
+        
+        # Limit order
+        elif orderType == 0:
+            format["price"] = str(price)
             format["timeInForce"] = "PostOnly"
 
-        if tp is not None:
-            str_tp = str(tp)
-            format["takeProfit"] = str_tp
-            format["tpslMode"] = "Partial"
-            format["tpLimitPrice"] = str_tp
-            format["tpOrderType"] = "Limit"
-
         return format
-
+    
     def amend_order(
         self,
         orderId: str,
-        amount: float,
+        size: float,
         price: float,
-        tp: Optional[float] = None,
     ) -> Dict:
         format = {
-            **self._base_payload_,
+            **self.base_payload,
             "orderId": orderId,
             "price": str(price),
-            "qty": str(amount),
+            "qty": str(size)
         }
 
-        if tp is not None:
-            str_tp = str(tp)
-            format["takeProfit"] = str_tp
-            format["tpLimitPrice"] = str_tp
+        return format
+    
+    def cancel_order(self, orderId: str) -> Dict:
+        format = {
+            **self.base_payload, 
+            "orderId": orderId
+        }
 
         return format
 
-    def cancel_order(self, orderId: str) -> Dict:
-        return {**self._base_payload_, "orderId": orderId}
-
     def cancel_all_orders(self, symbol: str) -> Dict:
-        return {**self._base_payload_, "symbol": symbol}
-
-    def set_leverage(self, symbol, leverage: int) -> Dict:
-        return {
-            **self._base_payload_,
-            "symbol": symbol,
-            "buyLeverage": str(leverage),
-            "sellLeverage": str(leverage),
+        format = {
+            **self.base_payload, 
+            "symbol": symbol
         }
 
-    def ohlcv(self, symbol: str, interval: int) -> Dict:
-        return {
-            **self._base_payload_,
+        return format
+
+    def get_ohlcv(self, symbol: str, interval: int) -> Dict:
+        format = {
+            **self.base_payload,
             "symbol": symbol,
             "interval": str(interval),
             "limit": "1000",  # NOTE: [1, 1000]. Default: 200
         }
 
-    def trades(self, symbol: str) -> Dict:
+        return format
+
+    def get_trades(self, symbol: str) -> Dict:
         return {
-            **self._base_payload_,
+            **self.base_payload,
             "symbol": symbol,
             "limit": "1000",  # NOTE: [1,1000], default: 500
         }
 
-    def book(self, symbol: str) -> Dict:
+    def get_orderbook(self, symbol: str) -> Dict:
         return {
-            **self._base_payload_,
+            **self.base_payload,
             "symbol": symbol,
             "limit": "200",  # NOTE: [1, 200]. Default: 25
         }
 
     def instrument(self, symbol: str) -> Dict:
-        return {**self._base_payload_, "symbol": symbol}
+        format = {
+            **self.base_payload, 
+            "symbol": symbol
+        }
+
+        return format
 
     def open_orders(self, symbol: str) -> Dict:
-        return {**self._base_payload_, "symbol": symbol}
+        format = {
+            **self.base_payload, 
+            "symbol": symbol
+        }
+
+        return format
 
     def current_position(self, symbol: str) -> Dict:
-        return {**self._base_payload_, "symbol": symbol}
+        format = {
+            **self.base_payload, 
+            "symbol": symbol
+        }
+
+        return format
 
     def account_info(self) -> Dict:
-        return self._base_payload_
+        return self.base_payload
