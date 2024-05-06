@@ -15,7 +15,6 @@ class WebsocketStream(ABC):
         self.logging = logger
         self.public = aiohttp.ClientSession()
         self.private = aiohttp.ClientSession()
-        self.logging = None
 
     async def send(
         self, ws: aiohttp.ClientWebSocketResponse, stream_str: str, payload: Dict
@@ -24,7 +23,7 @@ class WebsocketStream(ABC):
         try:
             await ws.send_json(payload)
         except Exception as e:
-            self.logging.error(f"Failed to submit {stream_str.lower()} ws payload: {payload}")
+            await self.logging.error(f"Failed to submit {stream_str.lower()} ws payload: {payload}")
             raise e
 
     async def _single_conn_(
@@ -47,7 +46,7 @@ class WebsocketStream(ABC):
                         handler_map(orjson.loads(msg.data))
 
                     elif msg.type in self._failure_:
-                        self.logging.warning(f"{stream_str} ws closed/error occurred, reconnecting...")
+                        await self.logging.warning(f"{stream_str} ws closed/error occurred, reconnecting...")
 
                     else:
                         raise Exception(f"Unknown websocket aioHTTP message type: {msg.type}")
@@ -56,7 +55,7 @@ class WebsocketStream(ABC):
             return False
 
         except Exception as e:
-            self.logging.error(f"Issue with {stream_str.lower()} occured: {e}")
+            await self.logging.error(f"Issue with {stream_str.lower()} occured: {e}")
             return True
 
     async def _create_reconnect_task_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]], private: bool) -> None:
@@ -74,7 +73,7 @@ class WebsocketStream(ABC):
         self,
         url: str,
         handler_map: Callable,
-        on_connect: Optional[List[Dict]] = [],
+        on_connect: Optional[List[Dict]]=[],
     ) -> Coroutine:
         await self._manage_connections_(url, handler_map, on_connect, private=False)
 
@@ -82,7 +81,7 @@ class WebsocketStream(ABC):
         self,
         url: str,
         handler_map: Callable,
-        on_connect: Optional[List[Dict]] = [],
+        on_connect: Optional[List[Dict]]=[],
     ) -> Coroutine:
         await self._manage_connections_(url, handler_map, on_connect, private=True)
 
