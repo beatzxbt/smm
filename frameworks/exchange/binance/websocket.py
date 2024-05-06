@@ -1,11 +1,10 @@
 import asyncio
 from typing import Any, Dict, List, Union
 
-from frameworks.tools.logging import Logger
 from frameworks.exchange.base.websocket import WebsocketStream
-from frameworks.exchange.base.client import Client
+from frameworks.exchange.binance.exchange import Binance
 from frameworks.exchange.binance.endpoints import BinanceEndpoints
-from frameworks.exchange.binance.handlers.book import BinanceOrderbookHandler
+from frameworks.exchange.binance.handlers.orderbook import BinanceOrderbookHandler
 from frameworks.exchange.binance.handlers.trades import BinanceTradesHandler
 from frameworks.exchange.binance.handlers.markprice import BinanceTickerHandler
 from frameworks.exchange.binance.handlers.ohlcv import BinanceOhlcvHandler
@@ -15,12 +14,11 @@ from frameworks.sharedstate import SharedState
 
 
 class BinanceWebsocket(WebsocketStream):
-    def __init__(self, ss: SharedState, client: Client) -> None:     
+    def __init__(self, ss: SharedState, exch: Binance) -> None:     
         self.ss = ss   
-        self.client = client
+        self.exch = exch
 
-        super().__init__()
-        self.set_logger(self.ss.logging)
+        super().__init__(self.ss.logging)
 
         self.endpoints = BinanceEndpoints
 
@@ -41,7 +39,7 @@ class BinanceWebsocket(WebsocketStream):
     def _gen_public_stream_info_(self, symbols: List[str]) -> str:
         url = self.endpoints["pub_ws"] + "/stream?streams="
         for symbol in symbols:
-            url += f"{symbol}@trade/{symbol}@depth@100ms/{symbol}@bookTicker/"
+            url += f"{symbol}@trade/{symbol}@depth@100ms/"
             url += f"{symbol}@markPrice@1s/{symbol}@kline_1m"
         return url[:-1]
     
@@ -56,10 +54,18 @@ class BinanceWebsocket(WebsocketStream):
             self.logging.error(f"Binance Public Websocket: {e}")
 
     async def _gen_private_stream_info_(self) -> str:
-        listen_key = self.client.listen_key()
-        url = self.endpoints["priv_ws"] + "/ws/" + listen_key
+        self.listen_key = self.exch.get_listen_key()
+        url = self.endpoints["priv_ws"] + "/ws/" + self.listen_key
         return url[:-1]
     
+    async def _ping_listen_key_(self) -> None:
+        try:
+            self.listen_key = self.exch.ping_listen_key()
+
+            # if isinstance()
+        except Exception as e:
+            raise e
+
     def _private_stream_handler_(self, recv: Dict) -> None:
         self.private_handler_map[recv["data"]["e"]](recv["data"])
         

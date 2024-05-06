@@ -11,16 +11,11 @@ class WebsocketStream(ABC):
     _failure_ = set((aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR))
     _conns_ = 1
 
-    def __init__(self) -> None:
+    def __init__(self, logger: Logger) -> None:
+        self.logging = logger
         self.public = aiohttp.ClientSession()
         self.private = aiohttp.ClientSession()
         self.logging = None
-
-    async def set_logger(self, logging: Logger) -> None:
-        if self.logging is None:
-            self.logging = logging
-        else:
-            raise Exception("Logger is not set in inherited class!")
 
     async def send(
         self, ws: aiohttp.ClientWebSocketResponse, stream_str: str, payload: Dict
