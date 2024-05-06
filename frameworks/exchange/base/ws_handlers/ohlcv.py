@@ -7,12 +7,12 @@ class OhlcvHandler(ABC):
     def __init__(self, ohlcv: RingBuffer) -> None:
         self.ohlcv = ohlcv
         self.format = np.array([
-            0., # Open Timestamp
-            0., # Open     
-            0., # High 
-            0., # Low 
-            0., # Close 
-            0., # Volume
+            0.0, # Open Timestamp
+            0.0, # Open     
+            0.0, # High 
+            0.0, # Low 
+            0.0, # Close 
+            0.0, # Volume
         ])
     
     @abstractmethod

@@ -7,10 +7,10 @@ class TradesHandler(ABC):
     def __init__(self, trades: RingBuffer) -> None:
         self.trades = trades
         self.format = np.array([
-            0., # Time
-            0., # Side 
-            0., # Price     
-            0.  # Size 
+            0.0, # Time
+            0.0, # Side 
+            0.0, # Price     
+            0.0  # Size 
         ])
     
     @abstractmethod

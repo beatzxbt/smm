@@ -7,8 +7,8 @@ class OrdersHandler(ABC):
         self.single_order = {
             "createTime": 0,
             "side": "",
-            "price": 0,
-            "size": 0
+            "price": 0.0,
+            "size": 0.0
         }
     
     @abstractmethod

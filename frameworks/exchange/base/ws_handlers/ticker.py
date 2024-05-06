@@ -7,10 +7,10 @@ class TickerHandler(ABC):
     def __init__(self, ticker: Dict) -> None:
         self.ticker = ticker
         self.format = {
-            "markPrice": 0.,
-            "indexPrice": 0.,
-            "fundingTime": 0.,
-            "fundingRate": 0.
+            "markPrice": 0.0,
+            "indexPrice": 0.0,
+            "fundingTime": 0.0,
+            "fundingRate": 0.0
         }
 
     @abstractmethod

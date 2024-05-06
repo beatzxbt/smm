@@ -5,9 +5,9 @@ class PositionHandler(ABC):
     def __init__(self, current_position: Dict) -> None:
         self.current_position = current_position
         self.position = {
-            "price": 0,
-            "size": 0,
-            "uPnL": 0
+            "price": 0.0,
+            "size": 0.0,
+            "uPnL": 0.0
         }
     
     @abstractmethod

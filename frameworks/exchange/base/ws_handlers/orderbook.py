@@ -8,8 +8,8 @@ class OrderbookHandler(ABC):
     def __init__(self, orderbook: Orderbook) -> None:
         self.orderbook = orderbook
         self.timestamp = time_ms()
-        self.bids = np.array([[0., 0.]], dtype=np.float64)
-        self.asks = np.array([[0., 0.]], dtype=np.float64)
+        self.bids = np.array([[0.0, 0.0]], dtype=np.float64)
+        self.asks = np.array([[0.0, 0.0]], dtype=np.float64)
     
     @abstractmethod
     def initialize(self, recv: Union[Dict, List]) -> None:
