@@ -5,17 +5,20 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Dict, Coroutine
 from numpy_ringbuffer import RingBuffer
+
 from frameworks.tools.logging import Logger
 from frameworks.exchange.base.structures.orderbook import Orderbook
 
-
 class SharedState(ABC):
     def __init__(self) -> None:
-        self.logging = Logger
+        self.logging = Logger(
+            print_to_console=True,
+            discord_webhook=""
+        )
         self.param_path = self.set_parameters_path()
         self.load_config()
 
-        self.exchange = ""
+        self.client = None
         self.symbol = ""
         self.parameters = {}
         self.load_parameters()
@@ -26,8 +29,8 @@ class SharedState(ABC):
         self.ticker = {}
         self.current_position = {}
         self.current_orders = {}
-        self.account_balance = 0.
-        self.misc = {"tick_size": 0, "lot_size": 0}
+        self.account_balance = 0.0
+        self.misc = {"tick_size": 0.0, "lot_size": 0.0}
 
     @abstractmethod
     def set_parameters_path(self) -> str:
@@ -39,6 +42,46 @@ class SharedState(ABC):
         Process YAML file here
         """
         pass
+    
+    def load_exchange(self, exchange: str) -> None:
+        match exchange.lower():
+            case "binance":
+                from frameworks.exchange.binance.exchange import Binance
+                from frameworks.exchange.binance.websocket import BinanceWebsocket
+                self.exchange = Binance
+                self.websocket = BinanceWebsocket
+
+            case "bybit": 
+                from frameworks.exchange.bybit.exchange import Bybit
+                from frameworks.exchange.bybit.websocket import BybitWebsocket
+                self.exchange = Bybit
+                self.websocket = BybitWebsocket
+
+            # case "okx": 
+            #     self.exchange = Okx
+            #     self.websocket = OkxWebsocket
+
+            # case "kraken":
+            #     self.exchange = Kraken
+            #     self.websocket = KrakenWebsocket
+
+            case "hyperliquid":
+                from frameworks.exchange.hyperliquid.exchange import Hyperliquid
+                from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
+                self.exchange = Hyperliquid
+                self.websocket = HyperliquidWebsocket
+
+            # case "paradex":
+            #     self.exchange = Paradex
+            #     self.websocket = ParadexWebsocket
+
+            # case "vertex": 
+            #     self.exchange = Vertex
+            #     self.websocket = VertexWebsocket
+
+            case _:
+                self.logging.critical("Invalid exchange name, not found...")
+                raise Exception("Invalid exchange name, not found...")
 
     def load_config(self) -> None:
         try:
@@ -46,12 +89,8 @@ class SharedState(ABC):
             self.api_secret = os.getenv("API_SECRET")
                 
             if not self.api_key or not self.api_secret:
-                raise ValueError("Missing/incorrect API credentials!")
+                raise Exception("Missing/incorrect API credentials!")
             
-        except ValueError as ve:
-            self.logging.critical(ve)
-            raise ve
-        
         except Exception as e:
             self.logging.critical(e)
             raise e
