@@ -1,49 +1,42 @@
 import numpy as np
-from numpy.typing import NDArray
-from typing import Tuple, Dict, Union
+from typing import List, Tuple
 
 from frameworks.tools.numba import nblinspace
-from frameworks.tools.mids import mid
 from smm.sharedstate import SmmSharedState
+from smm.quote_generators.base import QuoteGenerator
 
 
-class BasicQuoteGenerator:
+class PlainQuoteGenerator(QuoteGenerator):
     def __init__(self, ss: SmmSharedState) -> None:
         self.ss = ss
-        self.params = self.ss.parameters
-        
-        self.tick_size = self.ss.misc["tick_size"]
-        self.lot_size = self.ss.misc["lot_size"]
+        super().__init__(self.ss)
 
-    @property
-    def mid(self) -> float:
-        return mid(self.ss.orderbook)
-    
-    def _bps_to_decimal_(self, bps: float) -> float:
-        return bps / 10000
-    
-    def _spread_to_decimal_(self, bps: float) -> float:
-        new_price = self.mid + (self.mid * self._bps_to_decimal_(bps))
-        return new_price
+        self.aggressiveness = self.ss.parameters["aggressiveness"]
 
     def corrected_skew(self, skew: float) -> float:
         """
         Calculate the set of features and return process its values to produce a bid & ask
         skew value corrected for current inventory
         """
-        self.delta = self.ss.current_position / self.params["max_position"]
-        corrective_amount = self.delta ** 2
-
-        # Correct for current inventory
-        skew += corrective_amount if self.delta > 0 else -corrective_amount
-
+        corrective_amount = self.inventory_delta ** 2.0
+        skew += corrective_amount if self.inventory_delta < 0.0 else -corrective_amount
         return skew
 
-    def corrected_spread(self, ideal_spread: float) -> float:
-        if ideal_spread < self.params["minimum_spread"]:
+    def corrected_spread(self, spread: float) -> float:
+        if spread < self.params["minimum_spread"]:
             return self.params["minimum_spread"] / 10000
-        
     
+    def generate_prices(self, skew: float, spread: float) -> List[Tuple]:
+        if skew > 0.0:
+            best_bid = self.mid - (spread * (1.0 - self.aggressiveness))
+            best_ask = self.live_best_bid[0] - bid_spread
+
+        elif skew <= 0.0:
+            bid_spread = spread * self.aggressiveness
+            best_bid = self.mid - bid_spread
+
+    def generate_sizes(self, skew: float) -> List[Tuple]:
+        pass
 
     def generate_quotes(self, skew: float, spread: float) -> Tuple[NDArray, NDArray]:
         orders = []

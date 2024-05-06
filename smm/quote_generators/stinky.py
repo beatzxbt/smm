@@ -8,7 +8,7 @@ from smm.sharedstate import SmmSharedState
 from smm.features.generate import Features
 
 
-class SimpleQuoteGenerator:
+class StinkyQuoteGenerator:
     """
     Aims to maximise mean reverting nature of deep fills whilst
     capturing near-BBA spreads with basic inventory management 
