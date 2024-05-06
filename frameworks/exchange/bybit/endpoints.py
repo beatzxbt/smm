@@ -1,7 +1,6 @@
 
 BybitEndpoints = {
     "main1": "https://api.bybit.com",
-    "main2": "https://api.bytick.com",
     "pub_ws": "wss://stream.bybit.com/v5/public/linear",
     "priv_ws": "wss://stream.bybit.com/v5/private",
 
@@ -13,8 +12,7 @@ BybitEndpoints = {
     "ohlcv": ("/v5/market/kline", "GET"),                      
     "allOpenOrders": ("/v5/order/realtime", "GET"),          
     "accountInfo": ("/v5/account/wallet-balance", "GET"),               
-    "positionInfo": ("/v5/position/list", "GET"),         
-    "feeRate": ("/v5/account/fee-rate", "GET"),            
+    "positionInfo": ("/v5/position/list", "GET"),          
 
     "createOrder": ("/v5/order/create", "POST"),                
     "amendOrder": ("/v5/order/amend", "POST"),                 
