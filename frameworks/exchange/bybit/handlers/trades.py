@@ -1,30 +1,25 @@
-import numpy as np
-from numpy_ringbuffer import RingBuffer
-from typing import List, Dict, Union
+from typing import Dict
 
-class BybitTradesHandler:
-    def __init__(self, market: Dict) -> None:
-        self.market = market
-        self._cache_ = np.array([[1e10, 0.0, 1e-3, 1e-3]], dtype=float)
-        self.trades_pointer = None
+from frameworks.exchange.base.ws_handlers.trades import TradesHandler
+from frameworks.sharedstate import SharedState
 
-    def initialize(self, recv: List) -> RingBuffer:
-        if self.trades_pointer is None:
-            self.trades_pointer = self.market[recv[0]["symbol"]]["trades"]
 
-        for row in recv:
-            self._cache_[0, 0] = float(row["time"])
-            self._cache_[0, 1] = 0.0 if row["side"] == "Buy" else 1.0
-            self._cache_[0, 2] = float(row["price"])
-            self._cache_[0, 3] = float(row["size"])
-            self.trades_pointer.append(self._cache_.copy())
-
-    def process(self, recv: Union[Dict, List, str]) -> RingBuffer:
-        if self.trades_pointer is None:
-            self.trades_pointer = self.market[recv["data"]["s"]]["trades"]
-
-        self._cache_[0, 0] = float(recv["data"]["T"])
-        self._cache_[0, 1] = 0.0 if recv["data"]["S"] == "Buy" else 1.0
-        self._cache_[0, 2] = float(recv["data"]["p"])
-        self._cache_[0, 3] = float(recv["data"]["v"])
-        self.trades_pointer.append(self._cache_.copy())
+class BybitTradesHandler(TradesHandler):
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        super().__init__(self.ss.trades)
+    
+    def initialize(self, recv: Dict) -> None:
+        for trade in recv["list"]:
+            self.format[0] = float(trade["time"])
+            self.format[1] = 0.0 if trade["side"] == "Buy" else 1.0
+            self.format[2] = float(trade["price"])
+            self.format[3] = float(trade["size"])
+            self.trades.append(self.format.copy())
+    
+    def process(self, recv: Dict) -> None:
+        self.format[0] = float(recv["data"]["T"])
+        self.format[1] = 0.0 if recv["data"]["S"] == "Buy" else 1.0
+        self.format[2] = float(recv["data"]["p"])
+        self.format[3] = float(recv["data"]["v"])
+        self.trades.append(self.format.copy())

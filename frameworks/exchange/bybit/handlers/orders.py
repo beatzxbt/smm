@@ -1,38 +1,39 @@
-import numpy as np
-from typing import Dict
+from typing import List, Dict
+from frameworks.exchange.base.ws_handlers.orders import OrdersHandler
 
-class BybitOrdersHandler:
-    def __init__(self, private: Dict) -> None:
-        self.private = private
-        self._overwrite_ = ["Created", "New", "PartiallyFilled"]
-        self._remove_ = ["Rejected", "Filled", "Cancelled"]
+from frameworks.exchange.bybit.types import BybitOrderSides, BybitOrderTypes
+from frameworks.sharedstate import SharedState
 
-    def process(self, recv: Dict) -> Dict:
-        E = float(recv["ts"])
-        ts = float(recv["data"][0]["start"])
+class BybitOrdersHandler(OrdersHandler):
+    _overwrite_ = set(("Created", "New", "PartiallyFilled"))
+    _remove_ = set(("Rejected", "Filled", "Cancelled"))
 
-        # Prevent exchange pushing stale data
-        if E >= ts: 
-            for order in recv["data"]:
-                if order["orderStatus"] in self._overwrite_:
-                    self.private[order["symbol"]]["openOrders"][order["orderId"]] = {
-                        "time": float(order["updatedTime"]),
-                        "side": 0.0 if order["side"] == "Buy" else 1.0,
-                        "price": float(order["price"]),
-                        # "tp": None, NOTE: Add later...
-                        "qty": float(order["qty"]),
-                        "qtyRemaining": float(order["qty"]) - float(recv["leavesQty"]),
-                    }
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        super().__init__(self.ss.current_orders)
+    
+    def sync(self, recv: Dict) -> None:
+        for order in recv["list"]:
+            if order["symbol"] != self.ss.symbol:
+                continue
 
-                elif order["orderStatus"] in self._remove_:
-                    del self.private[order["symbol"]]["openOrders"][order["orderId"]]
+            self.single_order["createTime"] = float(order["time"])
+            self.single_order["side"] = BybitOrderSides.to_int(order["side"])
+            self.single_order["price"] = float(order["price"])
+            self.single_order["size"] = float(order["qty"]) - float(order["leavesQty"])
+            self.current_orders[order["orderId"]] = self.single_order.copy()
 
-                    if order["orderStatus"] == "Filled":
-                        self.private[order["symbol"]]["executions"].append({
-                            "orderId": float(order["orderId"]),
-                            "time": float(order["updatedTime"]),
-                            "side": 0.0 if order["side"] == "Buy" else 1.0,
-                            "price": float(order["price"]),
-                            # "tp": None, NOTE: Add later...
-                            "qty": float(order["qty"]),
-                        })
+    def process(self, recv: Dict) -> None:
+        for order in recv["data"]:
+            if order["symbol"] != self.ss.symbol:
+                continue
+
+            if order["orderStatus"] in self._overwrite_:
+                self.single_order["createTime"] = float(order["createdTime"])
+                self.single_order["side"] = BybitOrderSides.to_int(order["side"])
+                self.single_order["price"] = float(order["price"])
+                self.single_order["size"] = float(["qty"]) - float(order["leavesQty"])
+                self.current_orders[order["orderId"]] = self.single_order.copy()
+
+            elif order["orderStatus"] in self._remove_:
+                del self.current_orders[order["orderId"]]

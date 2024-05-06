@@ -1,16 +1,16 @@
 from typing import Dict
 
-class BinanceTickerHandler:
-    def __init__(self, market: Dict) -> None:
-        self.market = market
-        self.ticker_pointer = None
+from frameworks.exchange.base.ws_handlers.ticker import TickerHandler
+from frameworks.sharedstate import SharedState
 
-    def process(self, recv: Dict) -> Dict:
-        if self.ticker_pointer is None:
-            self.ticker_pointer = self.market[recv["symbol"]]
-
-        self.ticker_pointer["markPrice"] = float(recv["data"]["markPrice"])
-        self.ticker_pointer["indexPrice"] = float(recv["data"]["indexPrice"])
-        self.ticker_pointer["fundingRate"] = float(recv["data"]["fundingRate"])
-        self.ticker_pointer["fundingTimestamp"] = float(recv["data"]["nextFundingTime"])
-        self.ticker_pointer["24hVol"] = float(recv["data"]["volume24h"])
+class BybitTickerHandler(TickerHandler):
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        super().__init__(self.ss.ticker)
+        
+    def process(self, recv: Dict) -> None:
+        self.format["markPrice"] = float(recv["data"]["markPrice"])
+        self.format["indexPrice"] = float(recv["data"]["indexPrice"])
+        self.format["fundingRate"] = float(recv["data"]["fundingRate"])
+        self.format["fundingTime"] = float(recv["data"]["nextFundingTime"])
+        self.ticker.update(self.format)

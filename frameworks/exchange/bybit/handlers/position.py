@@ -1,21 +1,29 @@
-from typing import Dict
+from typing import List, Dict
 
-class BybitPositionHandler:
-    def __init__(self, private: Dict) -> None:
-        self.private = private
-        self.position_pointer = None
+from frameworks.exchange.base.ws_handlers.position import PositionHandler
+from frameworks.sharedstate import SharedState
 
-    def process(self, recv: Dict) -> Dict:
-        E = float(recv["ts"])
-        ts = float(recv["data"][0]["start"])
+class BybitPositionHandler(PositionHandler):
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        super().__init__(self.ss.current_position)
+    
+    def sync(self, recv: Dict) -> None:
+        for position in recv["list"]:
+            if position["symbol"] != self.ss.symbol:
+                continue
 
-        if self.position_pointer is None:
-            self.position_pointer = self.private[recv["data"][0]["symbol"]]["currentPosition"]
+            self.position["price"] = float(position["avgPrice"])
+            self.position["size"] = float(position["size"])
+            self.position["uPnL"] = float(position["unrealisedPnl"])
+            self.current_position.update(self.position)
 
-        # Prevent exchange pushing stale data
-        if E >= ts: 
-            self.position_pointer["side"] = 0.0 if recv["data"][0]["side"] == "Buy" else 1.0
-            self.position_pointer["price"] = float(recv["data"][0]["entryPrice"])
-            self.position_pointer["qty"] = float(recv["data"][0]["size"])
-            self.position_pointer["uPnl"] = float(recv["data"][0]["unrealisedPnl"])
-            self.position_pointer["leverage"] = float(recv["data"][0]["leverage"])
+    def process(self, recv: Dict) -> None:
+        for position in recv["data"]:
+            if position["symbol"] != self.ss.symbol:
+                continue
+
+            self.position["price"] = float(position["entryPrice"])
+            self.position["size"] = float(position["size"])
+            self.position["uPnL"] = float(position["unrealizedPnl"])
+            self.current_position.update(self.position)
