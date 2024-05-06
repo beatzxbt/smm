@@ -20,7 +20,7 @@ class BinanceFormats:
             "side": self.convert_side.to_side(side),
             "type": self.convert_type.to_type(type),
             "quantity": str(size),
-            "timestamp": time_ms()
+            "timestamp": str(time_ms())
         }
         
         # Market order
@@ -48,7 +48,7 @@ class BinanceFormats:
             "side": self.convert_side.to_side(side),
             "quantity": str(size),
             "price": str(price),
-            "timestamp": time_ms()
+            "timestamp": str(time_ms())
         }
 
         return format
@@ -57,7 +57,7 @@ class BinanceFormats:
         format = {
             "symbol": symbol,
             "orderId": orderId,
-            "timestamp": time_ms()
+            "timestamp": str(time_ms())
         }
 
         return format
@@ -65,7 +65,7 @@ class BinanceFormats:
     def cancel_all_orders(self, symbol: str) -> Dict:
         format = {
             "symbol": symbol,
-            "timestamp": time_ms()
+            "timestamp": str(time_ms())
         }
 
         return format
@@ -98,7 +98,7 @@ class BinanceFormats:
     def get_open_orders(self, symbol: str) -> Dict:
         format =  {
             "symbol": symbol,
-            "timestamp": time_ms()
+            "timestamp": str(time_ms())
         }
 
         return format
@@ -106,7 +106,7 @@ class BinanceFormats:
     def get_open_position(self, symbol: str) -> Dict:
         format =  {
             "symbol": symbol,
-            "timestamp": time_ms()
+            "timestamp": str(time_ms())
         }
 
         return format
