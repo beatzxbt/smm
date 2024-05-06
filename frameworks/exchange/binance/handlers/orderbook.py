@@ -8,8 +8,9 @@ class BinanceOrderbookHandler(OrderbookHandler):
         self.ss = ss
         super().__init__(self.ss.orderbook)
         self.update_id = 0
-        
+    
     def bba_update(self, recv: Dict) -> None:
+        """Unused for now"""
         self.orderbook.bba[0, :] = [float(recv["b"]), float(recv["B"])]
         self.orderbook.bba[1, :] = [float(recv["a"]), float(recv["A"])]
 
@@ -26,9 +27,5 @@ class BinanceOrderbookHandler(OrderbookHandler):
         new_update_id = int(recv["u"])
         if new_update_id > self.update_id:
             self.update_id = new_update_id
-
-            if recv["e"] == "bookTicker":
-                self.bba_update(recv)
-            else:
-                self.full_orderbook_update(recv)
-                self.orderbook.update_book(self.asks, self.bids)
+            self.full_orderbook_update(recv)
+            self.orderbook.update_book(self.asks, self.bids)
