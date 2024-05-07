@@ -2,18 +2,17 @@ import asyncio
 import aiohttp
 import hashlib
 import hmac
-from numpy_ringbuffer import RingBuffer
-from frameworks.exchange.base.client import Client
-from frameworks.exchange.brrr.bybit.endpoints import endpoints
 from typing import Dict, List, Union
+
+from frameworks.exchange.base.client import Client
+from frameworks.exchange.bybit.endpoints import BybitEndpoints
 
 
 class BybitClient(Client):
-
-    def __init__(self, api: Dict) -> None:
+    def __init__(self, key: str, secret: str) -> None:
+        self.key, self.secret = key, secret
+        self.endpoints = BybitEndpoints
         super().__init__()
-        self.key, self.secret = api["key"], api["secret"]
-        self.endpoints = endpoints
 
         self._cache_partial_str_ = f"{self.key}{self.recvWindow}"
         self._cached_header_ = {
@@ -22,21 +21,18 @@ class BybitClient(Client):
             "X-BAPI-RECV-WINDOW": self.recvWindow,
             "X-BAPI-SIGN": "x" * 64
         }
-    
-    @property
-    def __latency__(self) -> RingBuffer:
-        """Pointer to latency ring buffer in exchange API Dict"""
-        return self.api["latency"]
 
     def _sign_(self, payload: str) -> Dict:
         """SHA-256 signing logic"""
-        _ = self.update_timestamp() # NOTE: Updates self.timestamp
+        self.update_timestamp() # NOTE: Updates self.timestamp
         param_str = f"{self.timestamp}{self._cache_partial_str_}{payload}"
         hash_signature = hmac.new(
-            self.secret.encode("utf-8"), param_str.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
+            key=self.secret.encode(), 
+            msg=param_str.encode(), 
+            digestmod=hashlib.sha256
+        )
         self._cached_header_["X-BAPI-TIMESTAMP"] = self.timestamp
-        self._cached_header_["X-BAPI-SIGN"] = hash_signature
+        self._cached_header_["X-BAPI-SIGN"] = hash_signature.hexdigest()
         return self._cached_header_
 
     def _error_handler_(self, response: Dict) -> Union[Dict, None]:
