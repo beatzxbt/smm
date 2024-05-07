@@ -34,6 +34,7 @@ class Exchange(ABC):
     @abstractmethod
     async def amend_order(
         self,
+        symbol: str,
         orderId: str,
         size: float,
         price: float,
@@ -66,7 +67,6 @@ class Exchange(ABC):
     async def get_trades(
         self, 
         symbol: str, 
-        limit: int
     ) -> Union[Dict, None]:
         pass
 
@@ -74,7 +74,6 @@ class Exchange(ABC):
     async def get_orderbook(
         self, 
         symbol: str, 
-        limit: int
     ) -> Union[Dict, None]:
         pass
 
