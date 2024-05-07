@@ -9,8 +9,8 @@ class BybitOhlcvHandler(OhlcvHandler):
         self.ss = ss
         super().__init__(self.ss.ohlcv)
 
-    def initialize(self, recv: List[List]) -> None:
-        for candle in recv:
+    def initialize(self, recv: Dict) -> None:
+        for candle in recv["list"]:
             self.format[:] = np.array([
                 float(candle["start"]),
                 float(candle["open"]),
