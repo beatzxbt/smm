@@ -9,7 +9,7 @@ class BybitTradesHandler(TradesHandler):
         self.ss = ss
         super().__init__(self.ss.trades)
     
-    def initialize(self, recv: Dict) -> None:
+    def refresh(self, recv: Dict) -> None:
         for trade in recv["list"]:
             self.format[0] = float(trade["time"])
             self.format[1] = 0.0 if trade["side"] == "Buy" else 1.0

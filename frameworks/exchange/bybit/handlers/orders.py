@@ -12,7 +12,7 @@ class BybitOrdersHandler(OrdersHandler):
         self.ss = ss
         super().__init__(self.ss.current_orders)
     
-    def sync(self, recv: Dict) -> None:
+    def refresh(self, recv: Dict) -> None:
         for order in recv["list"]:
             if order["symbol"] != self.ss.symbol:
                 continue

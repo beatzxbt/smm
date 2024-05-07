@@ -7,7 +7,10 @@ class BybitTickerHandler(TickerHandler):
     def __init__(self, ss: SharedState) -> None:
         self.ss = ss
         super().__init__(self.ss.ticker)
-        
+    
+    def refresh(self, recv: Dict) -> None:
+        pass
+    
     def process(self, recv: Dict) -> None:
         self.format["markPrice"] = float(recv["data"]["markPrice"])
         self.format["indexPrice"] = float(recv["data"]["indexPrice"])

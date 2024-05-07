@@ -12,7 +12,7 @@ class OrderbookHandler(ABC):
         self.asks = np.array([[0.0, 0.0]], dtype=np.float64)
     
     @abstractmethod
-    def initialize(self, recv: Union[Dict, List]) -> None:
+    def refresh(self, recv: Union[Dict, List]) -> None:
         """
         1. Seperate your recv payload into bids and asks
             -> They should be in the format [Price, Size] per level

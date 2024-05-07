@@ -91,7 +91,8 @@ class BybitFormats:
             "limit": "200",  # NOTE: [1, 200]. Default: 25
         }
 
-    def instrument(self, symbol: str) -> Dict:
+
+    def get_open_orders(self, symbol: str) -> Dict:
         format = {
             **self.base_payload, 
             "symbol": symbol
@@ -99,15 +100,15 @@ class BybitFormats:
 
         return format
 
-    def open_orders(self, symbol: str) -> Dict:
+    def get_position(self, symbol: str) -> Dict:
         format = {
             **self.base_payload, 
             "symbol": symbol
         }
 
         return format
-
-    def current_position(self, symbol: str) -> Dict:
+    
+    def instrument_info(self, symbol: str) -> Dict:
         format = {
             **self.base_payload, 
             "symbol": symbol

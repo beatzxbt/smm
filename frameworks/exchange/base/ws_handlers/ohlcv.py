@@ -16,7 +16,7 @@ class OhlcvHandler(ABC):
         ])
     
     @abstractmethod
-    def initialize(self, recv: Union[Dict, List]) -> None:
+    def refresh(self, recv: Union[Dict, List]) -> None:
         """
         1. Extract the ohlcv list your recv payload
             -> Make sure you have the following data points:

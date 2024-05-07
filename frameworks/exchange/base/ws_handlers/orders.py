@@ -12,7 +12,7 @@ class OrdersHandler(ABC):
         }
     
     @abstractmethod
-    def sync(self, recv: Union[Dict, List]) -> None:
+    def refresh(self, recv: Union[Dict, List]) -> None:
         """
         1. Extract the orders list your recv payload
             -> Make sure you have the following data points:

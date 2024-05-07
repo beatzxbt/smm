@@ -8,7 +8,7 @@ class BybitPositionHandler(PositionHandler):
         self.ss = ss
         super().__init__(self.ss.current_position)
     
-    def sync(self, recv: Dict) -> None:
+    def refresh(self, recv: Dict) -> None:
         for position in recv["list"]:
             if position["symbol"] != self.ss.symbol:
                 continue

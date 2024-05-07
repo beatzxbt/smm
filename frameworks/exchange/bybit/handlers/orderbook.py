@@ -18,7 +18,7 @@ class BybitOrderbookHandler(OrderbookHandler):
         self.bids = np.array(recv["a"], dtype=np.float64)
         self.asks = np.array(recv["b"], dtype=np.float64)
 
-    def initialize(self, recv: Dict) -> None:
+    def refresh(self, recv: Dict) -> None:
         self.update_id = int(recv["seq"])
         self.full_orderbook_update(recv)
         self.orderbook.initialize(self.asks, self.bids)

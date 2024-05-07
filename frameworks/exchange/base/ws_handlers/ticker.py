@@ -14,6 +14,10 @@ class TickerHandler(ABC):
         }
 
     @abstractmethod
+    def refresh(self, recv: Dict) -> None:
+        pass
+
+    @abstractmethod
     def process(self, recv: Dict) -> None:
         """
         1. Extract the ticker data from your recv payload
