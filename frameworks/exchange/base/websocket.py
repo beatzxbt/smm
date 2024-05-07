@@ -1,8 +1,9 @@
 import asyncio
 import aiohttp
 import orjson
-from abc import ABC
-from typing import List, Dict, Callable, Optional, Coroutine
+from abc import ABC, abstractmethod
+from typing import Tuple, List, Dict, Callable, Optional, Coroutine
+
 from frameworks.tools.logging import Logger
 
 
@@ -15,6 +16,112 @@ class WebsocketStream(ABC):
         self.logging = logger
         self.public = aiohttp.ClientSession()
         self.private = aiohttp.ClientSession()
+
+    @abstractmethod
+    async def refresh_orderbook_data(self, timer: int=600) -> None:
+        """
+        Periodically fetches and updates the order book data at a set interval.
+
+        Parameters
+        ----------
+        timer : int, optional
+            The time interval in seconds between data refreshes, default is 600 seconds.
+        """
+        pass
+
+    @abstractmethod
+    async def refresh_trades_data(self, timer: int=600) -> None:
+        """
+        Periodically fetches and updates trade data at a set interval.
+
+        Parameters
+        ----------
+        timer : int, optional
+            The time interval in seconds between data refreshes, default is 600 seconds.
+        """
+        pass
+
+    @abstractmethod
+    async def refresh_ohlcv_data(self, timer: int=600) -> None:
+        """
+        Periodically fetches and updates OHLCV data at a set interval.
+
+        Parameters
+        ----------
+        timer : int, optional
+            The time interval in seconds between data refreshes, default is 600 seconds.
+        """
+        pass
+    
+    @abstractmethod
+    async def refresh_ticker_data(self, timer: int=600) -> None:
+        """
+        Periodically fetches and updates ticker data at a set interval.
+
+        Parameters
+        ----------
+        timer : int, optional
+            The time interval in seconds between data refreshes, default is 600 seconds.
+        """
+        pass
+    
+    @abstractmethod
+    def public_stream_sub(self) -> Tuple[str, List[Dict]]:
+        """
+        Prepares the subscription request for public Websocket channels.
+
+        Returns
+        -------
+        Tuple[str, List[Dict]]
+            A tuple containing the Websocket URL and the formatted subscription request list.
+        """
+        pass
+    
+    @abstractmethod
+    async def public_stream_handler(self, recv: Dict) -> None:
+        """
+        Handles incoming messages from the public Websocket stream.
+
+        Parameters
+        ----------
+        recv : Dict
+            The received message dictionary.
+
+        Raises
+        ------
+        KeyError
+            If the received message does not contain expected keys or handler mappings.
+        """
+        pass
+
+    @abstractmethod
+    async def private_stream_sub(self) -> Tuple[str, List[Dict]]:
+        """
+        Prepares the authentication and subscription messages for the private Websocket channels.
+
+        Returns
+        -------
+        Tuple[str, List[Dict]]
+            A tuple containing the Websocket URL and the formatted subscription request list.
+        """
+        pass
+
+    @abstractmethod
+    async def private_stream_handler(self, recv: Dict) -> None:
+        """
+        Handles incoming messages from the private Websocket stream.
+
+        Parameters
+        ----------
+        recv : Dict
+            The received message dictionary.
+
+        Raises
+        ------
+        KeyError
+            If the received message does not contain expected keys or handler mappings.
+        """
+        pass
 
     async def send(
         self, ws: aiohttp.ClientWebSocketResponse, stream_str: str, payload: Dict
