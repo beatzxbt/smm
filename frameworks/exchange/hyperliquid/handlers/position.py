@@ -1,28 +1,39 @@
-from typing import Dict
+from typing import List, Dict
 
-class BinancePositionHandler:
-    def __init__(self, private: Dict) -> None:
-        self.private = private
+from frameworks.exchange.base.ws_handlers.position import PositionHandler
+from frameworks.sharedstate import SharedState
 
-    def process(self, recv: Dict) -> Dict:
-        E = float(recv["E"])
-        ts = float(recv["T"])
+class HyperliquidPositionHandler(PositionHandler):
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        super().__init__(self.ss.current_position)
 
-        # Prevent exchange pushing stale data
-        if E >= ts: 
-            if recv["a"]["M"] == "ORDER":
-                for position in recv["a"]["P"]:
-                    self.private[position["s"]]["currentPosition"] = {
-                        "price": float(position["ep"]),
-                        "qty": float(position["pa"]),
-                        "uPnl": float(position["up"])
-                    }
+        self.asset_idx = 0
+        self.asset_found = False
+    
+    def refresh(self, recv: List[Dict]) -> None:
+        for position in recv["assetPositions"]:
+            if position["coin"] != self.ss.symbol:
+                continue
 
-                for balance in recv["a"]["B"]:
-                    if balance["s"] != "USDT":
-                        continue
-                    self.private["currentBalance"] = float(balance["wb"])
+            self.position["price"] = float(position["entryPx"])
+            self.position["size"] = float(position["szi"])
+            self.position["uPnL"] = float(position["unrealizedPnl"])
+            self.current_position.update(self.position)
 
-        else:
-            # TODO: Figure out a way to trigger re-sync's in these cases
-            pass
+    def process(self, recv: Dict) -> None:
+        self.ss.account_balance = float(recv["clearinghouseState"]["marginSummary"]["accountValue"])
+
+        if not self.asset_found:
+            for asset in recv["meta"]["universe"]:
+                if asset["name"] == self.ss.symbol:
+                    self.asset_found = True
+                    break
+                
+                self.asset_idx += 1
+        
+        position = recv["clearinghouseState"]["assetPositions"][self.asset_idx]["position"]
+        self.position["price"] = float(position["entryPx"])
+        self.position["size"] = float(position["szi"])
+        self.position["uPnL"] = float(position["unrealizedPnl"])
+        self.current_position.update(self.position)

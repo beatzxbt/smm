@@ -1,35 +1,44 @@
 import numpy as np
-from numpy_ringbuffer import RingBuffer
 from typing import List, Dict
 
-class HyperliquidOhlcvHandler:
-    def __init__(self, market: Dict) -> None:
-        self.market = market
-        self._cache_ = np.array([[1e10, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3]], dtype=float)
+from frameworks.sharedstate import SharedState
+from frameworks.exchange.base.ws_handlers.ohlcv import OhlcvHandler
 
-    def initialize(self, symbol: str, recv: List) -> RingBuffer:
-        for row in recv:
-            self._cache_[0, 0] = float(row[0])
-            self._cache_[0, 1] = float(row[1])
-            self._cache_[0, 2] = float(row[2])
-            self._cache_[0, 3] = float(row[3])
-            self._cache_[0, 4] = float(row[4])
-            self._cache_[0, 5] = float(row[5])
-            self._cache_[0, 6] = float(row[6])
-            self.latest_timestamp = row[0]
-            self.market[symbol]["ohlcv"].append(self._cache_.copy())
 
-    def process(self, recv: Dict) -> RingBuffer:
-        E = float(recv["E"])
-        ts = float(recv["k"]["t"])
+class HyperliquidOhlcvHandler(OhlcvHandler):
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        super().__init__(self.ss.ohlcv)
+        
+        self.current_open_time = 0
 
-        # Prevent exchange pushing stale data
-        if E >= ts: 
-            self._cache_[0, 0] = ts
-            self._cache_[0, 1] = float(recv["k"][1])
-            self._cache_[0, 2] = float(recv["k"][2])
-            self._cache_[0, 3] = float(recv["k"][3])
-            self._cache_[0, 4] = float(recv["k"][4])
-            self._cache_[0, 5] = float(recv["k"][5])
-            self._cache_[0, 6] = float(recv["k"][6])
-            self.market[recv["s"]]["ohlcv"].append(self._cache_.copy())
+    def refresh(self, recv: List) -> None:
+        for candle in recv:
+            self.format[:] = np.array([
+                float(candle["t"]),
+                float(candle["o"]),
+                float(candle["h"]),
+                float(candle["l"]),
+                float(candle["c"]),
+                float(candle["v"])
+            ])
+            self.current_open_time = self.format[0]
+            self.ohlcv.append(self.format.copy())
+    
+    def process(self, recv: Dict) -> None:
+        time = float(recv["t"])
+        new = True if time > self.current_open_time else False
+
+        self.format[:] = np.array([
+            time,
+            float(recv["o"]),
+            float(recv["h"]),
+            float(recv["l"]),
+            float(recv["c"]),
+            float(recv["v"])
+        ])
+
+        if not new:
+            self.ohlcv.pop()
+
+        self.ohlcv.append(self.format.copy())

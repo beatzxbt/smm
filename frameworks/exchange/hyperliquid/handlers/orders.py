@@ -1,26 +1,42 @@
-from typing import Dict
+from typing import List, Dict
+from frameworks.exchange.base.ws_handlers.orders import OrdersHandler
 
-class BinanceOrdersHandler:
-    def __init__(self, private: Dict) -> None:
-        self.private = private
-        self._overwrite_ = ["NEW", "PARTIALLY_FILLED"]
-        self._remove_ = ["CANCELLED", "EXPIRED", "FILLED", "EXPIRED_IN_MATCH"]
+from frameworks.exchange.hyperliquid.types import HyperliquidOrderSides, HyperliquidOrderTypes
+from frameworks.sharedstate import SharedState
 
-    def process(self, recv: Dict) -> Dict:
-        E = float(recv["E"])
-        ts = float(recv["k"]["t"])
+class HyperliquidOrdersHandler(OrdersHandler):
+    _overwrite_ = set(("open"))
+    _remove_ = set(("filled", "canceled", "triggered", "rejected", "marginCanceled"))
 
-        # Prevent exchange pushing stale data
-        if E >= ts: 
-            if recv["o"]["X"] in self._overwrite_:
-                self.private[recv["o"]["s"]]["openOrders"][recv["o"]["i"]] = {
-                    "time": float(recv["o"]["T"]),
-                    "side": 1.0 if recv["o"]["S"] == "SELL" else 0.0,
-                    "price": float(recv["o"]["i"]),
-                    # "tp": None, NOTE: Add later...
-                    "qty": float(recv["o"]["q"]),
-                    "qtyRemaining": float(recv["o"]["q"]) - float(recv["o"]["z"]),
-                }
+    def __init__(self, ss: SharedState) -> None:
+        self.ss = ss
+        super().__init__(self.ss.current_orders)
 
-            elif recv["o"]["X"] in self._remove_:
-                del self.private[recv["o"]["s"]]["openOrders"][recv["o"]["i"]]
+        self.asset_idx = 0
+        self.asset_found = False
+    
+    def refresh(self, recv: List) -> None:
+        for order in recv:
+            if order["coin"] != self.ss.symbol:
+                continue
+
+            self.single_order["createTime"] = float(recv["order"]["timestamp"])
+            self.single_order["side"] = HyperliquidOrderSides.to_int(recv["order"]["side"])
+            self.single_order["price"] = float(recv["order"]["limitPx"])
+            self.single_order["size"] = float(["sz"])
+            self.current_orders[recv["order"]["oid"]] = self.single_order.copy()
+
+    def process(self, recv: Dict) -> None:
+        for order in recv["orderHistory"]:
+            if order["coin"] != self.ss.symbol:
+                continue
+
+            if recv["status"] in self._overwrite_:
+                self.single_order["createTime"] = float(order["timestamp"])
+                self.single_order["side"] = HyperliquidOrderSides.to_int(order["side"])
+                self.single_order["price"] = float(order["limitPx"])
+                self.single_order["size"] = float(["sz"])
+                self.current_orders[order["oid"]] = self.single_order.copy()
+
+            elif recv["status"] in self._remove_:
+                del self.current_orders[order["oid"]]
