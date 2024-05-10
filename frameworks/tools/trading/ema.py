@@ -23,7 +23,6 @@ class EMA:
     value : float
         The current EMA value.
     """
-
     def __init__(self, window: int, alpha: Optional[float]=0) -> None:
         """
         Initializes the EMA instance with a specified window size and alpha.
