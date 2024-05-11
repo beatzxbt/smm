@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 from numba.types import float64, Array
-from frameworks.tools.weights import generate_geometric_weights
+from frameworks.tools.trading.weights import generate_geometric_weights
 
 @njit(["float64(float64[:, :], float64[:, :], float64[:])"], error_model="numpy")
 def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:

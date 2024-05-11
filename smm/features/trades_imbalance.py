@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 from numba.types import Array
 
-from frameworks.tools.weights import generate_geometric_weights
+from frameworks.tools.trading.weights import generate_geometric_weights
 
 
 @njit(["float64(float64[:, :], int64)"], error_model="numpy", fastmath=True)
