@@ -1,10 +1,10 @@
 import numpy as np
-from numba import njit, int64, float64, bool_
+from numba import njit
+from numba.types import int64, float64, bool_, Array
 from numba.experimental import jitclass
-from numpy.typing import NDArray
 
-@njit(bool_[:](float64[:], float64[:]), nogil=True)
-def isin(a: NDArray, b: NDArray) -> NDArray:
+@njit(["bool_[:](float64[:], float64[:])"], fastmath=True)
+def isin(a: Array, b: Array) -> Array:
     out = np.empty(a.size, dtype=bool_)
     b = set(b)
 
@@ -14,10 +14,10 @@ def isin(a: NDArray, b: NDArray) -> NDArray:
     return out
 
 spec = [
-    ('size', int64),
-    ('asks', float64[:, :]),
-    ('bids', float64[:, :]),
-    ('bba', float64[:, :])
+    ("size", int64),
+    ("asks", float64[:, :]),
+    ("bids", float64[:, :]),
+    ("bba", float64[:, :])
 ]
 
 @jitclass(spec)
@@ -32,22 +32,22 @@ class Orderbook:
     size : int
         The maximum number of bid/ask pairs the order book will hold.
 
-    asks : NDArray
+    asks : Array
         Array to store ask orders, each with price and quantity.
 
-    bids : NDArray
+    bids : Array
         Array to store bid orders, each with price and quantity.
 
-    bba : NDArray
+    bba : Array
         Array to store best bid and ask, each with price and quantity.
     """
     def __init__(self, size: int) -> None:
         self.size = size
-        self.asks = np.empty((self.size, 2), dtype=float64)
-        self.bids = np.empty((self.size, 2), dtype=float64)
-        self.bba = np.empty((2, 2), dtype=float64)
+        self.asks = np.zeros((self.size, 2), dtype=float64)
+        self.bids = np.zeros((self.size, 2), dtype=float64)
+        self.bba = np.zeros((2, 2), dtype=float64)
 
-    def _sort_book_(self) -> NDArray:
+    def _sort_book_(self) -> Array:
         """
         Constructs all the necessary attributes for the orderbook object.
 
@@ -61,7 +61,7 @@ class Orderbook:
         self.bba[0, :] = self.bids[0]
         self.bba[1, :] = self.asks[0]
 
-    def _process_book_(book: NDArray, update: NDArray) -> NDArray:
+    def _process_book_(book: Array, update: Array) -> Array:
         """
         Updates the given book with new data. Removes entries with matching 
         prices in update, regardless of size, and then adds non-zero quantity 
@@ -69,46 +69,46 @@ class Orderbook:
 
         Parameters
         ----------
-        book : NDArray
+        book : Array
             The existing orderbook data (either bids or asks).
 
-        update : NDArray
+        update : Array
             New order data to be processed into the book.
 
         Returns
         -------
-        NDArray
+        Array
             The updated order book data.
         """
         book = book[~isin(book[:, 0], update[:, 0])]
         return np.vstack((book, update[update[:, 1] != 0]))
 
-    def initialize(self, asks: NDArray, bids: NDArray) -> NDArray:
+    def initialize(self, asks: Array, bids: Array) -> Array:
         """
         Initializes the order book with given ask and bid data and sorts the book.
 
         Parameters
         ----------
-        asks : NDArray
+        asks : Array
             Initial ask orders data, formatted as [[price, size], ...].
 
-        bids : NDArray
+        bids : Array
             Initial bid orders data, formatted as [[price, size], ...].
         """
         self.asks[:, :] = asks
         self.bids[:, :] = bids
         self._sort_book_()
 
-    def update_book(self, asks: NDArray, bids: NDArray) -> NDArray:
+    def update_book(self, asks: Array, bids: Array) -> Array:
         """
         Updates the order book with new ask and bid data.
 
         Parameters
         ----------
-        asks : NDArray
+        asks : Array
             Initial ask orders data, formatted as [[price, size], ...].
 
-        bids : NDArray
+        bids : Array
             Initial bid orders data, formatted as [[price, size], ...].
         """
         self.asks = self._process_book_(self.asks, asks)
@@ -137,7 +137,7 @@ class Orderbook:
             The weighted mid price, which accounts for the volume imbalance at the top of the book.
         """
         imb = self.bba[0, 1] / (self.bba[0, 1] + self.bba[1, 1])
-        return self.bba[0, 0] * imb + self.bba[0, 0] * (1 - imb)
+        return self.bba[0, 0] * imb + self.bba[1, 0] * (1 - imb)
     
     def get_vamp(self, depth: float) -> float:
         """
@@ -204,13 +204,13 @@ class Orderbook:
         """
         return self.bba[1, 0] - self.bba[0, 0]
     
-    def get_slippage(self, book: NDArray, size: float) -> float:
+    def get_slippage(self, book: Array, size: float) -> float:
         """
         Calculates the slippage cost for a hypothetical order of a given size, based on either the bid or ask side of the book.
 
         Parameters
         ----------
-        book : NDArray
+        book : Array
             The order book data for the side (bids or asks) being considered.
 
         size : float
@@ -222,12 +222,12 @@ class Orderbook:
             The slippage cost, defined as the volume-weighted average deviation from the mid price for the given order size.
         """
         mid = self.get_mid()
-        cum_size = 0.
-        slippage = 0.
+        cum_size = 0.0
+        slippage = 0.0
 
         for level in range(book.shape[0]):
             cum_size += book[level, 1]
-            slippage += (np.abs(mid - book[level, 0]) * book[level, 1])
+            slippage += np.abs(mid - book[level, 0]) * book[level, 1]
 
             if cum_size >= size:
                 slippage /= cum_size
