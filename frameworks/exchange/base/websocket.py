@@ -10,7 +10,7 @@ from frameworks.tools.logging import Logger
 class WebsocketStream(ABC):
     _success_ = set((aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY))
     _failure_ = set((aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR))
-    _conns_ = 1
+    _conns_ = 1 # NOTE: Handlers dont support duplicate detection yet!
 
     def __init__(self, logger: Logger) -> None:
         self.logging = logger
