@@ -9,10 +9,17 @@ from frameworks.exchange.bybit.endpoints import BybitEndpoints
 
 
 class BybitClient(Client):
+    _errors_ = {
+        "200": None,
+        "10006": (False, "Rate limits exceeded!"),
+        "10016": (False, "Bybit server error..."),
+        "110001": (False, "Order doesnt exist anymore!"),
+        "110012": (False, "Insufficient available balance"),
+    }
+    
     def __init__(self, key: str, secret: str) -> None:
-        self.key, self.secret = key, secret
+        super().__init__(key, secret)
         self.endpoints = BybitEndpoints
-        super().__init__()
 
         self._cache_partial_str_ = f"{self.key}{self.recvWindow}"
         self._cached_header_ = {
@@ -35,14 +42,11 @@ class BybitClient(Client):
         self._cached_header_["X-BAPI-SIGN"] = hash_signature.hexdigest()
         return self._cached_header_
 
-    def _error_handler_(self, response: Dict) -> Union[Dict, None]:
+    def _error_handler_(self, recv: Dict) -> Dict:
         """
         Tuple(bool, error msg)
 
         False: Do not attempt retry, break loop
         True: Raise exception and go through standard retry loop
         """
-        self.err_codes["10006"] = (False, "Rate limits exceeded!")
-        self.err_codes["10016"] = (False, "Bybit server error...")
-        self.err_codes["110001"] = (False, "Order doesnt exist anymore!")
-        self.err_codes["110012"] = (False, "Insufficient available balance")
+        pass

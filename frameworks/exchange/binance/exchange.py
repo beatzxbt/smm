@@ -2,7 +2,6 @@ from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.binance.endpoints import BinanceEndpoints
 from frameworks.exchange.binance.formats import BinanceFormats
 from frameworks.exchange.binance.client import BinanceClient
-from frameworks.exchange.binance.websocket import BinanceWebsocket
 from frameworks.sharedstate import SharedState
 from typing import Any, Dict,Coroutine, Union, Optional
 
@@ -13,7 +12,6 @@ class Binance(Exchange):
 
         self.client = BinanceClient(self.ss.api_key, self.ss.api_secret)
         super().__init__(self.client)
-        self.websocket = BinanceWebsocket(self.ss, self.client)
 
         self.endpoints = BinanceEndpoints
         self.formats = BinanceFormats()
