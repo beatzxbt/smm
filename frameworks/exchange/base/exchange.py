@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
+
 from frameworks.exchange.base.client import Client
 
 
@@ -15,7 +16,7 @@ class Exchange(ABC):
     def __init__(self, client: Client) -> None:
         self.client = client
 
-    async def submit(self, method: str, endpoint: str, payload: Dict) -> Union[Dict, None]:
+    async def submit(self, method: str, endpoint: str, payload: Dict) -> Dict:
         """Submit a request to the client"""
         await self.client.send(method, endpoint, payload)
 
@@ -28,7 +29,7 @@ class Exchange(ABC):
         size: float,
         price: Optional[float]=None,
         orderId: Optional[str]=None
-    ) -> Union[Dict, str]:
+    ) -> Dict:
         pass
     
     @abstractmethod
@@ -38,21 +39,21 @@ class Exchange(ABC):
         orderId: str,
         size: float,
         price: float,
-    ) -> Union[Dict, None]:
+    ) -> Dict:
         pass
 
     @abstractmethod
     async def cancel_order(
         self, 
         orderId: str
-    ) -> Union[Dict, None]:
+    ) -> Dict:
         pass
 
     @abstractmethod
     async def cancel_all_orders(
         self, 
         symbol: str
-    ) -> Union[Dict, None]:
+    ) -> Dict:
         pass
 
     @abstractmethod
@@ -60,33 +61,40 @@ class Exchange(ABC):
         self, 
         symbol: str, 
         interval: int
-    ) -> Union[Dict, None]:
+    ) -> Dict:
         pass
 
     @abstractmethod
     async def get_trades(
         self, 
         symbol: str, 
-    ) -> Union[Dict, None]:
+    ) -> Dict:
         pass
 
     @abstractmethod
     async def get_orderbook(
         self, 
         symbol: str, 
-    ) -> Union[Dict, None]:
+    ) -> Dict:
+        pass
+
+    @abstractmethod
+    async def get_ticker(
+        self, 
+        symbol: str, 
+    ) -> Dict:
         pass
 
     @abstractmethod
     async def get_open_orders(
         self, 
         symbol: str
-    ) -> Union[Dict, None]:
+    ) -> Dict:
         pass
 
     @abstractmethod
-    async def get_open_position(
+    async def get_position(
         self, 
         symbol: str
-    ) -> Union[Dict, None]:
+    ) -> Dict:
         pass
