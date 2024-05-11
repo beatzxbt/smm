@@ -61,7 +61,10 @@ class PlainQuoteGenerator(QuoteGenerator):
     
     def prepare_orders(self, bid_prices: Array, bid_sizes: Array, ask_prices: Array, ask_sizes: Array) -> List[Tuple]:
         """
-        Prepare bid and ask orders based on given prices and sizes.
+        Prepare bid and ask orders based on given prices and sizes. 
+
+        Ordering is done 1-bid-1-ask for greater priority to inner (closer to mid) orders 
+        and decreasing priority going outward (away from mid). 
 
         Parameters
         ----------
@@ -84,20 +87,19 @@ class PlainQuoteGenerator(QuoteGenerator):
         """
         orders = []
 
-        for bid_price, bid_size in zip(bid_prices, bid_sizes):
+        for (bid_price, bid_size, ask_price, ask_size) in zip(bid_prices, bid_sizes, ask_prices, ask_sizes):
             orders.append(self.generate_single_quote(
                 side=0.0,
                 orderType=0.0,
                 price=round_floor(num=bid_price, step_size=self.tick_size),
-                size=round_ceil(bid_size, step_size=self.lot_size) 
+                size=round_ceil(num=bid_size, step_size=self.lot_size) 
             ))
 
-        for ask_price, ask_size in zip(ask_prices, ask_sizes):
             orders.append(self.generate_single_quote(
                 side=1.0,
                 orderType=0.0,
-                price=round_ceil(ask_price, step_size=self.tick_size),
-                size=round_ceil(ask_size, step_size=self.lot_size)
+                price=round_ceil(num=ask_price, step_size=self.tick_size),
+                size=round_ceil(num=ask_size, step_size=self.lot_size)
             ))
 
         return orders

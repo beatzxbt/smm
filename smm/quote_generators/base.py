@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from numpy.typing import NDArray
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 from smm.sharedstate import SmmSharedState
 
@@ -51,9 +51,18 @@ class QuoteGenerator(ABC):
     def offset_to_decimal(self, offset: float) -> float:
         return self.mid + (self.mid * offset)
         
-    def generate_single_quote(self, side: float, orderType: float, price: float, size: float) -> Tuple[float, float, float, float]:
-        return (side, orderType, price, size)
+    def generate_single_quote(self, side: float, orderType: float, price: float, size: float) -> Dict:
+        return {
+            "side": side,
+            "orderType": orderType,
+            "price": price,
+            "size": size,
+        }
     
     @abstractmethod
     def generate_orders(self, fp_skew: float, vol: float) -> List[Tuple]:
+        """
+        Remember, the OMS will prioritize orders at the top of the list more.
+        So if any custom ordering is required for the strategy, implement it here.
+        """
         pass
