@@ -26,8 +26,7 @@ class BinanceClient(Client):
     }
     
     def __init__(self, key: str, secret: str) -> None:
-        super().__init__()
-        self.key, self.secret = key, secret
+        super().__init__(key, secret)
         self.endpoints = BinanceEndpoints
 
         self._cached_header_ = {

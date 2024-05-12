@@ -23,7 +23,8 @@ class EMA:
     value : float
         The current EMA value.
     """
-    def __init__(self, window: int, alpha: Optional[float]=0) -> None:
+
+    def __init__(self, window: int, alpha: Optional[float] = 0) -> None:
         """
         Initializes the EMA instance with a specified window size and alpha.
 
@@ -90,7 +91,7 @@ def _ema_(arr_in: NDArray, alpha: float) -> NDArray:
     ----------
     arr_in : NDArray
         The input array for which to calculate the EMA.
-        
+
     alpha : float
         The smoothing factor for the EMA.
 

@@ -3,8 +3,11 @@ from numba import njit
 from numba.types import Array
 from typing import Union
 
+
 @njit(error_model="numpy", cache=True)
-def round_ceil(num: Union[float, Array], step_size: Union[float, int]) -> Union[float, int]:
+def round_ceil(
+    num: Union[float, Array], step_size: Union[float, int]
+) -> Union[float, int]:
     """
     Rounds a number or array of numbers up to the nearest multiple of a given step size.
 
@@ -28,11 +31,15 @@ def round_ceil(num: Union[float, Array], step_size: Union[float, int]) -> Union[
     >>> round_ceil(np.array([2.3, 4.6, 6.1]), 2)
     np.array([4, 6, 8])
     """
-    return np.round(step_size * np.ceil(num / step_size), int(np.ceil(-np.log10(step_size))))
+    return np.round(
+        step_size * np.ceil(num / step_size), int(np.ceil(-np.log10(step_size)))
+    )
 
 
 @njit(error_model="numpy", cache=True)
-def round_floor(num: Union[float, Array], step_size: Union[float, int]) -> Union[float, int]:
+def round_floor(
+    num: Union[float, Array], step_size: Union[float, int]
+) -> Union[float, int]:
     """
     Rounds a number or array of numbers down to the nearest multiple of a given step size.
 
@@ -56,11 +63,15 @@ def round_floor(num: Union[float, Array], step_size: Union[float, int]) -> Union
     >>> round_floor(np.array([2.7, 4.2, 6.9]), 2)
     np.array([2, 4, 6])
     """
-    return np.round(step_size * np.floor(num / step_size), int(np.ceil(-np.log10(step_size))))
+    return np.round(
+        step_size * np.floor(num / step_size), int(np.ceil(-np.log10(step_size)))
+    )
 
 
 @njit(error_model="numpy", cache=True)
-def round_discrete(num: Union[float, Array], step_size: Union[float, int]) -> Union[float, int]:
+def round_discrete(
+    num: Union[float, Array], step_size: Union[float, int]
+) -> Union[float, int]:
     """
     Rounds a number or array of numbers to the nearest multiple of a given step size.
 
@@ -84,4 +95,6 @@ def round_discrete(num: Union[float, Array], step_size: Union[float, int]) -> Un
     >>> round_discrete(np.array([2.4, 4.5, 7.7]), 2)
     np.array([2., 4., 8.])
     """
-    return np.round(step_size * np.round(num / step_size), int(np.ceil(-np.log10(step_size))))
+    return np.round(
+        step_size * np.round(num / step_size), int(np.ceil(-np.log10(step_size)))
+    )

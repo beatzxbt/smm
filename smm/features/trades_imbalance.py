@@ -54,7 +54,7 @@ def trades_imbalance(trades: Array, window: int) -> float:
     weights = generate_geometric_weights(window)
     delta_buys = 0.0
     delta_sells = 0.0
-    
+
     for i in range(window):
         trade_side = trades[i, 1]
         weighted_qty = np.log(1.0 + trades[i, 3]) * weights[i]

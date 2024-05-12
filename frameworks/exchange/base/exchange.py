@@ -45,6 +45,7 @@ class Exchange(ABC):
     @abstractmethod
     async def cancel_order(
         self, 
+        symbol: str,
         orderId: str
     ) -> Dict:
         pass

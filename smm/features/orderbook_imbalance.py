@@ -3,6 +3,7 @@ from numba import njit
 from numba.types import float64, Array
 from frameworks.tools.trading.weights import generate_geometric_weights
 
+
 @njit(["float64(float64[:, :], float64[:, :], float64[:])"], error_model="numpy")
 def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
     """
@@ -10,9 +11,9 @@ def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
 
     This function computes the logarithm of the ratio of total bid size to total ask size within
     specified depths, applying a geometric weighted scheme for aggregation.
-    
+
     Depths are expected in basis points and converted internally to decimal form. The function
-    assumes the first entry in both bids and asks arrays represents the best (highest) bid and 
+    assumes the first entry in both bids and asks arrays represents the best (highest) bid and
     the best (lowest) ask, respectively.
 
     Parameters
@@ -51,7 +52,7 @@ def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
     ...     [101.75, 0.39473],
     ...     [102.00, 0.97438]
     ... ])
-    >>> depths = np.array([10, 20, 30, 40, 50])  
+    >>> depths = np.array([10, 20, 30, 40, 50])
     >>> orderbook_imbalance(bids, asks, depths)
     -0.24142990048382099
     """
@@ -63,7 +64,7 @@ def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
     bid_p, bid_q = bids.T
     ask_p, ask_q = asks.T
     best_bid_p, best_ask_p = bid_p[0], ask_p[0]
-    
+
     for i in range(num_depths):
         min_bid = best_bid_p * (1 - depths[i])
         max_ask = best_ask_p * (1 + depths[i])
@@ -73,8 +74,10 @@ def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
         total_bid_size_within_depth = np.sum(bid_q[:num_bids_within_depth])
         total_ask_size_within_depth = np.sum(ask_q[:num_asks_within_depth])
 
-        imbalances[i] = np.log(total_bid_size_within_depth / total_ask_size_within_depth)
+        imbalances[i] = np.log(
+            total_bid_size_within_depth / total_ask_size_within_depth
+        )
 
     weighted_imbalance = np.sum(imbalances * weights)
-    
+
     return weighted_imbalance

@@ -3,6 +3,7 @@ import hmac
 import hashlib
 from typing import Tuple, Dict, List, Union
 
+from frameworks.sharedstate import SharedState
 from frameworks.tools.logging import time_ms
 from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.bybit.exchange import Bybit
@@ -13,7 +14,6 @@ from frameworks.exchange.bybit.handlers.ticker import BybitTickerHandler
 from frameworks.exchange.bybit.handlers.ohlcv import BybitOhlcvHandler
 from frameworks.exchange.bybit.handlers.orders import BybitOrdersHandler
 from frameworks.exchange.bybit.handlers.position import BybitPositionHandler
-from frameworks.sharedstate import SharedState
 
 
 class BybitWebsocket(WebsocketStream):

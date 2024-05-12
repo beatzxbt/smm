@@ -1,6 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
+
 from frameworks.tools.logging import time_ms
 from frameworks.exchange.base.structures.orderbook import Orderbook
 

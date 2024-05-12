@@ -2,11 +2,12 @@ import numpy as np
 from numba import njit
 from numba.types import Array
 
+
 @njit(["float64(float64[:, :], int64)"], error_model="numpy", fastmath=True)
-def trades_diffs(trades: Array, lookback: int=100) -> float:
+def trades_diffs(trades: Array, lookback: int = 100) -> float:
     """
     Computes the sum of the absolute differences of trade prices over a specified lookback period.
-    
+
     Steps:
         -> Filter out prices from the trades array.
         -> Compute absolute differences element-by-element.

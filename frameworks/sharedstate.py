@@ -9,6 +9,7 @@ from numpy_ringbuffer import RingBuffer
 from frameworks.tools.logging import Logger
 from frameworks.exchange.base.structures.orderbook import Orderbook
 
+
 class SharedState(ABC):
     def __init__(self) -> None:
         self.logging = Logger(

@@ -23,7 +23,7 @@ class TickerHandler(ABC):
         1. Extract the ticker data from your recv payload
             -> Make sure you have the following data points:
                 - Mark price
-                - Index price (if you dont have this, just use mark price)
+                - Index price (if you dont have this, just use mark/oracle price)
                 - Next funding timestamp
                 - Funding rate
 

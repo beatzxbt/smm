@@ -8,7 +8,8 @@ from abc import ABC, abstractmethod
 class Client(ABC):
     max_retries = 3
 
-    def __init__(self) -> None:
+    def __init__(self, key: str, secret: str) -> None:
+        self.key, self.secret = key, secret
         self.session = aiohttp.ClientSession()
         self.timestamp = str(time_ms())
 
@@ -29,10 +30,10 @@ class Client(ABC):
         endpoint: str,
         header: str,
         payload: Dict,
-        pre_signed: bool=False,
+        to_sign: bool=False,
     ) -> Union[Dict, Exception]:
         for attempt in range(1, self.max_retries+1):
-            json = self.sign_payload(payload) if not pre_signed else payload
+            json = self.sign_payload(payload) if not to_sign else payload
             try:
                 request = await self.session.request(
                     method=method,

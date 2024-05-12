@@ -15,26 +15,30 @@ class TradingLogic:
 
     async def load_quote_generator(self) -> QuoteGenerator:
         quote_gen_name = self.params["quote_generator"].lower()
-        
+
         match quote_gen_name:
             case "plain":
                 from smm.quote_generators.plain import PlainQuoteGenerator
+
                 return PlainQuoteGenerator(self.ss)
-            
+
             case "stinky":
                 from smm.quote_generators.stinky import StinkyQuoteGenerator
+
                 return StinkyQuoteGenerator(self.ss)
-            
+
             case _:
-                await self.ss.logging.error(f"Invalid quote generator, double check available options!")
+                await self.ss.logging.error(
+                    f"Invalid quote generator, double check available options!"
+                )
                 raise ValueError(f"Invalid quote generator: {quote_gen_name}")
-            
+
     async def wait_for_ws_warmup(self) -> None:
         """
-        Waits for confirmation that the WebSocket connections are 
+        Waits for confirmation that the WebSocket connections are
         established and data is filling the arrays.
         """
-        while True: 
+        while True:
             await asyncio.sleep(1)
 
             if self.ss.trades.shape[0] < 100:
@@ -57,7 +61,7 @@ class TradingLogic:
         await self.ss.logging.success(
             f"Starting {self.params['quote_generator']} strategy on {self.ss.exchange.upper()} | {self.ss.symbol}"
         )
-        
+
         while True:
             await asyncio.sleep(1.0)
             fp_skew = self.feature_engine.generate_skew()

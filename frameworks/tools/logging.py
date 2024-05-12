@@ -2,6 +2,7 @@ import orjson
 from aiohttp import ClientSession
 from time import time_ns, strftime
 
+
 def time_ms() -> int:
     """
     Get the current time in milliseconds since the epoch.
@@ -11,7 +12,8 @@ def time_ms() -> int:
     int
         The current time in milliseconds.
     """
-    return time_ns()//1_000_000
+    return time_ns() // 1_000_000
+
 
 def time_now() -> str:
     """
@@ -24,8 +26,11 @@ def time_now() -> str:
     """
     return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:05d}"
 
+
 class Logger:
-    def __init__(self, print_to_console: bool=True, discord_webhook: str="") -> None:
+    def __init__(
+        self, print_to_console: bool = True, discord_webhook: str = ""
+    ) -> None:
         self.print_to_console = print_to_console
 
         self.discord_webhook = discord_webhook
@@ -33,7 +38,7 @@ class Logger:
         self.discord_client = None
         self.discord_data = {"content": ""}
         self.discord_headers = {"Content-Type": "application/json"}
-        
+
     async def get_discord_client(self) -> ClientSession:
         """
         Get the Discord client session.
@@ -79,17 +84,17 @@ class Logger:
         None
         """
         formatted_msg = f"{time_now()} | {level} | {msg}"
-        
+
         if self.print_to_console:
             print(formatted_msg)
-        
+
         if self.send_to_discord:
             self.discord_data["content"] = formatted_msg
 
             await self.get_discord_client().post(
-                url=self.discord_webhook, 
-                data=orjson.dumps(self.discord_data).decode(), 
-                headers=self.discord_headers
+                url=self.discord_webhook,
+                data=orjson.dumps(self.discord_data).decode(),
+                headers=self.discord_headers,
             )
 
     async def success(self, msg: str) -> None:
