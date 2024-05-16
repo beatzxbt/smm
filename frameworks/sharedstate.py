@@ -12,6 +12,20 @@ from frameworks.exchange.base.structures.orderbook import Orderbook
 
 class SharedState(ABC):
     def __init__(self) -> None:
+        self.data = {
+            "tick_size": 0.0,
+            "lot_size": 0.0,
+
+            "ohlcv": RingBuffer(1000, dtype=(np.float64, 6)),
+            "trades": RingBuffer(1000, dtype=(np.float64, 4)),
+            "orderbook": Orderbook(50), # NOTE: Modify OB size if required!
+            "ticker": {},
+
+            "position": {},
+            "orders": {},
+            "account_balance": 0.0,
+        }
+
         self.logging = Logger(
             print_to_console=True,
             discord_webhook=""
@@ -23,15 +37,6 @@ class SharedState(ABC):
         self.symbol = ""
         self.parameters = {}
         self.load_parameters()
-
-        self.ohlcv = RingBuffer(1000, dtype=(np.float64, 6))
-        self.trades = RingBuffer(1000, dtype=(np.float64, 4))
-        self.orderbook = Orderbook(50) # NOTE: Modify OB size if required!
-        self.ticker = {}
-        self.current_position = {}
-        self.current_orders = {}
-        self.account_balance = 0.0
-        self.misc = {"tick_size": 0.0, "lot_size": 0.0}
 
     @abstractmethod
     def set_parameters_path(self) -> str:
@@ -49,14 +54,42 @@ class SharedState(ABC):
             case "binance":
                 from frameworks.exchange.binance.exchange import Binance
                 from frameworks.exchange.binance.websocket import BinanceWebsocket
-                self.exchange = Binance
-                self.websocket = BinanceWebsocket
+
+                self.exchange = Binance(self.api_key, self.api_secret)
+                self.exchange.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
+
+                self.websocket = BinanceWebsocket(self.exchange)
+                self.websocket.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
+
+                print("Successfully loaded Binance.")
 
             case "bybit": 
                 from frameworks.exchange.bybit.exchange import Bybit
                 from frameworks.exchange.bybit.websocket import BybitWebsocket
-                self.exchange = Bybit
-                self.websocket = BybitWebsocket
+
+                self.exchange = Bybit(self.api_key, self.api_secret)
+                self.exchange.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
+
+                self.websocket = BybitWebsocket(self.exchange)
+                self.websocket.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
+
+                print("Successfully loaded Bybit.")
 
             # case "okx": 
             #     self.exchange = Okx
@@ -69,8 +102,20 @@ class SharedState(ABC):
             case "hyperliquid":
                 from frameworks.exchange.hyperliquid.exchange import Hyperliquid
                 from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
-                self.exchange = Hyperliquid
-                self.websocket = HyperliquidWebsocket
+
+                self.exchange = Hyperliquid(self.api_key, self.api_secret)
+                self.exchange.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
+
+                self.websocket = HyperliquidWebsocket(self.exchange)
+                self.websocket.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
 
             # case "paradex":
             #     self.exchange = Paradex
@@ -103,6 +148,12 @@ class SharedState(ABC):
         with open(self.param_path, "r") as f:
             params = yaml.safe_load(f)
             self.process_parameters(params, reload)
+
+    async def start_internal_processes(self) -> None:
+        await asyncio.gather(*[
+            self.exchange.warmup(),
+            self.websocket.start()
+        ])
 
     async def refresh_parameters(self) -> Coroutine:
         """
