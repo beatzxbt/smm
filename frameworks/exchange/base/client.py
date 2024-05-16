@@ -1,52 +1,219 @@
 import asyncio
-import aiohttp
+import aiosonic
 import orjson
-from typing import Dict, Union
-from frameworks.tools.logging import time_ms
 from abc import ABC, abstractmethod
+from typing import Tuple, Dict, Union, Any, Literal
+
+from frameworks.tools.logging import Logger, time_ms
+
 
 class Client(ABC):
+    """
+    Client is an abstract base class for interfacing with various APIs.
+
+    This class provides a template for API clients, handling common functionality 
+    such as session management, payload signing, error handling, and request sending 
+    with retry logic.
+    """
+
     max_retries = 3
 
-    def __init__(self, key: str, secret: str) -> None:
-        self.key, self.secret = key, secret
-        self.session = aiohttp.ClientSession()
+    # [https://github.com/ccxt/ccxt/blob/9ab59963f780c4ded7cd76ffa9e58b7f3fdd6e79/python/ccxt/base/exchange.py#L229]
+    http_exceptions = {
+        422: "ExchangeError",
+        418: "DDoSProtection",
+        429: "RateLimitExceeded",
+        404: "ExchangeNotAvailable",
+        409: "ExchangeNotAvailable",
+        410: "ExchangeNotAvailable",
+        451: "ExchangeNotAvailable",
+        500: "ExchangeNotAvailable",
+        501: "ExchangeNotAvailable",
+        502: "ExchangeNotAvailable",
+        520: "ExchangeNotAvailable",
+        521: "ExchangeNotAvailable",
+        522: "ExchangeNotAvailable",
+        525: "ExchangeNotAvailable",
+        526: "ExchangeNotAvailable",
+        400: "ExchangeNotAvailable",
+        403: "ExchangeNotAvailable",
+        405: "ExchangeNotAvailable",
+        503: "ExchangeNotAvailable",
+        530: "ExchangeNotAvailable",
+        408: "RequestTimeout",
+        504: "RequestTimeout",
+        401: "AuthenticationError",
+        407: "AuthenticationError",
+        511: "AuthenticationError",
+    }
+
+    def __init__(self, api_key: str, api_secret: str) -> None:
+        self.api_key, self.api_secret = api_key, api_secret
+        self.session = aiosonic.HTTPClient()
         self.timestamp = str(time_ms())
+
+        self.default_headers = {
+            "Accept": "application/json"
+        }
+
+    def load_required_refs(self, logging: Logger) -> None:
+        self.logging = logging
 
     def update_timestamp(self) -> None:
         self.timestamp = str(time_ms())
     
+    async def response_code_checker(self, code: int) -> bool:
+        """
+        Check the status code and raise exceptions for errors.
+
+        This method checks if the given HTTP status code is a known error code.
+        It raises an exception with the reason for known error codes and for unknown status codes.
+
+        Parameters
+        ----------
+        code : int
+            The HTTP status code to check.
+
+        Returns
+        -------
+        bool
+            True if the status code is between 200 and 299 (inclusive).
+
+        Raises
+        ------
+        Exception
+            If the status code is known, the exception message includes the reason.
+            If the status code is unknown, the exception message indicates it is unknown.
+        """
+        match code:
+            case code if 200 <= code <= 299:
+                return True
+            
+            case code if code in self.http_exceptions:
+                reason = self.http_exceptions[code]
+                raise Exception(f"Known status code: {code}, Reason: {reason}")
+            
+            case _:
+                raise Exception(f"Unknown status code: {code}")
+        
     @abstractmethod
-    def sign_payload(self, payload: Union[str, Dict]) -> Dict:
+    def sign_payload(self, payload: Dict) -> Dict[str, Any]:
+        """
+        Sign & encrypt the payload inline the appropriate exchange's needs.
+
+        Parameters
+        ----------
+        payload : Dict
+            The payload to be signed.
+
+        Returns
+        -------
+        Dict[str, Any]
+            The updated dictionary with the required signed/encrypted data.
+        """
         pass
     
     @abstractmethod
-    def error_handler(self, recv: Dict) -> Union[Dict, None]:
+    def error_handler(self, recv: Dict[str, Any]) -> Tuple[bool, str]:
+        """
+        Handle errors received from the API response.
+
+        This method interprets the error codes returned by the API and provides a standardized
+        way to determine the appropriate action to take. It uses pattern matching or a similar 
+        mechanism to map error codes to human-readable messages and retry logic.
+
+        Parameters
+        ----------
+        recv : Dict[str, Any]
+            The response dictionary received from the API, expected to contain an error code.
+
+        Returns
+        -------
+        Tuple[bool, str]
+            A tuple indicating whether to retry (True or False) and the error message.
+        """
         pass
     
-    async def send(
+    async def request(
         self,
-        method: str,
-        endpoint: str,
-        header: str,
-        payload: Dict,
-        to_sign: bool=False,
+        url: str,
+        method: Literal["GET", "PUT", "POST", "DELETE"],
+        headers: Dict[str, str]={},
+        params: Dict[str, str]={},
+        payload: Dict[str, Any]={},
+        signed: bool=False
     ) -> Union[Dict, Exception]:
-        for attempt in range(1, self.max_retries+1):
-            json = self.sign_payload(payload) if not to_sign else payload
+        """
+        Sends an API request with retry logic.
+
+        This method sends an HTTP request to the specified URL using the given method.
+        It handles optional headers, parameters, and payloads, and includes support for
+        payload signing. The method includes retry logic with exponential backoff in case 
+        of errors.
+
+        Parameters
+        ----------
+        url : str
+            The API URL to send the request to.
+        
+        method : Literal["GET", "PUT", "POST", "DELETE"]
+            The HTTP method to use for the request (e.g., 'GET', 'PUT', 'POST', 'DELETE').
+        
+        headers : Dict[str, str], optional
+            The headers to include in the request. Default is an empty dictionary.
+        
+        params : Dict[str, str], optional
+            The query parameters to include in the request. Default is an empty dictionary.
+        
+        payload : Dict[str, Any], optional
+            The payload to include in the request. Default is an empty dictionary.
+        
+        signed : bool, optional
+            Whether the payload is pre-signed or not. Default is False.
+
+        Returns
+        -------
+        Union[Dict, Exception]
+            The API response as a dictionary if successful, or raises an exception if all retries fail.
+        """
+        for attempt in range(1, self.max_retries + 1):
             try:
-                request = await self.session.request(
+                if payload:
+                    if not signed:
+                        payload = orjson.dumps(self.sign_payload(payload)).decode()
+                    else:
+                        payload = orjson.dumps(payload).decode()
+                        
+                response = await self.session.request(
+                    url=url,
                     method=method,
-                    url=endpoint,
-                    headers=header,
-                    json=json,
+                    headers=headers,
+                    params=params,
+                    data=payload
                 )
-                text = orjson.loads(request.text())
-                self.error_handler(request)
-                return request, text
-                
-            except Exception as e:
-                if attempt < self.max_retries:
-                    await asyncio.sleep(attempt)
-                else:
+
+                # Return code is 200 (OK)
+                if await self.response_code_checker(response.status_code):
+                    response_json = orjson.loads(await response.content())
+
+                    if isinstance(response_json, Dict):
+                        retry, msg = self.error_handler(response_json)
+
+                        if retry:
+                            await self.logging.warning(f"Retry attempt {attempt} due to: {msg}")
+                            await asyncio.sleep(attempt)  # Exponential backoff
+                            continue
+
+                    return response_json
+                    
+            except orjson.JSONDecodeError as e:
+                await self.logging.error(f"JSON decode error: {e}")
+                if attempt >= self.max_retries:
                     raise e
+
+            except Exception as e:
+                await self.logging.error(f"Client error: {e}")
+                if attempt >= self.max_retries:
+                    raise e
+                
+                await asyncio.sleep(attempt)

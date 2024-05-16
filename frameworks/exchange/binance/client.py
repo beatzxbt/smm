@@ -1,57 +1,75 @@
 import asyncio
 import hashlib
 import hmac
+from typing import Any, Dict, Tuple, Union, Optional
+
 from frameworks.tools.logging import time_ms
 from frameworks.exchange.base.client import Client
-from frameworks.exchange.binance.endpoints import BinanceEndpoints
-from typing import Any, Dict, Tuple, Union, Optional
 
 
 class BinanceClient(Client):
-    _errors_ = {
-        "200": None,
-        "1003": (False, "Rate limits exceeded!"),
-        "1015": (False, "Rate limits exceeded!"),
-        "1008": (False, "Server overloaded..."),
-        "1021": (True, "Out of recvWindow..."),
-        "1111": (False, "Incorrect tick/lot size..."),
-        "4029": (False, "Incorrect tick size..."),
-        "4030": (False, "Incorrect lot size..."),
-        "1125": (False, "Invalid listen key..."),
-        "2010": (False, "Order create rejected..."),
-        "2011": (False, "Order cancel rejected..."),
-        "2012": (False, "Order cancel all rejected..."),
-        "2013": (False, "Order does not exist..."),
-        "2018": (False, "Insufficient balance..."),
-    }
-    
-    def __init__(self, key: str, secret: str) -> None:
-        super().__init__(key, secret)
-        self.endpoints = BinanceEndpoints
+    def __init__(self, api_key: str, api_secret: str) -> None:
+        super().__init__(api_key, api_secret)
 
-        self._cached_header_ = {
-            "timestamp": self.timestamp,
-            "signature": "x" * 64
-        }
+        self.header_template = {"timestamp": self.timestamp, "signature": "x" * 64}
 
     def sign_payload(self, payload: str) -> Dict:
         """SHA-256 signing logic"""
         self.update_timestamp()
         hash_signature = hmac.new(
-            self.secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
-        self._cached_header_["timestamp"] = self.timestamp
-        self._cached_header_["signature"] = hash_signature
-        return self._cached_header_
+            key=self.api_secret.encode(), msg=payload.encode(), digestmod=hashlib.sha256
+        )
+        self.header_template["timestamp"] = self.timestamp
+        self.header_template["signature"] = hash_signature.hexdigest()
+        return self.header_template
 
-    def error_handler(self, recv: Dict) -> Union[Tuple[bool, str], None]:
+    def error_handler(self, recv: Dict[str, Any]) -> Union[Tuple[bool, str], None]:
         """
-        Tuple(bool, error msg)
+        Handle errors received from the API using pattern matching.
 
-        False: Do not attempt retry, break loop
-        True: Raise exception and go through standard retry loop
+        Parameters
+        ----------
+        recv : Dict
+            The received response from the API.
+
+        Returns
+        -------
+        Union[Tuple[bool, str]]
+            A tuple indicating whether to retry and the error message.
         """
-        if "code" in recv:
-            return self._errors_.get(recv["code"])
-        else:
-            return None
+        match recv.get("code"):
+            case "200":
+                return (False, "")
+
+            case "1003" | "1015":
+                return (False, "Rate limits exceeded!")
+
+            case "1008":
+                return (False, "Server overloaded...")
+
+            case "1021":
+                return (True, "Out of recvWindow...")
+
+            case "1111" | "4029" | "4030":
+                return (False, "Incorrect tick/lot size...")
+
+            case "1125":
+                return (False, "Invalid listen key...")
+
+            case "2010":
+                return (False, "Order create rejected...")
+
+            case "2011":
+                return (False, "Order cancel rejected...")
+
+            case "2012":
+                return (False, "Order cancel all rejected...")
+
+            case "2013":
+                return (False, "Order does not exist...")
+
+            case "2018":
+                return (False, "Insufficient balance...")
+
+            case _:
+                return (False, "Unknown error code...")
