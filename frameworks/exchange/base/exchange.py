@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
+from frameworks.tools.logging import Logger
 from frameworks.exchange.base.client import Client
-
 
 class Exchange(ABC):
     """
@@ -16,9 +16,11 @@ class Exchange(ABC):
     def __init__(self, client: Client) -> None:
         self.client = client
 
-    async def submit(self, method: str, endpoint: str, payload: Dict) -> Dict:
-        """Submit a request to the client"""
-        await self.client.send(method, endpoint, payload)
+    def load_required_refs(self, logging: Logger, symbol: str, data: Dict) -> None:
+        self.logging = logging
+        self.symbol = symbol
+        self.data = data
+        self.client.load_required_refs(logging=logging)
 
     @abstractmethod
     async def create_order(
@@ -37,6 +39,7 @@ class Exchange(ABC):
         self,
         symbol: str,
         orderId: str,
+        side: int,
         size: float,
         price: float,
     ) -> Dict:

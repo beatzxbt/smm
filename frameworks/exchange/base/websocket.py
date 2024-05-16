@@ -12,10 +12,21 @@ class WebsocketStream(ABC):
     _failure_ = set((aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR))
     _conns_ = 1 # NOTE: Handlers dont support duplicate detection yet!
 
-    def __init__(self, logger: Logger) -> None:
-        self.logging = logger
+    def __init__(self) -> None:
         self.public = aiohttp.ClientSession()
         self.private = aiohttp.ClientSession()
+
+    def load_required_refs(self, logging: Logger, symbol: str, data: Dict) -> None:
+        self.logging = logging
+        self.symbol = symbol
+        self.data = data
+
+    @abstractmethod
+    def create_handlers(self) -> None:
+        """
+        Called in .start() *after* self.load_required_refs is completed!
+        """
+        pass
 
     @abstractmethod
     async def refresh_orderbook_data(self, timer: int=600) -> None:
