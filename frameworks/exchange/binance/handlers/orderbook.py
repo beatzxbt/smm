@@ -1,14 +1,16 @@
 import numpy as np
 from typing import List, Dict, Union
+
 from frameworks.exchange.base.ws_handlers.orderbook import OrderbookHandler
-from frameworks.sharedstate import SharedState
+
 
 class BinanceOrderbookHandler(OrderbookHandler):
-    def __init__(self, ss: SharedState) -> None:
-        self.ss = ss
-        super().__init__(self.ss.orderbook)
+    def __init__(self, data: Dict) -> None:
+        self.data = data
+        super().__init__(self.data["orderbook"])
+
         self.update_id = 0
-    
+
     def bba_update(self, recv: Dict) -> None:
         """Unused for now"""
         self.orderbook.bba[0, :] = [float(recv["b"]), float(recv["B"])]
@@ -18,7 +20,7 @@ class BinanceOrderbookHandler(OrderbookHandler):
         self.bids = np.array(recv["b"], dtype=np.float64)
         self.asks = np.array(recv["a"], dtype=np.float64)
 
-    def initialize(self, recv: Dict) -> None:
+    def refresh(self, recv: Dict) -> None:
         self.update_id = int(recv["lastUpdateId"])
         self.full_orderbook_update(recv)
         self.orderbook.initialize(self.asks, self.bids)

@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
 class PositionHandler(ABC):
-    def __init__(self, current_position: Dict) -> None:
-        self.current_position = current_position
-        self.position = {
+    def __init__(self, position: Dict) -> None:
+        self.position = position
+        self.format = {
             "price": 0.0,
             "size": 0.0,
             "uPnL": 0.0
@@ -19,8 +19,8 @@ class PositionHandler(ABC):
                 - Size
                 - Unrealized PnL
 
-        2. Overwrite self.position with it's respective values
-        3. Call self.current_position.update(self.position)
+        2. Overwrite self.format with it's respective values
+        3. Call self.position.update(self.format)
         """
         pass
 
@@ -33,7 +33,7 @@ class PositionHandler(ABC):
                 - Size
                 - Unrealized PnL
 
-        2. Overwrite self.position with it's respective values
-        3. Call self.current_position.update(self.position)
+        2. Overwrite self.format with it's respective values
+        3. Call self.position.update(self.format)
         """
         pass

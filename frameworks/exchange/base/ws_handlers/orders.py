@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
 class OrdersHandler(ABC):
-    def __init__(self, current_orders: Dict) -> None:
-        self.current_orders = current_orders
-        self.single_order = {
+    def __init__(self, orders: Dict) -> None:
+        self.orders = orders
+        self.format = {
             "createTime": 0,
             "side": "",
             "price": 0.0,
@@ -23,8 +23,8 @@ class OrdersHandler(ABC):
                 - Size
 
         2. For each order in the list:
-            -> Overwrite self.single_order with the respective values
-            -> self.current_orders[OrderId] = self.single_order.copy()
+            -> Overwrite self.format with the respective values
+            -> self.orders[OrderId] = self.format.copy()
         """
         pass
 
@@ -40,8 +40,8 @@ class OrdersHandler(ABC):
                 - Size
 
         2. For each order in your payload:
-            -> Overwrite self.single_order with the respective values
-            -> self.current_orders[OrderId] = self.single_order.copy()
+            -> Overwrite self.format with the respective values
+            -> self.orders[OrderId] = self.format.copy()
 
         3. If any orders need to be deleted:
             -> del self.orders[OrderId]

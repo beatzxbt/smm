@@ -23,24 +23,24 @@ class FeatureEngine:
         self.volatility_pred = {"trades_diffs": 1.0}
 
     def wmid_imbalance(self) -> float:
-        return self.ss.orderbook.get_wmid() / self.ss.orderbook.get_mid()
+        return self.ss.data["orderbook"].get_wmid() / self.ss.data["orderbook"].get_mid()
 
     def vamp_imbalance(self, depth: int) -> float:
-        dollars_to_size = depth / self.ss.orderbook.get_mid()
-        return self.ss.orderbook.get_vamp(dollars_to_size) / self.ss.orderbook.get_mid()
+        dollars_to_size = depth / self.ss.data["orderbook"].get_mid()
+        return self.ss.data["orderbook"].get_vamp(dollars_to_size) / self.ss.data["orderbook"].get_mid()
 
     def orderbook_imbalance(self) -> float:
         return orderbook_imbalance(
-            bids=self.ss.orderbook.bids,
-            asks=self.ss.orderbook.asks,
+            bids=self.ss.data["orderbook"].bids,
+            asks=self.ss.data["orderbook"].asks,
             depths=np.array([10.0, 25.0, 50.0, 100.0, 250.0]),
         )
 
     def trades_imbalance(self) -> float:
-        return trades_imbalance(trades=self.ss.trades, window=100)
+        return trades_imbalance(trades=self.ss.data["trades"], window=100)
 
     def trades_differences(self) -> float:
-        return trades_diffs(trades=self.ss.trades, lookback=100)
+        return trades_diffs(trades=self.ss.data["trades"], lookback=100)
 
     def generate_skew(self) -> float:
         skew = 0.0
