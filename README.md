@@ -44,4 +44,6 @@ Upcoming upgrades
 
 If you have any questions or suggestions regarding the repository, or just want to have a chat, my handles are below 👇🏼
 
-Twitter/X: [@beatzXBT](https://twitter.com/BeatzXBT) | Discord: gamingbeatz
+Twitter: [@BeatzXBT](https://twitter.com/BeatzXBT) | Discord: gamingbeatz
+
+(I will never contact you on any other platform and i do not sell any courses or signals. If you recieve a message from someone and are unsure, just DM me on Twitter and i can quickly verify the contact. Any strategies i release will always be free and open source on GitHub)
