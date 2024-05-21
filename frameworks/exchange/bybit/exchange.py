@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Optional
 
 from frameworks.exchange.base.exchange import Exchange
@@ -15,7 +16,7 @@ class Bybit(Exchange):
         self.base_endpoint = self.endpoints["main1"]
         super().__init__(self.client)
 
-    async def create_order(self, symbol: str, side: str, orderType: float, size: float, price: Optional[float]=None) -> Dict:
+    async def create_order(self, symbol: str, side: float, orderType: float, size: float, price: Optional[float]=None) -> Dict:
         endpoint, method = self.endpoints["createOrder"]
         payload = self.formats.create_order(symbol, side, orderType, size, price)
         return await self.client.request(
@@ -25,7 +26,7 @@ class Bybit(Exchange):
             signed=False
         )
     
-    async def amend_order(self, symbol: str, orderId: int, size: float, price: float) -> Dict:
+    async def amend_order(self, symbol: str, orderId: int, side: float, size: float, price: float) -> Dict:
         endpoint, method = self.endpoints["amendOrder"]
         payload = self.formats.amend_order(orderId, size, price)
         return await self.client.request(
@@ -134,3 +135,27 @@ class Bybit(Exchange):
 
         finally:
             await self.logging.info(f"Bybit warmup sequence complete.")
+
+    async def shutdown(self) -> None:
+        try:
+            tasks = []
+
+            for _ in range(3):
+                tasks.append(asyncio.create_task(self.cancel_all_orders(self.symbol))) 
+            
+            for _ in range(1):
+                tasks.append(asyncio.create_task(self.create_order(
+                    symbol=self.symbol,
+                    side=0.0 if self.data["position"]["size"] < 0.0 else 1.0,
+                    orderType=1.0,
+                    size=self.data["position"]["size"],
+                    price=0.0   # NOTE: Ignored for taker orders
+                ))) 
+            
+            await asyncio.gather(*tasks)
+
+        except Exception as e:
+            await self.logging.error(f"Bybit shutdown: {e}")
+
+        finally:
+            await self.logging.info(f"Bybit shutdown sequence complete.")

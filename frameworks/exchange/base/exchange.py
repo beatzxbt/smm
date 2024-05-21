@@ -31,7 +31,6 @@ class Exchange(ABC):
 
         data : Dict
             A Dictionary holding various shared state data.
-
         """
         self.logging = logging
         self.symbol = symbol
@@ -42,6 +41,23 @@ class Exchange(ABC):
     async def warmup(self) -> None:
         """
         Abstract method for warming up the exchange-specific data.
+        """
+        pass
+
+    @abstractmethod
+    async def shutdown(self) -> None:
+        """
+        Abstract method for dumping/clearing open delta on the exchange.
+
+        Steps
+        -----
+        1. Send 3 cancel all requests (increased at discretion)
+        2. Send 1 market dump of the current position, if existing
+
+        Improvements
+        --------
+        -> Once reduce-only is supported, perform step 2 thrice, not once.
+        -> Shuts down the client session and any other internal tasks.
         """
         pass
     
