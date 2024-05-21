@@ -15,6 +15,10 @@ class OhlcvHandler(ABC):
             0.0, # Volume
         ])
     
+    def clear_ohlcv_ringbuffer(self) -> None:
+        for _ in range(self.ohlcv.shape[0]):
+            self.ohlcv.pop()
+
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
         """
