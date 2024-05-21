@@ -92,8 +92,8 @@ class PlainQuoteGenerator(QuoteGenerator):
                 self.generate_single_quote(
                     side=0.0,
                     orderType=0.0,
-                    price=round_floor(num=bid_price, step_size=self.tick_size),
-                    size=round_ceil(num=bid_size, step_size=self.lot_size)
+                    price=round_floor(num=bid_price, step_size=self.data["tick_size"]),
+                    size=round_ceil(num=bid_size, step_size=self.data["lot_size"])
                 )
             )
 
@@ -101,8 +101,8 @@ class PlainQuoteGenerator(QuoteGenerator):
                 self.generate_single_quote(
                     side=1.0,
                     orderType=0.0,
-                    price=round_ceil(num=ask_price, step_size=self.tick_size),
-                    size=round_ceil(num=ask_size, step_size=self.lot_size)
+                    price=round_ceil(num=ask_price, step_size=self.data["tick_size"]),
+                    size=round_ceil(num=ask_size, step_size=self.data["lot_size"])
                 )
             )
 
@@ -117,14 +117,14 @@ class PlainQuoteGenerator(QuoteGenerator):
         Parameters
         ----------
         skew : float
-            A value between -1 <-> 1 predicting the future price over some time horizon.
+            A value > 0 predicting the future price over some time horizon.
 
         spread : float
             A value in dollars of minimum price deviation over some time horizon.
 
         Returns
         -------
-        List[Tuple]
+        List[Dict]
             A list of single quotes.
         """
         half_spread = spread / 2
