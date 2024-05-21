@@ -1,201 +1,125 @@
 import asyncio
 import numpy as np
-from frameworks.sharedstate import SharedState
-from smm.strategy.inventory import InventoryTools
-from typing import Dict, List, Tuple, Union, Coroutine
+from typing import Dict, List, Union
+
+from smm.sharedstate import SmmSharedState
 
 
 class OrderManagementSystem:
     """
     Written to spec: [https://twitter.com/BeatzXBT/status/1731757053113147524]
     """
-
-    def __init__(self, ss: SharedState, pair: Tuple[str, str]) -> None:
-        self.ss = ss
-        self.exchange, self.symbol = pair
-        self.logging = self.ss.logging
-
-        self.client = self._client_()
-        self.it = InventoryTools() # TODO: Add the max position somehow here
-        
-        self.current_bba = None
-        self.current_outer = None
-        self.new_bba = None
-        self.new_outer = None   
-
-        self.rate_limits = None
-        self._update_local_rate_limits_()
-
-    def _client_(self):
-        """Reference the correct exchange client in sharedstate"""
-        return self.ss.clients[self.exchange]["order_client"]
+    def __init__(self, ss: SmmSharedState) -> None:
+        self.exch = ss.exchange
+        self.data = ss.data
+        self.params = ss.parameters
     
     @property
-    def __market__(self) -> Dict:
-        return self.ss.market[self.exchange][self.symbol]
-
-    @property
-    def __private__(self) -> Dict:
-        return self.ss.private[self.exchange][self.symbol]
-
-    @property
-    def __api__(self) -> Dict:
-        return self.ss.private[self.exchange]["API"]
-
-    @property
-    def __current_delta__(self) -> float:
-        """Calculate current inventory delta"""
-        return self.it.position_to_delta(self.__private__["currentPosition"])
+    def mid(self) -> float:
+        return self.data["orderbook"].get_mid()
     
-    @property
-    def __current_latency__(self) -> float:
-        return np.mean(self.__api__["latency"]._unwrap())
-
-    def _total_rate_limits_remaining_(self) -> Tuple[int, int]:
-        """Total (replaces, amends) remaining"""
-        return (
-            min(self.rate_limits["create"], self.rate_limits["cancel"]),
-            self.rate_limits["amend"]
-        )
-
-    def _split_current_orders_(self) -> Tuple[List, List]:
+    def find_closest_order(self, new_order: Dict, sensitivity=0.1) -> Dict:
         """
-        Split current orders into BBA/Outer
+        Find the order with the closest price to the target price and matching side.
 
-        Single order struct: (side, price, qty, orderId)
+        Parameters
+        ----------
+        orders : dict
+            A dictionary of orders with keys 'createTime', 'side', 'price', and 'size'.
 
-        Output (Tuple):
-            [0] = [BidOrder, AskOrder]
-            [1] = [[Bid1, Bid2, ...], [Ask1, Ask2, ...]]
+        target_price : float
+            The target price to which the closest order price should be found.
+
+        target_side : str
+            The target side ('buy' or 'sell') to match with the order's side.
+
+        Returns
+        -------
+        dict
+            The order with the closest price to the target price and matching side.
         """
-        pass
+        closest_order = {}
+        min_distance = float('inf')
+
+        for current_order in self.data["current_orders"].values():
+            if current_order["side"] == new_order["side"]:
+                distance = abs(current_order["price"] - new_order["price"])
     
-    def _update_current_orders_(self) -> None:
-        """
-        Point to current orders in sharedstate
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_order = current_order
 
-        Run self._split_current_orders_() on it
-        """
-        pass
+        return closest_order
+
+    async def create_order_task(self, new_order: Dict) -> asyncio.Task:
+        """Format a create order task and send to exchange"""
+        return asyncio.create_task(self.exch.create_order(
+            symbol=self.ss.symbol,
+            side=new_order["side"], 
+            orderType=new_order["orderType"],
+            size=new_order["size"], 
+            price=new_order["price"]
+        ))
     
-    def _update_local_rate_limits_(self) -> None:
-        """Refresh cached rate limit state"""
-        
-        if self.rate_limits is None:
-            # 'None' will be replaced with rate limit info stored in 
-            # the exchange["API"]. this is just a local snapshot that
-            # will be used to manage limits for this cycle. to be ran 
-            # at the start of each cycle.
-            self.rate_limits = {
-                "create": None, 
-                "amend": None,
-                "cancel": None,
-                "cancel_all": None
-            }
-
-    def _generate_buffer_bounds_(self, value, benchmark, sensitivity) -> Tuple[float, float]:
-        """Produces lower and upper bounds relative to distance from benchmark"""
-        diff = benchmark/value if benchmark > value else value/benchmark
-        diff *= sensitivity
-        return value - diff, value + diff
-
-    def _bounds_checker_(self, value, benchmark, sensitivity=0.1) -> bool:
-        """True within non-strict bounds, False otherwise"""
-        lower, upper = self._generate_buffer_bounds_(value, benchmark, sensitivity)
-        return lower <= value and upper >= value
-
-    async def _limit_order_(self, order: NDArray) -> asyncio.Task:
-        """Initiate limit order task to client"""
-        return asyncio.create_task(self.client.order_limit(order))
-
-    async def _bba_order_(self, order, orderId) -> List[asyncio.Task]:
-        """Attempt amend order, with replace fallback, with cancel all fallback"""
-
-        if self.rate_limits["amend"] > 0:
-            return [asyncio.create_task(self.client.order_amend(orderId, order))]
-        elif self.__total_rate_limits_remaining__ > 0:
-            return [
-                asyncio.create_task(self.client.order_cancel(orderId)),
-                asyncio.create_task(self.client.order_limit(orderId, order))
-            ]
-        else:
-            return [asyncio.create_task(self.client.order_cancel_all())]
-
-    async def _outer_order_(self, order, orderId) -> List[asyncio.Task]:
-        """Attempt replace order, with cancel fallback, with cancel all fallback"""
-        if self.__total_rate_limits_remaining__[1] > 0:
-            return [
-                asyncio.create_task(self.client.order_cancel(orderId)),
-                asyncio.create_task(self.client.order_limit(orderId, order))
-            ]
-        else:
-            pass
+    async def amend_order_task(self, orderId: Union[int, str], old_order: Dict, new_order: Dict) -> asyncio.Task:
+        """Format an amend order task and send to exchange"""
+        return asyncio.create_task(self.exch.amend_order(
+            symbol=self.ss.symbol,
+            orderId=orderId, 
+            side=old_order["orderId"],
+            size=new_order["size"], 
+            price=new_order["price"]
+        ))
             
-    async def _cancel_order_(self, order, orderId=None) -> asyncio.Task:
-        """Initiate cancel order task to client"""
-        return asyncio.create_task(self.client.order_cancel(order))
-
-    async def prioritiser(self, target_delta: float) -> None:
-        """The main processing func of orders""" 
-
-        delta_diff = target_delta - self.__current_delta__
-        
-        # --- High latency check --- #
+    async def cancel_order_task(self, orderId: Union[int, str]) -> asyncio.Task:
+        """Format a cancel order task and send to exchange"""
+        return asyncio.create_task(self.exch.cancel_order(
+            symbol=self.ss.symbol,
+            orderId=orderId
+        ))
     
-        if self.__current_latency__ > 1000: # NOTE: Currently set to >1000ms
-            self.logging.warning(f"High latency detected ({self.__current_latency__}ms), cancelling...")
-            await self.client.order_cancel_all()
+    async def cancel_all_orders_task(self) -> asyncio.Task:
+        """Format a cancel order task and send to exchange"""
+        return asyncio.create_task(self.exch.cancel_all_orders(
+            symbol=self.ss.symbol
+        ))
 
-            if self.__current_delta__ != 0:
-                side = 0 if self.__current_delta__ > 0 else 1
-                qty = self.it.delta_to_position(self.__current_delta__)
-                self.logging.info(f"Neutralizing inventory of {'+' if side == 0 else '-'}{qty}...")
-                await self.client.order_market((side, qty))
-
-            return None
-
-        # --- Edge inventory check --- #
-
-        if abs(delta_diff) > 0.25:
-            side = 1 if delta_diff > 0 else 0
-            qty = None # self.inventory._qty_from_delta_(delta_diff/2)
-            await self.client.order_market((side, qty))
-            return None
-
-        # --- BBA Checks --- #
-
+    async def update(self, new_orders: List[Dict]) -> None:
         tasks = []
+        current_order_count = len(self.data["current_orders"])
 
-        # If current bid is filled, send new
-        if not self.current_bba[0]:
-            tasks.append(self._limit_order_(self.new_bba[0]))
+        # If network bugs cause overexposure, reset state
+        if current_order_count > self.params["total_orders"]:
+            tasks.append(self.cancel_all_orders_task())
+            current_order_count = 0
 
-        # If current ask is filled, send new
-        if not self.current_bba[1]:
-            tasks.append(self._limit_order_(self.new_bba[1]))
+        for order in new_orders:
+            match order["orderType"]:
+                # Send any market orders with high priority
+                case 1.0: 
+                    tasks.append(self.create_order_task(order))
 
-        # If current bid price/qty changed enough, modify accordingly
-        if self._bounds_checker_(self.new_bba[0][2], self.current_bba[0][2]) or \
-            self._bounds_checker_(self.new_bba[0][1], self.current_bba[0][1], 0.05):
-            price = self.new_bba[0][1]
-            qty = self.new_bba[0][2]
-            tasks.append(self._amend_order_(self.current_bba[0][3], price, qty))
+                # Send limit orders if certain criteria are met
+                case 0.0:
+                    if current_order_count < self.params["total_orders"]:
+                        tasks.append(self.create_order_task(order))
+                        current_order_count += 1
 
-        # If current ask price/qty changed enough, modify accordingly
-        if self._bounds_checker_(self.new_bba[1][2], self.current_bba[1][2]) or \
-            self._bounds_checker_(self.new_bba[1][1], self.current_bba[1][1], 0.05):
-            price = self.new_bba[1][1]
-            qty = self.new_bba[1][2]
-            tasks.append(self._amend_order_(self.current_bba[1][3], price, qty))
-        
-        # --- Outer Checks --- #
+                    else:
+                        continue
+                        
+                case _:
+                    await self.ss.logging.error(f"Incorrect orderType encountered in OMS: {order}")
+                    raise ValueError(f"Invalid order type: {order["orderType"]}")
+                
+    async def update_simple(self, new_orders: List[Dict]) -> None:
+        tasks = []
+        tasks.append(self.cancel_all_orders_task())
 
-        for current_outer, new_outer in zip(self.current_outer, self.new_outer):
-            pass
+        for order in new_orders:
+            tasks.append(self.create_order_task(order))
 
-    async def update(self, new_orders: Tuple[List, List], target_delta: float) -> None:
-        """Feed new orders into system and run prioritiser"""
-        self.new_bba = new_orders[0]
-        self.new_outer = new_orders[1]
-        self.prioritiser(target_delta)
-        
+        await asyncio.gather(*tasks)
+
+
+
