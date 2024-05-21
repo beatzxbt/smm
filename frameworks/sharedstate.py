@@ -8,6 +8,7 @@ from numpy_ringbuffer import RingBuffer
 
 from frameworks.tools.logging import Logger
 from frameworks.exchange.base.exchange import Exchange
+from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.base.structures.orderbook import Orderbook
 
 
@@ -58,7 +59,9 @@ class SharedState(ABC):
         self.param_path = self.set_parameters_path()
         self.load_config()
 
-        self.client = None
+        self.exchange: Exchange = None
+        self.websocket: WebsocketStream = None
+
         self.symbol = ""
         self.parameters = {}
         self.load_parameters()
@@ -112,7 +115,7 @@ class SharedState(ABC):
                 # NOTE: Binance requires capital symbols
                 self.symbol = self.symbol.upper()
 
-                self.exchange: Exchange = Binance(self.api_key, self.api_secret)
+                self.exchange = Binance(self.api_key, self.api_secret)
                 self.exchange.load_required_refs(
                     logging=self.logging,
                     symbol=self.symbol,
@@ -135,7 +138,7 @@ class SharedState(ABC):
                 # NOTE: Bybit requires capital symbols
                 self.symbol = self.symbol.upper()
 
-                self.exchange: Exchange = Bybit(self.api_key, self.api_secret)
+                self.exchange = Bybit(self.api_key, self.api_secret)
                 self.exchange.load_required_refs(
                     logging=self.logging,
                     symbol=self.symbol,
@@ -155,7 +158,7 @@ class SharedState(ABC):
                 from frameworks.exchange.hyperliquid.exchange import Hyperliquid
                 from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
 
-                self.exchange: Exchange = Hyperliquid(self.api_key, self.api_secret)
+                self.exchange = Hyperliquid(self.api_key, self.api_secret)
                 self.exchange.load_required_refs(
                     logging=self.logging,
                     symbol=self.symbol,
