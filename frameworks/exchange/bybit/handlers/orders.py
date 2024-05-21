@@ -2,38 +2,46 @@ from typing import List, Dict
 from frameworks.exchange.base.ws_handlers.orders import OrdersHandler
 
 from frameworks.exchange.bybit.types import BybitOrderSides, BybitOrderTypes
-from frameworks.sharedstate import SharedState
 
 class BybitOrdersHandler(OrdersHandler):
     _overwrite_ = set(("Created", "New", "PartiallyFilled"))
     _remove_ = set(("Rejected", "Filled", "Cancelled"))
 
-    def __init__(self, ss: SharedState) -> None:
-        self.ss = ss
-        super().__init__(self.ss.current_orders)
+    def __init__(self, data: Dict, symbol: str) -> None:
+        self.data = data
+        self.symbol = symbol
+        super().__init__(self.data["orders"])
     
     def refresh(self, recv: Dict) -> None:
-        for order in recv["list"]:
-            if order["symbol"] != self.ss.symbol:
-                continue
+        try:
+            for order in recv["list"]:
+                if order["symbol"] != self.ss.symbol:
+                    continue
 
-            self.single_order["createTime"] = float(order["time"])
-            self.single_order["side"] = BybitOrderSides.to_int(order["side"])
-            self.single_order["price"] = float(order["price"])
-            self.single_order["size"] = float(order["qty"]) - float(order["leavesQty"])
-            self.current_orders[order["orderId"]] = self.single_order.copy()
+                self.format["createTime"] = float(order["time"])
+                self.format["side"] = BybitOrderSides.to_num(order["side"])
+                self.format["price"] = float(order["price"])
+                self.format["size"] = float(order["qty"]) - float(order["leavesQty"])
+                self.orders[order["orderId"]] = self.format.copy()
+
+        except Exception as e:
+            raise Exception(f"Orders Refresh :: {e}")
 
     def process(self, recv: Dict) -> None:
-        for order in recv["data"]:
-            if order["symbol"] != self.ss.symbol:
-                continue
+        try:
+            for order in recv["data"]:
+                if order["symbol"] != self.ss.symbol:
+                    continue
 
-            if order["orderStatus"] in self._overwrite_:
-                self.single_order["createTime"] = float(order["createdTime"])
-                self.single_order["side"] = BybitOrderSides.to_int(order["side"])
-                self.single_order["price"] = float(order["price"])
-                self.single_order["size"] = float(["qty"]) - float(order["leavesQty"])
-                self.current_orders[order["orderId"]] = self.single_order.copy()
+                if order["orderStatus"] in self._overwrite_:
+                    self.format["createTime"] = float(order["createdTime"])
+                    self.format["side"] = BybitOrderSides.to_num(order["side"])
+                    self.format["price"] = float(order["price"])
+                    self.format["size"] = float(["qty"]) - float(order["leavesQty"])
+                    self.orders[order["orderId"]] = self.format.copy()
 
-            elif order["orderStatus"] in self._remove_:
-                del self.current_orders[order["orderId"]]
+                elif order["orderStatus"] in self._remove_:
+                    del self.orders[order["orderId"]]
+
+        except Exception as e:
+            raise Exception(f"Orders Process :: {e}")
