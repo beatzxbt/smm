@@ -17,9 +17,9 @@ class SmmSharedState(SharedState):
         self.parameters: Dict = settings["parameters"]
 
         if not reload:
-            self.load_exchange(settings["exchange"])
             self.symbol: str = settings["symbol"]
             self.quote_generator: str = settings["quote_generator"]
+            self.load_exchange(settings["exchange"])
 
         if self.required_keys <= self.parameters.keys():
             for key in self.required_keys:
