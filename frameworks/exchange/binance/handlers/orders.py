@@ -15,7 +15,7 @@ class BinanceOrdersHandler(OrdersHandler):
     def refresh(self, recv: List[Dict]) -> None:
         for order in recv:
             self.format["createTime"] = float(order["time"])
-            self.format["side"] = BinanceOrderSides.to_int(order["side"])
+            self.format["side"] = BinanceOrderSides.to_num(order["side"])
             self.format["price"] = float(order["price"])
             self.format["size"] = float(order["origQty"]) - float(order["executedQty"])
             self.orders[order["orderId"]] = self.format.copy()
@@ -26,7 +26,7 @@ class BinanceOrdersHandler(OrdersHandler):
 
         if recv["o"]["X"] in self._overwrite_:
             self.format["createTime"] = float(recv["o"]["T"])
-            self.format["side"] = BinanceOrderSides.to_int(recv["o"]["S"])
+            self.format["side"] = BinanceOrderSides.to_num(recv["o"]["S"])
             self.format["price"] = float(recv["o"]["i"])
             self.format["size"] = float(recv["o"]["q"]) - float(recv["o"]["z"])
             self.orders[recv["o"]["c"]] = self.format.copy()
