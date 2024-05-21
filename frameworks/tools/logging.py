@@ -1,5 +1,5 @@
 import orjson
-from aiohttp import ClientSession
+import aiosonic
 from time import time_ns, strftime
 
 
@@ -39,17 +39,17 @@ class Logger:
         self.discord_data = {"content": ""}
         self.discord_headers = {"Content-Type": "application/json"}
 
-    async def get_discord_client(self) -> ClientSession:
+    async def get_discord_client(self) -> aiosonic.HTTPClient:
         """
         Get the Discord client session.
 
         Returns
         -------
-        aiohttp.ClientSession
+        aiosonic.HTTPClient
             The Discord client session.
         """
         if not self.discord_client:
-            self.discord_client = ClientSession()
+            self.discord_client = aiosonic.HTTPClient()
             await self.info("Starting up logger...")
 
         return self.discord_client
@@ -64,7 +64,7 @@ class Logger:
         """
         if self.discord_client:
             await self.warning("Shutting down logger...")
-            await self.discord_client.close()
+            self.discord_client.shutdown() # TODO: Incorrect shutdown method!
             self.discord_client = None
 
     async def _message_(self, level: str, msg: str) -> None:
