@@ -27,15 +27,8 @@ async def main():
 
     finally:
         await ss.logging.critical("Starting shutdown sequence...")
-        pass
-        # Implement shutdown sequence here, and this should be included
-        # in all exchange classes which does the following:
-        #  -> Cancel all open orders
-        #  -> Dump any existing position to market
-        #
-        # Then after:
-        #  -> Cleanup background websocket/exchange related async tasks
-
+        await ss.exchange.shutdown()
+        await ss.logging.info("Goodnight...")
 
 if __name__ == "__main__":
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
