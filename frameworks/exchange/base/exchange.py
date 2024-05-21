@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from frameworks.tools.logging import Logger
 from frameworks.exchange.base.client import Client
+
 
 class Exchange(ABC):
     """
@@ -23,14 +24,18 @@ class Exchange(ABC):
         self.client.load_required_refs(logging=logging)
 
     @abstractmethod
+    async def warmup(self) -> None:
+        pass
+    
+    @abstractmethod
     async def create_order(
         self,
         symbol: str,
-        side: str,
-        orderType: str,
+        side: int,
+        orderType: int,
         size: float,
         price: Optional[float]=None,
-        orderId: Optional[str]=None
+        orderId: Optional[Union[str, int]]=None
     ) -> Dict:
         pass
     
@@ -38,7 +43,7 @@ class Exchange(ABC):
     async def amend_order(
         self,
         symbol: str,
-        orderId: str,
+        orderId: Union[str, int],
         side: int,
         size: float,
         price: float,
@@ -49,7 +54,7 @@ class Exchange(ABC):
     async def cancel_order(
         self, 
         symbol: str,
-        orderId: str
+        orderId: Union[str, int]
     ) -> Dict:
         pass
 
