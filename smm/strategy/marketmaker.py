@@ -14,7 +14,7 @@ class TradingLogic:
         self.oms = OrderManagementSystem(self.ss)
 
     async def load_quote_generator(self) -> QuoteGenerator:
-        quote_gen_name = self.params["quote_generator"].lower()
+        quote_gen_name = self.ss.quote_generator.lower()
 
         match quote_gen_name:
             case "plain":
@@ -39,7 +39,7 @@ class TradingLogic:
         established and data is filling the arrays.
         """
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(1.0)
 
             if self.ss.trades.shape[0] < 100:
                 continue
@@ -47,10 +47,10 @@ class TradingLogic:
             if self.ss.ohlcv.shape[0] < 100:
                 continue
 
-            if not bool(self.ss.ticker):
+            if not bool(self.ss.data["ticker"]):
                 continue
 
-            if tuple(self.ss.misc.values()) == (0.0, 0.0):
+            if self.ss.data["tick_size"] == 0.0 or self.ss.data["lot_size"] == 0.0:
                 continue
 
             break
@@ -59,7 +59,7 @@ class TradingLogic:
         await self.ss.logging.info("Warming up data feeds...")
         await self.wait_for_ws_warmup()
         await self.ss.logging.success(
-            f"Starting {self.params['quote_generator']} strategy on {self.ss.exchange.upper()} | {self.ss.symbol}"
+            f"Starting {self.ss.quote_generator.lower()} strategy on {self.ss.symbol}"
         )
 
         while True:
@@ -67,4 +67,4 @@ class TradingLogic:
             fp_skew = self.feature_engine.generate_skew()
             vol = self.feature_engine.generate_vol()
             new_orders = self.quote_generator.generate_orders(fp_skew, vol)
-            await self.oms.update(new_orders)
+            await self.oms.update_simple(new_orders)
