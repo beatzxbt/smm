@@ -48,6 +48,17 @@ class Client(ABC):
     }
 
     def __init__(self, api_key: str, api_secret: str) -> None:
+        """
+        Initializes the Client class with API key and secret.
+
+        Parameters
+        ----------
+        api_key : str
+            The API key for authentication.
+
+        api_secret : str
+            The API secret for authentication.
+        """
         self.api_key, self.api_secret = api_key, api_secret
         self.session = aiosonic.HTTPClient()
         self.timestamp = str(time_ms())
@@ -57,9 +68,27 @@ class Client(ABC):
         }
 
     def load_required_refs(self, logging: Logger) -> None:
+        """
+        Loads required references such as logging.
+
+        Parameters
+        ----------
+        logging : Logger
+            The Logger instance for logging events and messages.
+        """
         self.logging = logging
 
     def update_timestamp(self) -> str:
+        """
+        Updates and returns the current timestamp.
+
+        This method updates the internal timestamp to the current time in milliseconds.
+
+        Returns
+        -------
+        str
+            The updated timestamp as a string.
+        """
         self.timestamp = str(time_ms())
         return self.timestamp
     

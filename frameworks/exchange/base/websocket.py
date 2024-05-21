@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 import orjson
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict, Callable, Optional, Coroutine
+from typing import Tuple, List, Dict, Callable, Optional
 
 from frameworks.tools.logging import Logger
 
@@ -10,13 +10,38 @@ from frameworks.tools.logging import Logger
 class WebsocketStream(ABC):
     _success_ = set((aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY))
     _failure_ = set((aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR))
-    _conns_ = 1 # NOTE: Handlers dont support duplicate detection yet!
+    _conns_ = 1  # NOTE: Handlers don't support duplicate detection yet!
 
     def __init__(self) -> None:
+        """
+        Initializes the WebsocketStream class with public and private aiohttp sessions.
+
+        Attributes
+        ----------
+        public : aiohttp.ClientSession
+            The aiohttp session for public WebSocket connections.
+
+        private : aiohttp.ClientSession
+            The aiohttp session for private WebSocket connections.
+        """
         self.public = aiohttp.ClientSession()
         self.private = aiohttp.ClientSession()
 
     def load_required_refs(self, logging: Logger, symbol: str, data: Dict) -> None:
+        """
+        Loads required references such as logging, symbol, and data.
+
+        Parameters
+        ----------
+        logging : Logger
+            The Logger instance for logging events and messages.
+
+        symbol : str
+            The trading symbol.
+
+        data : dict
+            A dictionary holding various shared state data.
+        """
         self.logging = logging
         self.symbol = symbol
         self.data = data
@@ -24,7 +49,9 @@ class WebsocketStream(ABC):
     @abstractmethod
     def create_handlers(self) -> None:
         """
-        Called in .start() *after* self.load_required_refs is completed!
+        Abstract method to create handlers for the WebSocket streams.
+
+        This method should be called in .start() *after* self.load_required_refs is completed.
         """
         pass
 
@@ -79,19 +106,19 @@ class WebsocketStream(ABC):
     @abstractmethod
     def public_stream_sub(self) -> Tuple[str, List[Dict]]:
         """
-        Prepares the subscription request for public Websocket channels.
+        Prepares the subscription request for public WebSocket channels.
 
         Returns
         -------
         Tuple[str, List[Dict]]
-            A tuple containing the Websocket URL and the formatted subscription request list.
+            A tuple containing the WebSocket URL and the formatted subscription request list.
         """
         pass
     
     @abstractmethod
     async def public_stream_handler(self, recv: Dict) -> None:
         """
-        Handles incoming messages from the public Websocket stream.
+        Handles incoming messages from the public WebSocket stream.
 
         Parameters
         ----------
@@ -108,19 +135,19 @@ class WebsocketStream(ABC):
     @abstractmethod
     async def private_stream_sub(self) -> Tuple[str, List[Dict]]:
         """
-        Prepares the authentication and subscription messages for the private Websocket channels.
+        Prepares the authentication and subscription messages for the private WebSocket channels.
 
         Returns
         -------
         Tuple[str, List[Dict]]
-            A tuple containing the Websocket URL and the formatted subscription request list.
+            A tuple containing the WebSocket URL and the formatted subscription request list.
         """
         pass
 
     @abstractmethod
     async def private_stream_handler(self, recv: Dict) -> None:
         """
-        Handles incoming messages from the private Websocket stream.
+        Handles incoming messages from the private WebSocket stream.
 
         Parameters
         ----------
@@ -137,7 +164,26 @@ class WebsocketStream(ABC):
     async def send(
         self, ws: aiohttp.ClientWebSocketResponse, stream_str: str, payload: Dict
     ) -> None:
-        """Send payload through websocket stream"""
+        """
+        Sends a payload through the WebSocket stream.
+
+        Parameters
+        ----------
+        ws : aiohttp.ClientWebSocketResponse
+            The WebSocket connection instance.
+
+        stream_str : str
+            The stream type (public or private).
+
+        payload : Dict
+            The payload to be sent.
+
+
+        Raises
+        ------
+        Exception
+            If there is an issue sending the payload.
+        """
         try:
             await ws.send_json(payload)
         except Exception as e:
@@ -148,9 +194,37 @@ class WebsocketStream(ABC):
         self,
         url: str,
         handler_map: Callable,
-        on_connect: Optional[List[Dict]],
+        on_connect: List[Dict],
         private: bool,
     ) -> bool:
+        """
+        Manages a single WebSocket connection.
+
+        Parameters
+        ----------
+        url : str
+            The WebSocket URL.
+
+        handler_map : Callable
+            The function to handle incoming messages.
+
+        on_connect : list of dict
+            The messages to send upon connection.
+
+        private : bool
+            Flag to indicate if the connection is private.
+
+
+        Returns
+        -------
+        bool
+            Flag indicating if a reconnection is needed.
+
+        Raises
+        ------
+        Exception
+            If there is an issue with the WebSocket connection.
+        """
         session = self.private if private else self.public
         stream_str = "Private" if private else "Public"
 
@@ -176,14 +250,50 @@ class WebsocketStream(ABC):
             await self.logging.error(f"Issue with {stream_str.lower()} occured: {e}")
             return True
 
-    async def _create_reconnect_task_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]], private: bool) -> None:
+    async def _create_reconnect_task_(self, url: str, handler_map: Callable, on_connect: List[Dict], private: bool) -> None:
+        """
+        Creates a task to manage reconnections.
+
+        Parameters
+        ----------
+        url : str
+            The WebSocket URL.
+
+        handler_map : Callable
+            The function to handle incoming messages.
+
+        on_connect : list of dict
+            The messages to send upon connection.
+
+        private : bool
+            Flag to indicate if the connection is private.
+
+        """
         while True:
             reconnect = await self._single_conn_(url, handler_map, on_connect, private)
             if not reconnect:
                 break 
             await asyncio.sleep(1)
 
-    async def _manage_connections_(self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]], private: bool) -> None:
+    async def _manage_connections_(self, url: str, handler_map: Callable, on_connect: List[Dict], private: bool) -> None:
+        """
+        Manages multiple WebSocket connections.
+
+        Parameters
+        ----------
+        url : str
+            The WebSocket URL.
+
+        handler_map : Callable
+            The function to handle incoming messages.
+
+        on_connect : list of dict
+            The messages to send upon connection.
+
+        private : bool
+            Flag to indicate if the connection is private.
+
+        """
         tasks = [self._create_reconnect_task_(url, handler_map, on_connect, private) for _ in range(self._conns_)]
         await asyncio.gather(*tasks)
 
@@ -191,18 +301,51 @@ class WebsocketStream(ABC):
         self,
         url: str,
         handler_map: Callable,
-        on_connect: Optional[List[Dict]]=[],
-    ) -> Coroutine:
+        on_connect: Optional[List[Dict]]=None
+    ) -> None:
+        """
+        Starts the public WebSocket connection.
+
+        Parameters
+        ----------
+        url : str
+            The WebSocket URL.
+
+        handler_map : Callable
+            The function to handle incoming messages.
+
+        on_connect : list of dict, optional
+            The messages to send upon connection.
+        """
+        on_connect = [] if on_connect is None else on_connect
         await self._manage_connections_(url, handler_map, on_connect, private=False)
 
     async def start_private_ws(
         self,
         url: str,
         handler_map: Callable,
-        on_connect: Optional[List[Dict]]=[],
-    ) -> Coroutine:
+        on_connect: Optional[List[Dict]]=[]
+    ) -> None:
+        """
+        Starts the private WebSocket connection.
+
+        Parameters
+        ----------
+        url : str
+            The WebSocket URL.
+
+        handler_map : Callable
+            The function to handle incoming messages.
+
+        on_connect : list of dict, optional
+            The messages to send upon connection.
+        """
+        on_connect = [] if on_connect is None else on_connect
         await self._manage_connections_(url, handler_map, on_connect, private=True)
 
     async def shutdown(self) -> None:
+        """
+        Shuts down the WebSocket connections by closing the aiohttp sessions.
+        """
         await self.public.close()
         await self.private.close()
