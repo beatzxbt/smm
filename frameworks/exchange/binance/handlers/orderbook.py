@@ -23,7 +23,7 @@ class BinanceOrderbookHandler(OrderbookHandler):
     def refresh(self, recv: Dict) -> None:
         self.update_id = int(recv["lastUpdateId"])
         self.full_orderbook_update(recv)
-        self.orderbook.initialize(self.asks, self.bids)
+        self.orderbook.refresh(self.asks, self.bids)
 
     def process(self, recv: Dict) -> Dict:
         new_update_id = int(recv["u"])

@@ -7,10 +7,8 @@ from numba.experimental import jitclass
 def isin(a: Array, b: Array) -> Array:
     out = np.empty(a.size, dtype=bool_)
     b = set(b)
-
     for i in range(a.size):
         out[i] = True if a[i] in b else False
-            
     return out
 
 spec = [
@@ -47,7 +45,7 @@ class Orderbook:
         self.bids = np.zeros((self.size, 2), dtype=float64)
         self.bba = np.zeros((2, 2), dtype=float64)
 
-    def _sort_book_(self) -> Array:
+    def sort_book(self) -> Array:
         """
         Constructs all the necessary attributes for the orderbook object.
 
@@ -61,15 +59,15 @@ class Orderbook:
         self.bba[0, :] = self.bids[0]
         self.bba[1, :] = self.asks[0]
 
-    def _process_book_(book: Array, update: Array) -> Array:
+    def process_book(self, current_orderbook: Array, update: Array) -> Array:
         """
-        Updates the given book with new data. Removes entries with matching 
+        Updates the current with new data. Removes entries with matching 
         prices in update, regardless of size, and then adds non-zero quantity 
         data from update to the book.
 
         Parameters
         ----------
-        book : Array
+        current_orderbook : Array
             The existing orderbook data (either bids or asks).
 
         update : Array
@@ -80,12 +78,15 @@ class Orderbook:
         Array
             The updated order book data.
         """
-        book = book[~isin(book[:, 0], update[:, 0])]
-        return np.vstack((book, update[update[:, 1] != 0]))
-
-    def initialize(self, asks: Array, bids: Array) -> Array:
+        if update.size > 0:
+            current_orderbook = current_orderbook[~isin(current_orderbook[:, 0], update[:, 0])]
+            return np.vstack((current_orderbook, update[update[:, 1] != 0]))
+        else:
+            return current_orderbook
+            
+    def refresh(self, asks: Array, bids: Array) -> Array:
         """
-        Initializes the order book with given ask and bid data and sorts the book.
+        Refreshes the order book with given *complete* ask and bid data and sorts the book.
 
         Parameters
         ----------
@@ -95,9 +96,14 @@ class Orderbook:
         bids : Array
             Initial bid orders data, formatted as [[price, size], ...].
         """
-        self.asks[:, :] = asks
-        self.bids[:, :] = bids
-        self._sort_book_()
+        # Completely reset all arrays
+        self.asks = np.zeros_like(self.asks)
+        self.bids = np.zeros_like(self.bids)
+        self.bba = np.zeros_like(self.bba)
+
+        self.asks[:, :] = asks[:min(asks.shape[0], self.size), :]
+        self.bids[:, :] = bids[:min(bids.shape[0], self.size), :]
+        self.sort_book()
 
     def update_book(self, asks: Array, bids: Array) -> Array:
         """
@@ -111,9 +117,9 @@ class Orderbook:
         bids : Array
             Initial bid orders data, formatted as [[price, size], ...].
         """
-        self.asks = self._process_book_(self.asks, asks)
-        self.bids = self._process_book_(self.bids, bids)
-        self._sort_book_()
+        self.asks = self.process_book(self.asks, asks)
+        self.bids = self.process_book(self.bids, bids)
+        self.sort_book()
 
     def get_mid(self) -> float:
         """
