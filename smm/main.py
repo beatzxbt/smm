@@ -11,6 +11,7 @@ async def main():
         trading_logic = TradingLogic(ss)
 
         await asyncio.gather(
+            asyncio.create_task(ss.start_internal_processes()),
             asyncio.create_task(ss.refresh_parameters()),
             asyncio.create_task(trading_logic.start_loop()),
             return_exceptions=True,
