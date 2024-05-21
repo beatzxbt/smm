@@ -1,14 +1,23 @@
 
-# "Binance", "Bybit", "Hyperliquid", "Paradex", ...
-exchange: "Binance"
-symbol: ""
+# "Binance", "Bybit", "Hyperliquid", ...
+exchange: "Bybit"
+symbol: "SOLUSDT"
 
-# "simple", "advanced" ,...
-quote_generator: "simple" # Choices: 
+# "plain", "stinky" ,...
+quote_generator: "plain"
 
+# The keys ("total_orders", "max_position") must be present in any
+# new strategies created! Max position is auto converted to quote
+# units so always keep this value in $ (USD).
 parameters:
-  num_orders: 10    
-  minimum_spread: 5           # Value in BPS (basis points)
-  min_order_size: 0.1         # Value in $ 
-  max_order_size: 0.45        # Value in $
-  max_position: 0.5           # Value in $
+  plain:
+    total_orders: 10            # Consider your rate limits!
+    max_position: 100           # Value in $ (USD)
+    minimum_spread: 5           # Value in BPS (Basis Points)
+    aggressiveness: 0.3         # Must be 0.0 <-> 1.0
+
+  stinky:
+    total_orders: 10            # Consider your rate limits!
+    max_position: 100           # Value in $ (USD)
+    minimum_spread: 40          # Value in BPS (Basis Points)
+    maximum_spread: 250         # Value in BPS (Basis Points)
