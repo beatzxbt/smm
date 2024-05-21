@@ -59,8 +59,9 @@ class Client(ABC):
     def load_required_refs(self, logging: Logger) -> None:
         self.logging = logging
 
-    def update_timestamp(self) -> None:
+    def update_timestamp(self) -> str:
         self.timestamp = str(time_ms())
+        return self.timestamp
     
     async def response_code_checker(self, code: int) -> bool:
         """
@@ -91,10 +92,10 @@ class Client(ABC):
             
             case code if code in self.http_exceptions:
                 reason = self.http_exceptions[code]
-                raise Exception(f"Known status code: {code}, Reason: {reason}")
+                raise Exception(f"Known status code :: {code} | {reason}")
             
             case _:
-                raise Exception(f"Unknown status code: {code}")
+                raise Exception(f"Unknown status code :: {code}")
         
     @abstractmethod
     def sign_payload(self, payload: Dict) -> Dict[str, Any]:
@@ -138,9 +139,9 @@ class Client(ABC):
         self,
         url: str,
         method: Literal["GET", "PUT", "POST", "DELETE"],
-        headers: Dict[str, str]={},
-        params: Dict[str, str]={},
-        payload: Dict[str, Any]={},
+        headers: Dict[str, str]=None,
+        params: Dict[str, str]=None,
+        payload: Dict[str, Any]=None,
         signed: bool=False
     ) -> Union[Dict, Exception]:
         """
@@ -160,13 +161,13 @@ class Client(ABC):
             The HTTP method to use for the request (e.g., 'GET', 'PUT', 'POST', 'DELETE').
         
         headers : Dict[str, str], optional
-            The headers to include in the request. Default is an empty dictionary.
+            The headers to include in the request. Default is None.
         
         params : Dict[str, str], optional
-            The query parameters to include in the request. Default is an empty dictionary.
+            The query parameters to include in the request. Default is None.
         
         payload : Dict[str, Any], optional
-            The payload to include in the request. Default is an empty dictionary.
+            The payload to include in the request. Default is None.
         
         signed : bool, optional
             Whether the payload is pre-signed or not. Default is False.
@@ -178,18 +179,15 @@ class Client(ABC):
         """
         for attempt in range(1, self.max_retries + 1):
             try:
-                if payload:
-                    if not signed:
-                        payload = orjson.dumps(self.sign_payload(payload)).decode()
-                    else:
-                        payload = orjson.dumps(payload).decode()
+                if payload and not signed:
+                    payload = self.sign_payload(payload)
                         
                 response = await self.session.request(
                     url=url,
                     method=method,
-                    headers=headers,
-                    params=params,
-                    data=payload
+                    headers=headers.update(self.default_headers) if headers else self.default_headers,
+                    params=params if params else {},
+                    data=orjson.dumps(payload).decode() if payload else {}
                 )
 
                 # Return code is 200 (OK)

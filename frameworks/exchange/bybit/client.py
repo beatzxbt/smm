@@ -1,8 +1,7 @@
 import asyncio
-import aiohttp
+import orjson
 import hashlib
 import hmac
-from typing import Dict, List, Union, Tuple, Any
 
 from frameworks.exchange.base.client import Client
 
@@ -12,39 +11,43 @@ class BybitClient(Client):
         super().__init__(api_key, api_secret)
 
         self.header_template = {
+            **self.default_headers,
+            "X-BAPI-API-KEY": self.api_key,
             "X-BAPI-TIMESTAMP": self.timestamp,
-            "X-BAPI-API-KEY": self.key,
-            "X-BAPI-RECV-WINDOW": self.recvWindow,
-            "X-BAPI-SIGN": "x" * 64
+            "X-BAPI-SIGN": "",
+            "X-BAPI-RECV-WINDOW": "5000",
         }
 
-    def sign_payload(self, payload: str) -> Dict[str, Any]:
-        self.update_timestamp()  # NOTE: Updates self.timestamp
-        param_str = f"{self.timestamp}{self.key}{self.recvWindow}{payload}"
+    def sign_payload(self, payload):
+        self.update_timestamp()
+        payload_bytes = f"{self.timestamp}{self.api_key}5000".encode() + orjson.dumps(payload)
         hash_signature = hmac.new(
             key=self.api_secret.encode(),
-            msg=payload.encode(),
+            msg=payload_bytes,
             digestmod=hashlib.sha256
         )
         self.header_template["X-BAPI-TIMESTAMP"] = self.timestamp
         self.header_template["X-BAPI-SIGN"] = hash_signature.hexdigest()
         return self.header_template
 
-    def error_handler(self, recv: Dict[str, Any]) -> Tuple[bool, str]:
-        match recv.get("code"):
-            case "200":
+    def error_handler(self, recv):
+        match int(recv.get("retCode")):
+            case 0 | 200:
                 return (False, "")
             
-            case "10006":
+            case 10001:
+                return (False, "Illegal category")
+            
+            case 10006:
                 return (False, "Rate limits exceeded!")
             
-            case "10016":
+            case 10016:
                 return (False, "Bybit server error...")
             
-            case "110001":
+            case 110001:
                 return (False, "Order doesn't exist anymore!")
             
-            case "110012":
+            case 110012:
                 return (False, "Insufficient available balance")
             
             case _:
