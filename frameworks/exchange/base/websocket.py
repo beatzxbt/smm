@@ -161,7 +161,7 @@ class WebsocketStream(ABC):
 
                 async for msg in ws:
                     if msg.type in self._success_:
-                        handler_map(orjson.loads(msg.data))
+                        await handler_map(orjson.loads(msg.data))
 
                     elif msg.type in self._failure_:
                         await self.logging.warning(f"{stream_str} ws closed/error occurred, reconnecting...")
