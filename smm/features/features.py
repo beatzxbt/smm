@@ -1,5 +1,4 @@
 import numpy as np
-from typing import Tuple, Dict, Union
 
 from smm.sharedstate import SmmSharedState
 from smm.features.trades_diff import trades_diffs
