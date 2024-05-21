@@ -7,6 +7,7 @@ from typing import Dict, Coroutine
 from numpy_ringbuffer import RingBuffer
 
 from frameworks.tools.logging import Logger
+from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.base.structures.orderbook import Orderbook
 
 
@@ -55,7 +56,10 @@ class SharedState(ABC):
                 from frameworks.exchange.binance.exchange import Binance
                 from frameworks.exchange.binance.websocket import BinanceWebsocket
 
-                self.exchange = Binance(self.api_key, self.api_secret)
+                # NOTE: Binance requires capital symbols
+                self.symbol = self.symbol.upper()
+
+                self.exchange: Exchange = Binance(self.api_key, self.api_secret)
                 self.exchange.load_required_refs(
                     logging=self.logging,
                     symbol=self.symbol,
@@ -75,7 +79,10 @@ class SharedState(ABC):
                 from frameworks.exchange.bybit.exchange import Bybit
                 from frameworks.exchange.bybit.websocket import BybitWebsocket
 
-                self.exchange = Bybit(self.api_key, self.api_secret)
+                # NOTE: Bybit requires capital symbols
+                self.symbol = self.symbol.upper()
+
+                self.exchange: Exchange = Bybit(self.api_key, self.api_secret)
                 self.exchange.load_required_refs(
                     logging=self.logging,
                     symbol=self.symbol,
@@ -99,23 +106,25 @@ class SharedState(ABC):
             #     self.exchange = Kraken
             #     self.websocket = KrakenWebsocket
 
-            case "hyperliquid":
-                from frameworks.exchange.hyperliquid.exchange import Hyperliquid
-                from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
+            # case "hyperliquid":
+            #     from frameworks.exchange.hyperliquid.exchange import Hyperliquid
+            #     from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
 
-                self.exchange = Hyperliquid(self.api_key, self.api_secret)
-                self.exchange.load_required_refs(
-                    logging=self.logging,
-                    symbol=self.symbol,
-                    data=self.data
-                )
+            #     self.exchange: Exchange = Hyperliquid(self.api_key, self.api_secret)
+            #     self.exchange.load_required_refs(
+            #         logging=self.logging,
+            #         symbol=self.symbol,
+            #         data=self.data
+            #     )
 
-                self.websocket = HyperliquidWebsocket(self.exchange)
-                self.websocket.load_required_refs(
-                    logging=self.logging,
-                    symbol=self.symbol,
-                    data=self.data
-                )
+            #     self.websocket = HyperliquidWebsocket(self.exchange)
+            #     self.websocket.load_required_refs(
+            #         logging=self.logging,
+            #         symbol=self.symbol,
+            #         data=self.data
+            #     )
+
+            #     print("Successfully loaded Bybit.")
 
             # case "paradex":
             #     self.exchange = Paradex
@@ -149,11 +158,26 @@ class SharedState(ABC):
             params = yaml.safe_load(f)
             self.process_parameters(params, reload)
 
-    async def start_internal_processes(self) -> None:
-        await asyncio.gather(*[
+    async def debug_mode(self, data: bool=True, params: bool=False):
+        while True:
+            if data:
+                print(self.data)
+
+            if params:
+                print(self.params)
+
+            await asyncio.sleep(1)
+
+    async def start_internal_processes(self, debug: bool=False) -> None:
+        tasks = [
             self.exchange.warmup(),
             self.websocket.start()
-        ])
+        ]
+
+        if debug:
+            tasks.append(self.debug_mode())
+
+        await asyncio.gather(*tasks)
 
     async def refresh_parameters(self) -> Coroutine:
         """
