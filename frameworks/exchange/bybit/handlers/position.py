@@ -16,13 +16,13 @@ class BybitPositionHandler(PositionHandler):
 
                 self.format["price"] = float(position["avgPrice"])
                 self.format["size"] = float(position["size"])
-                self.format["uPnL"] = float(position["unrealisedPnl"])
+                self.format["uPnl"] = float(position["unrealisedPnl"])
                 self.position.update(self.format)
 
         except Exception as e:
             raise Exception(f"Position Refresh :: {e}")
 
-    def process(self, recv: Dict) -> None:
+    def process(self, recv):
         try:
             for position in recv["data"]:
                 if position["symbol"] != self.symbol:
@@ -30,7 +30,7 @@ class BybitPositionHandler(PositionHandler):
 
                 self.format["price"] = float(position["entryPrice"])
                 self.format["size"] = float(position["size"])
-                self.format["uPnL"] = float(position["unrealizedPnl"])
+                self.format["uPnl"] = float(position["unrealisedPnl"])
                 self.position.update(self.format)
 
         except Exception as e:
