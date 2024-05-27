@@ -129,8 +129,6 @@ class SharedState(ABC):
                     data=self.data
                 )
 
-                print("Successfully loaded Binance.")
-
             case "bybit": 
                 from frameworks.exchange.bybit.exchange import Bybit
                 from frameworks.exchange.bybit.websocket import BybitWebsocket
@@ -152,8 +150,6 @@ class SharedState(ABC):
                     data=self.data
                 )
 
-                print("Successfully loaded Bybit.")
-
             case "hyperliquid":
                 from frameworks.exchange.hyperliquid.exchange import Hyperliquid
                 from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
@@ -172,13 +168,10 @@ class SharedState(ABC):
                     data=self.data
                 )
 
-                print("Successfully loaded Hyperliquid.")
-
             # TODO: Add Paradex, OKX, Vertex, Kraken (in that order)
 
             case _:
-                self.logging.critical("Invalid exchange name, not found...")
-                raise Exception("Invalid exchange name, not found...")
+                raise ValueError("Invalid exchange name, not found...")
 
     def load_config(self) -> None:
         """
@@ -189,17 +182,12 @@ class SharedState(ABC):
         Exception
             If the API credentials are missing or incorrect.
         """
-        try:
-            self.api_key = os.getenv("API_KEY")
-            self.api_secret = os.getenv("API_SECRET")
-                
-            if not self.api_key or not self.api_secret:
-                raise Exception("Missing/incorrect API credentials!")
+        self.api_key = os.getenv("API_KEY")
+        self.api_secret = os.getenv("API_SECRET")
             
-        except Exception as e:
-            self.logging.critical(e)
-            raise e
-
+        if not self.api_key or not self.api_secret:
+            raise Exception("Missing/incorrect API credentials!")
+            
     def load_parameters(self, reload: bool=False) -> None:
         """
         Loads initial trading settings from the parameters YAML file.
@@ -209,9 +197,13 @@ class SharedState(ABC):
         reload : bool, optional
             Flag to indicate if the parameters are being reloaded (default is False).
         """
-        with open(self.param_path, "r") as f:
-            params = yaml.safe_load(f)
-            self.process_parameters(params, reload)
+        try:
+            with open(self.param_path, "r") as f:
+                params = yaml.safe_load(f)
+                self.process_parameters(params, reload)
+
+        except Exception as e:
+            raise Exception(f"Error loading parameters: {e}")
 
     async def _debug_mode_(self, data: bool=True, params: bool=False) -> None:
         """
@@ -231,7 +223,7 @@ class SharedState(ABC):
 
             if params:
                 print(self.parameters)
-
+            
             await asyncio.sleep(1.0)
 
     async def start_internal_processes(self, debug: bool=False) -> None:
@@ -257,6 +249,7 @@ class SharedState(ABC):
         """
         Periodically refreshes trading parameters from the parameters file.
         """
+        self.load_parameters(reload=False)
         while True:
             await asyncio.sleep(10)     # NOTE: Can be altered as needed
             self.load_parameters(reload=True)
