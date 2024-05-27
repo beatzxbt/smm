@@ -1,27 +1,26 @@
-from typing import Dict, Optional
-from frameworks.tools.logging import time_ms
-from frameworks.exchange.bybit.types import BybitOrderSides, BybitOrderTypes
+from typing import Dict
 
+from frameworks.exchange.bybit.types import BybitSideConverter, BybitOrderTypeConverter
+from frameworks.exchange.base.formats import Formats
 
-class BybitFormats:
+class BybitFormats(Formats):
     def __init__(self) -> None:
-        self.convert_side = BybitOrderSides
-        self.convert_type = BybitOrderTypes
+        super().__init__(BybitSideConverter, BybitOrderTypeConverter)
         self.base_payload = {"category": "linear"}
 
     def create_order(
         self,
-        symbol: str,
-        side: float,
-        orderType: float,
-        size: float,
-        price: Optional[float],
-    ) -> Dict:
+        symbol,
+        side,
+        orderType,
+        size,
+        price,
+    ):
         format = {
             **self.base_payload,
             "symbol": symbol,
             "side": self.convert_side.to_str(side),
-            "orderType": self.convert_type.to_str(orderType),
+            "orderType": self.convert_order_type.to_str(orderType),
             "qty": str(size)
         }
         
@@ -38,10 +37,11 @@ class BybitFormats:
     
     def amend_order(
         self,
-        orderId: str,
-        size: float,
-        price: float,
-    ) -> Dict:
+        orderId,
+        side,
+        size,
+        price,
+    ):
         return {
             **self.base_payload,
             "orderId": orderId,
@@ -49,19 +49,19 @@ class BybitFormats:
             "qty": str(size)
         }
     
-    def cancel_order(self, orderId: str) -> Dict:
+    def cancel_order(self, symbol, orderId):
         return {
             **self.base_payload, 
             "orderId": orderId
         }
 
-    def cancel_all_orders(self, symbol: str) -> Dict:
+    def cancel_all_orders(self, symbol):
         return {
             **self.base_payload, 
             "symbol": symbol
         }
 
-    def get_ohlcv(self, symbol: str, interval: int) -> Dict:
+    def get_ohlcv(self, symbol, interval):
         return {
             **self.base_payload,
             "symbol": symbol,
@@ -69,38 +69,41 @@ class BybitFormats:
             "limit": "1000",  # NOTE: [1, 1000]. Default: 200
         }
 
-    def get_trades(self, symbol: str) -> Dict:
+    def get_trades(self, symbol):
         return {
             **self.base_payload,
             "symbol": symbol,
             "limit": "1000",  # NOTE: [1,1000], default: 500
         }
 
-    def get_orderbook(self, symbol: str) -> Dict:
+    def get_orderbook(self, symbol):
         return {
             **self.base_payload,
             "symbol": symbol,
             "limit": "200",  # NOTE: [1, 200]. Default: 25
         }
     
-    def get_ticker(self, symbol: str) -> Dict:
+    def get_ticker(self, symbol):
         return {
             **self.base_payload,
             "symbol": symbol
         }
 
-
-    def get_open_orders(self, symbol: str) -> Dict:
+    def get_open_orders(self, symbol):
         return {
-            **self.base_payload, 
-            "symbol": symbol
+            **self.base_payload,
+            "symbol": symbol,
+            "limit": "50"
         }
 
-    def get_position(self, symbol: str) -> Dict:
+    def get_position(self, symbol):
         return {
-            **self.base_payload, 
+            **self.base_payload,
             "symbol": symbol
         }
+    
+    def get_account_info(self) -> Dict:
+        return f"category={self.base_payload['category']}"
     
     def get_instrument_info(self, symbol: str) -> Dict:
         return {
@@ -108,5 +111,3 @@ class BybitFormats:
             "symbol": symbol
         }
 
-    def get_account_info(self) -> Dict:
-        return self.base_payload
