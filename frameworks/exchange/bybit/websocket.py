@@ -1,7 +1,7 @@
 import asyncio
 import hmac
 import hashlib
-from typing import Tuple, Dict, List, Union
+from typing import Tuple, Dict, List
 
 from frameworks.tools.logging import time_ms
 from frameworks.exchange.base.websocket import WebsocketStream
@@ -18,32 +18,11 @@ from frameworks.exchange.bybit.handlers.position import BybitPositionHandler
 class BybitWebsocket(WebsocketStream):
     """
     Handles Websocket connections and data management for Bybit.
-
-    Parameters
-    ----------
-    ss : SharedState
-        A shared memory space containing data, configurations & logging.
-
-    exch : Bybit
-        An instance of the Bybit exchange API wrapper.
-
-    Attributes
-    ----------
-    public_handler_map : dict
-        Maps public stream topics to their respective handlers.
-
-    private_handler_map : dict
-        Maps private stream topics to their respective handlers.
-
-    Methods
-    -------
-    start()
-        Starts all necessary tasks for managing Websocket streams.
     """
     def __init__(self, exch: Bybit) -> None:     
         super().__init__()
         self.exch = exch
-        self.endpoints = BybitEndpoints
+        self.endpoints = BybitEndpoints()
 
     def create_handlers(self) -> None:
         self.public_handler_map = {
@@ -92,7 +71,7 @@ class BybitWebsocket(WebsocketStream):
                 f"kline.1.{self.symbol}",
             ]
         }]
-        return (self.endpoints["pub_ws"], request)
+        return (self.endpoints.public_ws.url, request)
     
     async def public_stream_handler(self, recv: Dict) -> None:
         try:
@@ -107,7 +86,7 @@ class BybitWebsocket(WebsocketStream):
             await self.logging.error(f"Error with Bybit public ws handler: {e}")
 
     def private_stream_sub(self) -> Tuple[str, List[Dict]]:
-        expiry_time = str(time_ms() + 5000)
+        expiry_time = time_ms() + 5000
 
         signature = hmac.new(
             key=self.exch.api_secret.encode(),
@@ -124,14 +103,13 @@ class BybitWebsocket(WebsocketStream):
             "op": "subscribe", 
             "args": [
                 "position",
-                "execution",
+                # "execution",
                 "order",
-                "wallet"
-        ]}
+                # "wallet"
+            ]
+        }
 
-        url = self.endpoints["priv_ws"]
-
-        return (url, [auth_msg, sub_msg])
+        return (self.endpoints.private_ws.url, [auth_msg, sub_msg])
     
     async def private_stream_handler(self, recv: Dict) -> None:
         try:
@@ -169,11 +147,11 @@ class BybitWebsocket(WebsocketStream):
         Starts all necessary asynchronous tasks for Websocket stream management and data refreshing.
         """
         self.create_handlers()
-        await asyncio.gather(*[
-            asyncio.create_task(self.refresh_orderbook_data()),
-            asyncio.create_task(self.refresh_trades_data()),
-            asyncio.create_task(self.refresh_ohlcv_data()),
-            asyncio.create_task(self.refresh_ticker_data()),
-            asyncio.create_task(self.start_public_stream()),
-            asyncio.create_task(self.start_private_stream()),
-        ])
+        await asyncio.gather(
+            self.refresh_orderbook_data(),
+            self.refresh_trades_data(),
+            self.refresh_ohlcv_data(),
+            self.refresh_ticker_data(),
+            self.start_public_stream(),
+            self.start_private_stream(),
+        )
