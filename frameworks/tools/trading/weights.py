@@ -3,7 +3,7 @@ from numba import njit
 from numba.types import float64, Array
 
 
-@njit(["float64[:](int64, float64, bool_)"], error_model="numpy", fastmath=True)
+@njit(error_model="numpy", fastmath=True)
 def generate_geometric_weights(
     num: int, r: float = 0.75, reverse: bool = True
 ) -> Array:
