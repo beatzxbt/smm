@@ -1,4 +1,4 @@
-class BaseStrNumConverter:
+class StrNumConverter:
     """
     A base class for converting between numerical values and their string representations.
 
