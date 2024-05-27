@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Dict, Union
+from typing import Dict
 
 from frameworks.exchange.base.ws_handlers.orderbook import OrderbookHandler
 
@@ -9,41 +9,42 @@ class BybitOrderbookHandler(OrderbookHandler):
         super().__init__(self.data["orderbook"])
         self.update_id = 0
     
-    def bba_update(self, recv: Dict) -> None:
-        """Unused for now"""
-        self.orderbook.bba[0, :] = list(map(float, recv["a"]))
-        self.orderbook.bba[1, :] = list(map(float, recv["b"]))
-
-    def full_orderbook_update(self, recv: Dict) -> None:
-        if "a" in recv:
-            self.bids = np.array(recv["a"], dtype=np.float64)
-
-        if "b" in recv:
-            self.asks = np.array(recv["b"], dtype=np.float64)
-
     def refresh(self, recv: Dict) -> None:
         try:
-            self.update_id = int(recv["result"]["u"])
-            self.full_orderbook_update(recv["result"])
-            self.orderbook.refresh(self.asks, self.bids)
+            data = recv["result"]
+            
+            self.update_id = int(data["u"])
+            self.bids = np.array(data["b"], dtype=np.float64)
+            self.asks = np.array(data["a"], dtype=np.float64)
+            
+            if self.bids.shape[0] != 0 and self.asks.shape[0] != 0:
+                self.orderbook.refresh(self.asks, self.bids)
 
         except Exception as e:
             raise Exception(f"Orderbook Refresh :: {e}")
 
     def process(self, recv: Dict) -> None:
-        try:
-            new_update_id = int(recv["data"]["u"])
+        try: 
+            data = recv["data"]
+            new_update_id = int(data["u"])
+            update_type = recv["type"]
 
-            if new_update_id == 1:
+            if new_update_id == 1 or update_type == "snapshot":
                 self.update_id = new_update_id
-                self.full_orderbook_update(recv["data"])
+                self.bids = np.array(data["b"], dtype=np.float64)
+                self.asks = np.array(data["a"], dtype=np.float64)
                 self.orderbook.refresh(self.asks, self.bids)
             
             elif new_update_id > self.update_id:
                 self.update_id = new_update_id
-                self.full_orderbook_update(recv["data"])
-                self.orderbook.update_book(self.asks, self.bids)
+
+                if len(data.get("b", [])) > 0:
+                    self.bids = np.array(data["b"], dtype=np.float64)
+                    self.orderbook.update_bids(self.bids)
+                    
+                if len(data.get("a", [])) > 0:
+                    self.asks = np.array(data["a"], dtype=np.float64)
+                    self.orderbook.update_asks(self.asks)
 
         except Exception as e:
-            print(recv)
             raise Exception(f"Orderbook Process :: {e}")

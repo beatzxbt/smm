@@ -1,15 +1,8 @@
 import numpy as np
-from numba import njit
-from numba.types import int64, float64, bool_, Array
+from numba.types import int64, float64, Array
 from numba.experimental import jitclass
 
-@njit(["bool_[:](float64[:], float64[:])"], fastmath=True)
-def isin(a: Array, b: Array) -> Array:
-    out = np.empty(a.size, dtype=bool_)
-    b = set(b)
-    for i in range(a.size):
-        out[i] = True if a[i] in b else False
-    return out
+from frameworks.tools.numba import nbisin
 
 spec = [
     ("size", int64),
@@ -40,12 +33,6 @@ class Orderbook:
         Array to store best bid and ask, each with price and quantity.
     """
     def __init__(self, size: int) -> None:
-        self.size = size
-        self.asks = np.zeros((self.size, 2), dtype=float64)
-        self.bids = np.zeros((self.size, 2), dtype=float64)
-        self.bba = np.zeros((2, 2), dtype=float64)
-
-    def sort_book(self) -> Array:
         """
         Constructs all the necessary attributes for the orderbook object.
 
@@ -54,37 +41,26 @@ class Orderbook:
         size : int
             Size of the order book (number of orders to store).
         """
-        self.asks = self.asks[self.asks[:, 0].argsort()][:self.size]
+        self.size = size
+        self.asks = np.zeros((self.size, 2), dtype=float64)
+        self.bids = np.zeros((self.size, 2), dtype=float64)
+        self.bba = np.zeros((2, 2), dtype=float64)
+
+    def sort_bids(self) -> None:
+        """
+        Sorts the bid orders in descending order of price and updates the best bid.
+        """
         self.bids = self.bids[self.bids[:, 0].argsort()][::-1][:self.size]
         self.bba[0, :] = self.bids[0]
-        self.bba[1, :] = self.asks[0]
 
-    def process_book(self, current_orderbook: Array, update: Array) -> Array:
+    def sort_asks(self) -> None:
         """
-        Updates the current with new data. Removes entries with matching 
-        prices in update, regardless of size, and then adds non-zero quantity 
-        data from update to the book.
-
-        Parameters
-        ----------
-        current_orderbook : Array
-            The existing orderbook data (either bids or asks).
-
-        update : Array
-            New order data to be processed into the book.
-
-        Returns
-        -------
-        Array
-            The updated order book data.
+        Sorts the ask orders in ascending order of price and updates the best ask.
         """
-        if update.size > 0:
-            current_orderbook = current_orderbook[~isin(current_orderbook[:, 0], update[:, 0])]
-            return np.vstack((current_orderbook, update[update[:, 1] != 0]))
-        else:
-            return current_orderbook
-            
-    def refresh(self, asks: Array, bids: Array) -> Array:
+        self.asks = self.asks[self.asks[:, 0].argsort()][:self.size]
+        self.bba[1, :] = self.asks[0]        
+    
+    def refresh(self, asks: Array, bids: Array) -> None:
         """
         Refreshes the order book with given *complete* ask and bid data and sorts the book.
 
@@ -103,23 +79,59 @@ class Orderbook:
 
         self.asks[:, :] = asks[:min(asks.shape[0], self.size), :]
         self.bids[:, :] = bids[:min(bids.shape[0], self.size), :]
-        self.sort_book()
+        self.sort_bids()
+        self.sort_asks()
 
-    def update_book(self, asks: Array, bids: Array) -> Array:
+    def update_bids(self, bids: Array) -> None:
+        """
+        Updates the current bids with new data. Removes entries with matching 
+        prices in update, regardless of size, and then adds non-zero quantity 
+        data from update to the book.
+
+        Parameters
+        ----------
+        bids : Array
+            New bid orders data, formatted as [[price, size], ...].
+        """
+        if bids.size == 0:
+            return None
+        
+        self.bids = self.bids[~nbisin(self.bids[:, 0], bids[:, 0])]
+        self.bids = np.vstack((self.bids, bids[bids[:, 1] != 0]))
+        self.sort_bids()
+
+    def update_asks(self, asks: Array) -> None:
+        """
+        Updates the current asks with new data. Removes entries with matching 
+        prices in update, regardless of size, and then adds non-zero quantity 
+        data from update to the book.
+
+        Parameters
+        ----------
+        asks : Array
+            New ask orders data, formatted as [[price, size], ...].
+        """
+        if asks.size == 0:
+            return None
+        
+        self.asks = self.asks[~nbisin(self.asks[:, 0], asks[:, 0])]
+        self.asks = np.vstack((self.asks, asks[asks[:, 1] != 0]))
+        self.sort_asks()
+
+    def update_full(self, asks: Array, bids: Array) -> None:
         """
         Updates the order book with new ask and bid data.
 
         Parameters
         ----------
         asks : Array
-            Initial ask orders data, formatted as [[price, size], ...].
+            New ask orders data, formatted as [[price, size], ...].
 
         bids : Array
-            Initial bid orders data, formatted as [[price, size], ...].
+            New bid orders data, formatted as [[price, size], ...].
         """
-        self.asks = self.process_book(self.asks, asks)
-        self.bids = self.process_book(self.bids, bids)
-        self.sort_book()
+        self.update_asks(asks)
+        self.update_bids(bids)
 
     def get_mid(self) -> float:
         """
