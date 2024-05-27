@@ -1,34 +1,48 @@
-import asyncio
 import orjson
 import hashlib
 import hmac
+from urllib.parse import urlencode
 
 from frameworks.exchange.base.client import Client
 
 
 class BybitClient(Client):
+    recv_window = "5000"
+
     def __init__(self, api_key: str, api_secret: str) -> None:
         super().__init__(api_key, api_secret)
 
-        self.header_template = {
+        self.headers_template = {
             **self.default_headers,
             "X-BAPI-API-KEY": self.api_key,
             "X-BAPI-TIMESTAMP": self.timestamp,
             "X-BAPI-SIGN": "",
-            "X-BAPI-RECV-WINDOW": "5000",
+            "X-BAPI-RECV-WINDOW": self.recv_window,
         }
 
-    def sign_payload(self, payload):
+    def sign_headers(self, method, headers):
         self.update_timestamp()
-        payload_bytes = f"{self.timestamp}{self.api_key}5000".encode() + orjson.dumps(payload)
+        param_str = f"{self.timestamp}{self.api_key}{self.recv_window}"
+
+        match method:
+            case "GET":
+                param_str += urlencode(headers)
+
+            case "POST":
+                param_str += orjson.dumps(headers).decode()
+
+            case _:
+                raise Exception("Invalid method for signing")
+
         hash_signature = hmac.new(
             key=self.api_secret.encode(),
-            msg=payload_bytes,
+            msg=param_str.encode(),
             digestmod=hashlib.sha256
         )
-        self.header_template["X-BAPI-TIMESTAMP"] = self.timestamp
-        self.header_template["X-BAPI-SIGN"] = hash_signature.hexdigest()
-        return self.header_template
+
+        self.headers_template["X-BAPI-TIMESTAMP"] = str(self.timestamp)
+        self.headers_template["X-BAPI-SIGN"] = hash_signature.hexdigest()
+        return self.headers_template.copy()
 
     def error_handler(self, recv):
         match int(recv.get("retCode")):
@@ -42,7 +56,7 @@ class BybitClient(Client):
                 return (False, "Rate limits exceeded!")
             
             case 10016:
-                return (False, "Bybit server error...")
+                return (True, "Bybit server error...")
             
             case 110001:
                 return (False, "Order doesn't exist anymore!")

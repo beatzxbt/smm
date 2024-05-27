@@ -78,7 +78,7 @@ class Client(ABC):
         """
         self.logging = logging
 
-    def update_timestamp(self) -> str:
+    def update_timestamp(self) -> int:
         """
         Updates and returns the current timestamp.
 
@@ -86,10 +86,10 @@ class Client(ABC):
 
         Returns
         -------
-        str
-            The updated timestamp as a string.
+        int
+            The updated timestamp.
         """
-        self.timestamp = str(time_ms())
+        self.timestamp = time_ms()
         return self.timestamp
     
     async def response_code_checker(self, code: int) -> bool:
@@ -127,14 +127,17 @@ class Client(ABC):
                 raise Exception(f"Unknown status code :: {code}")
         
     @abstractmethod
-    def sign_payload(self, payload: Dict) -> Dict[str, Any]:
+    def sign_headers(self, method: str, header: Dict) -> Dict[str, Any]:
         """
-        Sign & encrypt the payload inline the appropriate exchange's needs.
+        Sign & encrypt the header inline the appropriate exchange's needs.
 
         Parameters
         ----------
-        payload : Dict
-            The payload to be signed.
+        method : str
+            The header to be signed.
+
+        header : Dict
+            The header to be signed.
 
         Returns
         -------
@@ -168,9 +171,9 @@ class Client(ABC):
         self,
         url: str,
         method: Literal["GET", "PUT", "POST", "DELETE"],
-        headers: Dict[str, str]=None,
+        headers: Union[Dict[str, str], str]=None,
         params: Dict[str, str]=None,
-        payload: Dict[str, Any]=None,
+        data: Dict[str, Any]=None,
         signed: bool=False
     ) -> Union[Dict, Exception]:
         """
@@ -189,47 +192,56 @@ class Client(ABC):
         method : Literal["GET", "PUT", "POST", "DELETE"]
             The HTTP method to use for the request (e.g., 'GET', 'PUT', 'POST', 'DELETE').
         
-        headers : Dict[str, str], optional
+        headers : Union[Dict[str, Any], str], optional
             The headers to include in the request. Default is None.
         
-        params : Dict[str, str], optional
+        params : Dict[str, Any], optional
             The query parameters to include in the request. Default is None.
         
-        payload : Dict[str, Any], optional
-            The payload to include in the request. Default is None.
+        data : Dict[str, Any], optional
+            The data to include in the request. Default is None.
         
         signed : bool, optional
-            Whether the payload is pre-signed or not. Default is False.
+            Whether the header is pre-signed or not. Default is False.
 
         Returns
         -------
-        Union[Dict, Exception]
-            The API response as a dictionary if successful, or raises an exception if all retries fail.
+        Dict
+            The API response as a dictionary if successful.
+
+        Raises
+        ------
+        Raises an exception if all retries fail.
         """
         for attempt in range(1, self.max_retries + 1):
             try:
-                if payload and not signed:
-                    payload = self.sign_payload(payload)
-                        
+                if headers and not signed:
+                    headers = self.sign_headers(method, headers)
+                
+                # print(f"\n{method} :: {url}\n{headers}\n{orjson.dumps(data).decode() if data else ''} ")
+
                 response = await self.session.request(
                     url=url,
                     method=method,
-                    headers=headers.update(self.default_headers) if headers else self.default_headers,
-                    params=params if params else {},
-                    data=orjson.dumps(payload).decode() if payload else {}
+                    headers=headers if headers else None,
+                    params=params if params else None,
+                    data=orjson.dumps(data).decode() if data else None
                 )
 
-                # Return code is 200 (OK)
+                # Successful usually within: 200 <= Code <= 299
                 if await self.response_code_checker(response.status_code):
                     response_json = orjson.loads(await response.content())
 
                     if isinstance(response_json, Dict):
                         retry, msg = self.error_handler(response_json)
 
-                        if retry:
+                        if retry and msg:
                             await self.logging.warning(f"Retry attempt {attempt} due to: {msg}")
-                            await asyncio.sleep(attempt)  # Exponential backoff
+                            await asyncio.sleep(attempt/10)  # Exponential backoff
                             continue
+
+                        elif msg:
+                            await self.logging.warning(f"Failed to send request: {msg}")
 
                     return response_json
                     
@@ -244,3 +256,17 @@ class Client(ABC):
                     raise e
                 
                 await asyncio.sleep(attempt)
+
+    async def shutdown(self) -> None:
+        """
+        Close the client's HTTP session, if existing.
+
+        Returns
+        -------
+        None
+        """
+        if self.session:
+            await self.logging.warning("Shutting down client...")
+            await self.session.connector.cleanup()
+            await self.session.__aexit__(None, None, None)
+            del self.session
