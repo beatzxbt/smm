@@ -229,6 +229,8 @@ class WebsocketStream(ABC):
         stream_str = "Private" if private else "Public"
 
         try:
+            await self.logging.info(f"Attempting to start {stream_str} ws stream...")
+
             async with session.ws_connect(url) as ws: 
                 for payload in on_connect:
                     await self.send(ws, stream_str, payload)
@@ -238,7 +240,7 @@ class WebsocketStream(ABC):
                         await handler_map(orjson.loads(msg.data))
 
                     elif msg.type in self._failure_:
-                        await self.logging.warning(f"{stream_str} ws closed/error occurred, reconnecting...")
+                        await self.logging.warning(f"{stream_str} ws closed or error occurred, reconnecting...")
 
                     else:
                         raise Exception(f"Unknown websocket aioHTTP message type: {msg.type}")
@@ -343,6 +345,13 @@ class WebsocketStream(ABC):
         on_connect = [] if on_connect is None else on_connect
         await self._manage_connections_(url, handler_map, on_connect, private=True)
 
+    @abstractmethod
+    async def start(self) -> None:
+        """
+        Starts all necessary asynchronous tasks for Websocket stream management and data refreshing.
+        """
+        pass
+    
     async def shutdown(self) -> None:
         """
         Shuts down the WebSocket connections by closing the aiohttp sessions.
