@@ -36,19 +36,19 @@ class FeatureEngine:
         )
 
     def trades_imbalance(self) -> float:
-        return trades_imbalance(trades=self.ss.data["trades"], window=100)
+        return trades_imbalance(trades=self.ss.data["trades"]._unwrap(), window=100)
 
     def trades_differences(self) -> float:
-        return trades_diffs(trades=self.ss.data["trades"], lookback=100)
+        return trades_diffs(trades=self.ss.data["trades"]._unwrap(), lookback=100)
 
     def generate_skew(self) -> float:
         skew = 0.0
-        skew += self.wmid_imbalance() * self.weights["wmid"]
-        skew += self.vamp_imbalance(depth=25000) * self.weights["tight_vamp"]
-        skew += self.vamp_imbalance(depth=75000) * self.weights["mid_vamp"]
-        skew += self.vamp_imbalance(depth=200000) * self.weights["deep_vamp"]
-        skew += self.orderbook_imbalance() * self.weights["book_imb"]
-        skew += self.trades_imbalance() * self.weights["trades_imb"]
+        skew += self.wmid_imbalance() * self.fair_price_pred["wmid"]
+        skew += self.vamp_imbalance(depth=25000) * self.fair_price_pred["tight_vamp"]
+        skew += self.vamp_imbalance(depth=75000) * self.fair_price_pred["mid_vamp"]
+        skew += self.vamp_imbalance(depth=200000) * self.fair_price_pred["deep_vamp"]
+        skew += self.orderbook_imbalance() * self.fair_price_pred["book_imb"]
+        skew += self.trades_imbalance() * self.fair_price_pred["trades_imb"]
         return skew
 
     def generate_vol(self) -> float:
