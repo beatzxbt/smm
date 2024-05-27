@@ -22,7 +22,7 @@ class PositionHandler(ABC):
         self.format = {
             "price": 0.0,
             "size": 0.0,
-            "uPnL": 0.0
+            "uPnl": 0.0
         }
     
     @abstractmethod
