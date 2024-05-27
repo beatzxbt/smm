@@ -62,7 +62,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
                 )
             )
 
-    def position_executor(self, max_duration: float=10.0) -> List[Union[Dict, None]]:
+    def position_executor(self, max_duration: float=5.0) -> List[Union[Dict, None]]:
         """
         Purge a position if its duration exceeds a value.
 
@@ -88,7 +88,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
         """
         order = []
 
-        if self.data["position"]["size"] != 0.0:
+        if self.data["position"].get(["size"], 0.0) != 0.0:
             if not self.local_position:
                 self.local_position.update(self.data["position"])
                 self.local_position_time = time_ms()
@@ -109,5 +109,5 @@ class StinkyQuoteGenerator(QuoteGenerator):
             
         return order
 
-    def generate_quotes(self, fp_skew: float, vol: float) -> List[Dict]:
+    def generate_orders(self, fp_skew: float, vol: float) -> List[Dict]:
         return self.position_executor() + self.generate_stinky_orders()
