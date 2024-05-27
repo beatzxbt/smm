@@ -31,7 +31,7 @@ class PlainQuoteGenerator(QuoteGenerator):
         float
             The corrected skew value.
         """
-        corrective_amount = self.inventory_delta**2.0
+        corrective_amount = self.inventory_delta**0.5
         skew += corrective_amount if self.inventory_delta < 0.0 else -corrective_amount
         return skew
 
@@ -135,13 +135,13 @@ class PlainQuoteGenerator(QuoteGenerator):
 
         bid_prices = nbgeomspace(
             start=best_bid_price,
-            end=best_bid_price - (spread**1.5),
+            end=best_bid_price - (spread * 5),
             n=self.total_orders // 2,
         )
 
         ask_prices = nbgeomspace(
             start=best_ask_price,
-            end=best_ask_price + (spread**1.5),
+            end=best_ask_price + (spread * 5),
             n=self.total_orders // 2,
         )
 
@@ -212,7 +212,7 @@ class PlainQuoteGenerator(QuoteGenerator):
 
         return self.prepare_orders(bid_prices, bid_sizes, ask_prices, ask_sizes)
 
-    def generate_quotes(self, skew: float, spread: float) -> List:
+    def generate_orders(self, skew: float, spread: float) -> List:
         if skew > 0.0:
             return self.generate_positive_skew_quotes(skew, spread)
         elif skew <= 0.0:
