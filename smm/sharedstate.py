@@ -14,16 +14,22 @@ class SmmSharedState(SharedState):
         return os.path.dirname(os.path.realpath(__file__)) + "/parameters.yaml"
 
     def process_parameters(self, settings: Dict, reload: bool) -> None:
-        self.parameters: Dict = settings["parameters"]
+        try:
+            if not reload:
+                self.symbol: str = settings["symbol"]
+                self.quote_generator: str = settings["quote_generator"]
+                self.load_exchange(settings["exchange"])
 
-        if not reload:
-            self.symbol: str = settings["symbol"]
-            self.quote_generator: str = settings["quote_generator"]
-            self.load_exchange(settings["exchange"])
+            self.parameters: Dict = settings["parameters"][self.quote_generator]
 
-        if self.required_keys <= self.parameters.keys():
-            for key in self.required_keys:
-                if key in self.parameters:
-                    continue
+            if self.required_keys > self.parameters.keys():
+                for key in self.required_keys:
+                    if key in self.parameters:
+                        continue
 
-                self.logging.error(f"Missing {key} in params, this is required!")
+                    raise Exception(
+                        f"Missing '{key}' in {self.quote_generator}'s parameters!"
+                    )
+                
+        except Exception as e:
+            raise e
