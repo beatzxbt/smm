@@ -1,5 +1,6 @@
 from frameworks.exchange.base.types import StrNumConverter
 
+
 class BybitSideConverter(StrNumConverter):
     str_to_num = {"Buy": 0.0, "Sell": 1.0}
     num_to_str = {v: k for k, v in str_to_num.items()}

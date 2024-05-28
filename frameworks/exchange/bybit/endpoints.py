@@ -1,5 +1,6 @@
 from frameworks.exchange.base.endpoints import Endpoints
 
+
 class BybitEndpoints(Endpoints):
     def __init__(self) -> None:
         super().__init__()
@@ -7,7 +8,7 @@ class BybitEndpoints(Endpoints):
         self.load_base(
             main="https://api.bybit.com",
             public_ws="wss://stream.bybit.com/v5/public/linear",
-            private_ws="wss://stream.bybit.com/v5/private"
+            private_ws="wss://stream.bybit.com/v5/private",
         )
 
         self.load_required(
@@ -20,12 +21,12 @@ class BybitEndpoints(Endpoints):
             getTicker={"method": "GET", "url": "/v5/market/tickers"},
             getOhlcv={"method": "GET", "url": "/v5/market/kline"},
             getOpenOrders={"method": "GET", "url": "/v5/order/realtime"},
-            getPosition={"method": "GET", "url": "/v5/position/list"}
+            getPosition={"method": "GET", "url": "/v5/position/list"},
         )
 
         self.load_additional(
             ping={"method": "GET", "url": "/v5/market/time"},
             getInstrumentInfo={"method": "GET", "url": "/v5/market/instruments-info"},
             getAccountInfo={"method": "GET", "url": "/v5/account/wallet-balance"},
-            setLeverage={"method": "POST", "url": "/v5/position/set-leverage"}
+            setLeverage={"method": "POST", "url": "/v5/position/set-leverage"},
         )

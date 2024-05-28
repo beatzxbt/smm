@@ -3,6 +3,7 @@ from typing import List, Dict
 from frameworks.exchange.base.ws_handlers.orders import OrdersHandler
 from frameworks.exchange.bybit.types import BybitOrderTypeConverter, BybitSideConverter
 
+
 class BybitOrdersHandler(OrdersHandler):
     _overwrite_ = set(("Created", "New", "PartiallyFilled"))
     _remove_ = set(("Rejected", "Filled", "Cancelled"))
@@ -11,7 +12,7 @@ class BybitOrdersHandler(OrdersHandler):
         self.data = data
         self.symbol = symbol
         super().__init__(self.data["orders"])
-    
+
     def refresh(self, recv: Dict) -> None:
         try:
             for order in recv["list"]:
@@ -37,7 +38,9 @@ class BybitOrdersHandler(OrdersHandler):
                     self.format["createTime"] = float(order["createdTime"])
                     self.format["side"] = BybitSideConverter.to_num(order["side"])
                     self.format["price"] = float(order["price"])
-                    self.format["size"] = float(order["qty"]) - float(order["leavesQty"])
+                    self.format["size"] = float(order["qty"]) - float(
+                        order["leavesQty"]
+                    )
                     self.orders[order["orderId"]] = self.format.copy()
 
                 elif order["orderStatus"] in self._remove_:

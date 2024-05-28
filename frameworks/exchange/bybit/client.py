@@ -37,7 +37,7 @@ class BybitClient(Client):
         hash_signature = hmac.new(
             key=self.api_secret.encode(),
             msg=param_str.encode(),
-            digestmod=hashlib.sha256
+            digestmod=hashlib.sha256,
         )
 
         self.headers_template["X-BAPI-TIMESTAMP"] = str(self.timestamp)
@@ -48,21 +48,21 @@ class BybitClient(Client):
         match int(recv.get("retCode")):
             case 0 | 200:
                 return (False, "")
-            
+
             case 10001:
                 return (False, "Illegal category")
-            
+
             case 10006:
                 return (False, "Rate limits exceeded!")
-            
+
             case 10016:
                 return (True, "Bybit server error...")
-            
+
             case 110001:
                 return (False, "Order doesn't exist anymore!")
-            
+
             case 110012:
                 return (False, "Insufficient available balance")
-            
+
             case _:
                 return (False, "Unknown error code...")

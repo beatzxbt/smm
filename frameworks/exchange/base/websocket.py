@@ -56,7 +56,7 @@ class WebsocketStream(ABC):
         pass
 
     @abstractmethod
-    async def refresh_orderbook_data(self, timer: int=600) -> None:
+    async def refresh_orderbook_data(self, timer: int = 600) -> None:
         """
         Periodically fetches and updates the order book data at a set interval.
 
@@ -68,7 +68,7 @@ class WebsocketStream(ABC):
         pass
 
     @abstractmethod
-    async def refresh_trades_data(self, timer: int=600) -> None:
+    async def refresh_trades_data(self, timer: int = 600) -> None:
         """
         Periodically fetches and updates trade data at a set interval.
 
@@ -80,7 +80,7 @@ class WebsocketStream(ABC):
         pass
 
     @abstractmethod
-    async def refresh_ohlcv_data(self, timer: int=600) -> None:
+    async def refresh_ohlcv_data(self, timer: int = 600) -> None:
         """
         Periodically fetches and updates OHLCV data at a set interval.
 
@@ -90,9 +90,9 @@ class WebsocketStream(ABC):
             The time interval in seconds between data refreshes, default is 600 seconds.
         """
         pass
-    
+
     @abstractmethod
-    async def refresh_ticker_data(self, timer: int=600) -> None:
+    async def refresh_ticker_data(self, timer: int = 600) -> None:
         """
         Periodically fetches and updates ticker data at a set interval.
 
@@ -102,7 +102,7 @@ class WebsocketStream(ABC):
             The time interval in seconds between data refreshes, default is 600 seconds.
         """
         pass
-    
+
     @abstractmethod
     def public_stream_sub(self) -> Tuple[str, List[Dict]]:
         """
@@ -114,7 +114,7 @@ class WebsocketStream(ABC):
             A tuple containing the WebSocket URL and the formatted subscription request list.
         """
         pass
-    
+
     @abstractmethod
     async def public_stream_handler(self, recv: Dict) -> None:
         """
@@ -187,7 +187,9 @@ class WebsocketStream(ABC):
         try:
             await ws.send_json(payload)
         except Exception as e:
-            await self.logging.error(f"Failed to submit {stream_str.lower()} ws payload: {payload}")
+            await self.logging.error(
+                f"Failed to submit {stream_str.lower()} ws payload: {payload}"
+            )
             raise e
 
     async def _single_conn_(
@@ -231,7 +233,7 @@ class WebsocketStream(ABC):
         try:
             await self.logging.info(f"Attempting to start {stream_str} ws stream...")
 
-            async with session.ws_connect(url) as ws: 
+            async with session.ws_connect(url) as ws:
                 for payload in on_connect:
                     await self.send(ws, stream_str, payload)
 
@@ -240,10 +242,14 @@ class WebsocketStream(ABC):
                         await handler_map(orjson.loads(msg.data))
 
                     elif msg.type in self._failure_:
-                        await self.logging.warning(f"{stream_str} ws closed or error occurred, reconnecting...")
+                        await self.logging.warning(
+                            f"{stream_str} ws closed or error occurred, reconnecting..."
+                        )
 
                     else:
-                        raise Exception(f"Unknown websocket aioHTTP message type: {msg.type}")
+                        raise Exception(
+                            f"Unknown websocket aioHTTP message type: {msg.type}"
+                        )
 
         except asyncio.CancelledError:
             return False
@@ -252,7 +258,9 @@ class WebsocketStream(ABC):
             await self.logging.error(f"Issue with {stream_str.lower()} occured: {e}")
             return True
 
-    async def _create_reconnect_task_(self, url: str, handler_map: Callable, on_connect: List[Dict], private: bool) -> None:
+    async def _create_reconnect_task_(
+        self, url: str, handler_map: Callable, on_connect: List[Dict], private: bool
+    ) -> None:
         """
         Creates a task to manage reconnections.
 
@@ -274,10 +282,12 @@ class WebsocketStream(ABC):
         while True:
             reconnect = await self._single_conn_(url, handler_map, on_connect, private)
             if not reconnect:
-                break 
+                break
             await asyncio.sleep(1)
 
-    async def _manage_connections_(self, url: str, handler_map: Callable, on_connect: List[Dict], private: bool) -> None:
+    async def _manage_connections_(
+        self, url: str, handler_map: Callable, on_connect: List[Dict], private: bool
+    ) -> None:
         """
         Manages multiple WebSocket connections.
 
@@ -296,14 +306,14 @@ class WebsocketStream(ABC):
             Flag to indicate if the connection is private.
 
         """
-        tasks = [self._create_reconnect_task_(url, handler_map, on_connect, private) for _ in range(self._conns_)]
+        tasks = [
+            self._create_reconnect_task_(url, handler_map, on_connect, private)
+            for _ in range(self._conns_)
+        ]
         await asyncio.gather(*tasks)
 
     async def start_public_ws(
-        self,
-        url: str,
-        handler_map: Callable,
-        on_connect: Optional[List[Dict]]=None
+        self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]] = None
     ) -> None:
         """
         Starts the public WebSocket connection.
@@ -323,10 +333,7 @@ class WebsocketStream(ABC):
         await self._manage_connections_(url, handler_map, on_connect, private=False)
 
     async def start_private_ws(
-        self,
-        url: str,
-        handler_map: Callable,
-        on_connect: Optional[List[Dict]]=[]
+        self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]] = []
     ) -> None:
         """
         Starts the private WebSocket connection.
@@ -351,7 +358,7 @@ class WebsocketStream(ABC):
         Starts all necessary asynchronous tasks for Websocket stream management and data refreshing.
         """
         pass
-    
+
     async def shutdown(self) -> None:
         """
         Shuts down the WebSocket connections by closing the aiohttp sessions.

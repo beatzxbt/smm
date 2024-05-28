@@ -8,14 +8,15 @@ spec = [
     ("size", int64),
     ("asks", float64[:, :]),
     ("bids", float64[:, :]),
-    ("bba", float64[:, :])
+    ("bba", float64[:, :]),
 ]
+
 
 @jitclass(spec)
 class Orderbook:
     """
-    An orderbook class, maintaining separate arrays for bid and 
-    ask orders with functionality to initialize, update, and sort 
+    An orderbook class, maintaining separate arrays for bid and
+    ask orders with functionality to initialize, update, and sort
     the orders.
 
     Attributes
@@ -32,6 +33,7 @@ class Orderbook:
     bba : Array
         Array to store best bid and ask, each with price and quantity.
     """
+
     def __init__(self, size: int) -> None:
         """
         Constructs all the necessary attributes for the orderbook object.
@@ -50,16 +52,16 @@ class Orderbook:
         """
         Sorts the bid orders in descending order of price and updates the best bid.
         """
-        self.bids = self.bids[self.bids[:, 0].argsort()][::-1][:self.size]
+        self.bids = self.bids[self.bids[:, 0].argsort()][::-1][: self.size]
         self.bba[0, :] = self.bids[0]
 
     def sort_asks(self) -> None:
         """
         Sorts the ask orders in ascending order of price and updates the best ask.
         """
-        self.asks = self.asks[self.asks[:, 0].argsort()][:self.size]
-        self.bba[1, :] = self.asks[0]        
-    
+        self.asks = self.asks[self.asks[:, 0].argsort()][: self.size]
+        self.bba[1, :] = self.asks[0]
+
     def refresh(self, asks: Array, bids: Array) -> None:
         """
         Refreshes the order book with given *complete* ask and bid data and sorts the book.
@@ -77,15 +79,15 @@ class Orderbook:
         self.bids = np.zeros_like(self.bids)
         self.bba = np.zeros_like(self.bba)
 
-        self.asks[:, :] = asks[:min(asks.shape[0], self.size), :]
-        self.bids[:, :] = bids[:min(bids.shape[0], self.size), :]
+        self.asks[:, :] = asks[: min(asks.shape[0], self.size), :]
+        self.bids[:, :] = bids[: min(bids.shape[0], self.size), :]
         self.sort_bids()
         self.sort_asks()
 
     def update_bids(self, bids: Array) -> None:
         """
-        Updates the current bids with new data. Removes entries with matching 
-        prices in update, regardless of size, and then adds non-zero quantity 
+        Updates the current bids with new data. Removes entries with matching
+        prices in update, regardless of size, and then adds non-zero quantity
         data from update to the book.
 
         Parameters
@@ -95,15 +97,15 @@ class Orderbook:
         """
         if bids.size == 0:
             return None
-        
+
         self.bids = self.bids[~nbisin(self.bids[:, 0], bids[:, 0])]
         self.bids = np.vstack((self.bids, bids[bids[:, 1] != 0]))
         self.sort_bids()
 
     def update_asks(self, asks: Array) -> None:
         """
-        Updates the current asks with new data. Removes entries with matching 
-        prices in update, regardless of size, and then adds non-zero quantity 
+        Updates the current asks with new data. Removes entries with matching
+        prices in update, regardless of size, and then adds non-zero quantity
         data from update to the book.
 
         Parameters
@@ -113,7 +115,7 @@ class Orderbook:
         """
         if asks.size == 0:
             return None
-        
+
         self.asks = self.asks[~nbisin(self.asks[:, 0], asks[:, 0])]
         self.asks = np.vstack((self.asks, asks[asks[:, 1] != 0]))
         self.sort_asks()
@@ -142,11 +144,11 @@ class Orderbook:
         float
             The mid price, which is the average of the best bid and best ask prices.
         """
-        return (self.bba[0, 0] + self.bba[1, 0])/2
+        return (self.bba[0, 0] + self.bba[1, 0]) / 2
 
     def get_wmid(self) -> float:
         """
-        Calculates the weighted mid price of the order book, considering the volume imbalance 
+        Calculates the weighted mid price of the order book, considering the volume imbalance
         between the best bid and best ask.
 
         Returns
@@ -156,7 +158,7 @@ class Orderbook:
         """
         imb = self.bba[0, 1] / (self.bba[0, 1] + self.bba[1, 1])
         return self.bba[0, 0] * imb + self.bba[1, 0] * (1 - imb)
-    
+
     def get_vamp(self, depth: float) -> float:
         """
         Calculates the volume-weighted average market price (VAMP) up to a specified depth for both bids and asks.
@@ -175,7 +177,7 @@ class Orderbook:
         ask_size_weighted_sum = 0.0
         bid_cum_size = 0.0
         ask_cum_size = 0.0
-        
+
         # Calculate size-weighted sum for bids
         for price, size in self.bids:
             if bid_cum_size + size > depth:
@@ -186,10 +188,10 @@ class Orderbook:
 
             bid_size_weighted_sum += price * size
             bid_cum_size += size
-            
+
             if bid_cum_size >= depth:
                 break
-        
+
         # Calculate size-weighted sum for asks
         for price, size in self.asks:
             if ask_cum_size + size > depth:
@@ -208,9 +210,9 @@ class Orderbook:
 
         if total_size == 0:
             return 0.0
-        
+
         return (bid_size_weighted_sum + ask_size_weighted_sum) / total_size
-    
+
     def get_spread(self) -> float:
         """
         Calculates the current spread of the order book.
@@ -221,7 +223,7 @@ class Orderbook:
             The spread, defined as the difference between the best ask and the best bid prices.
         """
         return self.bba[1, 0] - self.bba[0, 0]
-    
+
     def get_slippage(self, book: Array, size: float) -> float:
         """
         Calculates the slippage cost for a hypothetical order of a given size, based on either the bid or ask side of the book.
@@ -250,5 +252,5 @@ class Orderbook:
             if cum_size >= size:
                 slippage /= cum_size
                 break
-        
+
         return slippage if slippage <= mid else mid

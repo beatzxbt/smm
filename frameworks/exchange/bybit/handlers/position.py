@@ -2,12 +2,13 @@ from typing import List, Dict
 
 from frameworks.exchange.base.ws_handlers.position import PositionHandler
 
+
 class BybitPositionHandler(PositionHandler):
     def __init__(self, data: Dict, symbol: str) -> None:
         self.data = data
         self.symbol = symbol
         super().__init__(self.data["position"])
-    
+
     def refresh(self, recv: Dict) -> None:
         try:
             for position in recv["list"]:

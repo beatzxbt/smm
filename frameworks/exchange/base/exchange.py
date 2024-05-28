@@ -1,3 +1,4 @@
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Union
 
@@ -60,7 +61,7 @@ class Exchange(ABC):
         -> Shuts down the client session and any other internal tasks.
         """
         pass
-    
+
     @abstractmethod
     async def create_order(
         self,
@@ -68,8 +69,8 @@ class Exchange(ABC):
         side: int,
         orderType: int,
         size: float,
-        price: Optional[float]=None,
-        orderId: Optional[Union[str, int]]=None
+        price: Optional[float] = None,
+        orderId: Optional[Union[str, int]] = None,
     ) -> Dict:
         """
         Abstract method to create an order.
@@ -94,14 +95,14 @@ class Exchange(ABC):
         orderId : str or int, optional
             The ID of the order.
 
-            
+
         Returns
         -------
         Dict
             The response from the exchange.
         """
         pass
-    
+
     @abstractmethod
     async def amend_order(
         self,
@@ -140,11 +141,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(
-        self, 
-        symbol: str,
-        orderId: Union[str, int]
-    ) -> Dict:
+    async def cancel_order(self, symbol: str, orderId: Union[str, int]) -> Dict:
         """
         Abstract method to cancel an existing order.
 
@@ -164,10 +161,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def cancel_all_orders(
-        self, 
-        symbol: str
-    ) -> Dict:
+    async def cancel_all_orders(self, symbol: str) -> Dict:
         """
         Abstract method to cancel all existing orders for a symbol.
 
@@ -184,11 +178,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def get_ohlcv(
-        self, 
-        symbol: str, 
-        interval: Union[int, str]
-    ) -> Dict:
+    async def get_ohlcv(self, symbol: str, interval: Union[int, str]) -> Dict:
         """
         Abstract method to get OHLCV (Open, High, Low, Close, Volume) data.
 
@@ -208,10 +198,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def get_trades(
-        self, 
-        symbol: str
-    ) -> Dict:
+    async def get_trades(self, symbol: str) -> Dict:
         """
         Abstract method to get recent trades.
 
@@ -228,10 +215,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def get_orderbook(
-        self, 
-        symbol: str
-    ) -> Dict:
+    async def get_orderbook(self, symbol: str) -> Dict:
         """
         Abstract method to get an orderbook snapshot.
 
@@ -248,10 +232,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def get_ticker(
-        self, 
-        symbol: str
-    ) -> Dict:
+    async def get_ticker(self, symbol: str) -> Dict:
         """
         Abstract method to get ticker data.
 
@@ -268,10 +249,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def get_open_orders(
-        self, 
-        symbol: str
-    ) -> Dict:
+    async def get_open_orders(self, symbol: str) -> Dict:
         """
         Abstract method to get open orders.
 
@@ -288,10 +266,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def get_position(
-        self, 
-        symbol: str
-    ) -> Dict:
+    async def get_position(self, symbol: str) -> Dict:
         """
         Abstract method to get current position data.
 
@@ -306,3 +281,55 @@ class Exchange(ABC):
             The position data from the exchange.
         """
         pass
+
+    async def shutdown(self) -> None:
+        """
+        Initiates the shutdown sequence for the exchange.
+
+        This method performs the following tasks:
+
+        1. Cancels all open orders for the specified symbol by sending multiple asynchronous cancellation requests.
+        2. Creates a new market order to close the current position, if any, for the specified symbol.
+
+        The method handles exceptions as follows:
+
+        - If a KeyError is raised, it logs an informational message indicating that no position was found and skips the order creation step.
+        - If any other exception is raised, it logs an error message with the exception details and re-raises the exception.
+
+        The method ensures that a final log message is written to indicate the completion of the shutdown sequence.
+
+        Raises
+        ------
+        Exception
+            If an unexpected error occurs during the shutdown process.
+        """
+        try:
+            tasks = []
+
+            for _ in range(3):
+                tasks.append(asyncio.create_task(self.cancel_all_orders(self.symbol)))
+
+            for _ in range(1):
+                tasks.append(
+                    asyncio.create_task(
+                        self.create_order(
+                            symbol=self.symbol,
+                            side=0.0 if self.data["position"]["size"] < 0.0 else 1.0,
+                            orderType=1.0,
+                            size=self.data["position"]["size"],
+                            price=0.0,  # NOTE: Ignored for taker orders
+                        )
+                    )
+                )
+
+            await asyncio.gather(*tasks)
+
+        except KeyError as ke:
+            await self.logging.info("No position found, skipping...")
+
+        except Exception as e:
+            await self.logging.error(f"Shutdown sequence: {e}")
+            raise
+
+        finally:
+            await self.logging.info(f"Exchange shutdown sequence complete.")

@@ -5,7 +5,9 @@ from frameworks.exchange.base.types import StrNumConverter
 
 
 class Formats(ABC):
-    def __init__(self, convert_side: StrNumConverter, convert_order_type: StrNumConverter) -> None:
+    def __init__(
+        self, convert_side: StrNumConverter, convert_order_type: StrNumConverter
+    ) -> None:
         self.convert_side = convert_side
         self.convert_order_type = convert_order_type
 
@@ -16,8 +18,8 @@ class Formats(ABC):
         side: Union[int, float],
         orderType: Union[int, float],
         size: float,
-        price: Optional[float]=None,
-        orderId: Optional[Union[str, int]]=None
+        price: Optional[float] = None,
+        orderId: Optional[Union[str, int]] = None,
     ) -> Dict:
         """
         Abstract method to create an order.
@@ -42,14 +44,14 @@ class Formats(ABC):
         orderId : str or int, optional
             The ID of the order.
 
-            
+
         Returns
         -------
         Dict
             The response from the exchange.
         """
         pass
-    
+
     @abstractmethod
     async def amend_order(
         self,
@@ -88,11 +90,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(
-        self, 
-        symbol: str,
-        orderId: Union[str, int]
-    ) -> Dict:
+    async def cancel_order(self, symbol: str, orderId: Union[str, int]) -> Dict:
         """
         Abstract method to cancel an existing order.
 
@@ -112,10 +110,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def cancel_all_orders(
-        self, 
-        symbol: str
-    ) -> Dict:
+    async def cancel_all_orders(self, symbol: str) -> Dict:
         """
         Abstract method to cancel all existing orders for a symbol.
 
@@ -133,9 +128,7 @@ class Formats(ABC):
 
     @abstractmethod
     async def get_ohlcv(
-        self, 
-        symbol: str, 
-        interval: Union[int, str]
+        self, symbol: str, interval: Union[int, str]
     ) -> Union[Dict, str]:
         """
         Abstract method to get OHLCV (Open, High, Low, Close, Volume) data.
@@ -156,10 +149,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_trades(
-        self, 
-        symbol: str
-    ) -> Union[Dict, str]:
+    async def get_trades(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get recent trades.
 
@@ -176,10 +166,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_orderbook(
-        self, 
-        symbol: str
-    ) -> Union[Dict, str]:
+    async def get_orderbook(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get an orderbook snapshot.
 
@@ -196,10 +183,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_ticker(
-        self, 
-        symbol: str
-    ) -> Union[Dict, str]:
+    async def get_ticker(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get ticker data.
 
@@ -216,10 +200,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_open_orders(
-        self, 
-        symbol: str
-    ) -> Union[Dict, str]:
+    async def get_open_orders(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get open orders.
 
@@ -236,10 +217,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_position(
-        self, 
-        symbol: str
-    ) -> Union[Dict, str]:
+    async def get_position(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get current position data.
 

@@ -5,12 +5,13 @@ class StrNumConverter:
     This class provides methods to convert a numerical value to its string representation
     and vice versa. If the value or name is not found, it returns default unknown values.
     """
+
     DEFAULT_UNKNOWN_STR = "UNKNOWN"
     DEFAULT_UNKNOWN_NUM = -1.0
 
     num_to_str = {}
     str_to_num = {}
-    
+
     @classmethod
     def to_str(cls, value: float) -> str:
         """

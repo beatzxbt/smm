@@ -11,8 +11,8 @@ class Client(ABC):
     """
     Client is an abstract base class for interfacing with various APIs.
 
-    This class provides a template for API clients, handling common functionality 
-    such as session management, payload signing, error handling, and request sending 
+    This class provides a template for API clients, handling common functionality
+    such as session management, payload signing, error handling, and request sending
     with retry logic.
     """
 
@@ -63,9 +63,7 @@ class Client(ABC):
         self.session = aiosonic.HTTPClient()
         self.timestamp = str(time_ms())
 
-        self.default_headers = {
-            "Accept": "application/json"
-        }
+        self.default_headers = {"Accept": "application/json"}
 
     def load_required_refs(self, logging: Logger) -> None:
         """
@@ -91,7 +89,7 @@ class Client(ABC):
         """
         self.timestamp = time_ms()
         return self.timestamp
-    
+
     async def response_code_checker(self, code: int) -> bool:
         """
         Check the status code and raise exceptions for errors.
@@ -118,14 +116,14 @@ class Client(ABC):
         match code:
             case code if 200 <= code <= 299:
                 return True
-            
+
             case code if code in self.http_exceptions:
                 reason = self.http_exceptions[code]
                 raise Exception(f"Known status code :: {code} | {reason}")
-            
+
             case _:
                 raise Exception(f"Unknown status code :: {code}")
-        
+
     @abstractmethod
     def sign_headers(self, method: str, header: Dict) -> Dict[str, Any]:
         """
@@ -145,14 +143,14 @@ class Client(ABC):
             The updated dictionary with the required signed/encrypted data.
         """
         pass
-    
+
     @abstractmethod
     def error_handler(self, recv: Dict[str, Any]) -> Tuple[bool, str]:
         """
         Handle errors received from the API response.
 
         This method interprets the error codes returned by the API and provides a standardized
-        way to determine the appropriate action to take. It uses pattern matching or a similar 
+        way to determine the appropriate action to take. It uses pattern matching or a similar
         mechanism to map error codes to human-readable messages and retry logic.
 
         Parameters
@@ -166,41 +164,41 @@ class Client(ABC):
             A tuple indicating whether to retry (True or False) and the error message.
         """
         pass
-    
+
     async def request(
         self,
         url: str,
         method: Literal["GET", "PUT", "POST", "DELETE"],
-        headers: Union[Dict[str, str], str]=None,
-        params: Dict[str, str]=None,
-        data: Dict[str, Any]=None,
-        signed: bool=False
+        headers: Union[Dict[str, str], str] = None,
+        params: Dict[str, str] = None,
+        data: Dict[str, Any] = None,
+        signed: bool = False,
     ) -> Union[Dict, Exception]:
         """
         Sends an API request with retry logic.
 
         This method sends an HTTP request to the specified URL using the given method.
         It handles optional headers, parameters, and payloads, and includes support for
-        payload signing. The method includes retry logic with exponential backoff in case 
+        payload signing. The method includes retry logic with exponential backoff in case
         of errors.
 
         Parameters
         ----------
         url : str
             The API URL to send the request to.
-        
+
         method : Literal["GET", "PUT", "POST", "DELETE"]
             The HTTP method to use for the request (e.g., 'GET', 'PUT', 'POST', 'DELETE').
-        
+
         headers : Union[Dict[str, Any], str], optional
             The headers to include in the request. Default is None.
-        
+
         params : Dict[str, Any], optional
             The query parameters to include in the request. Default is None.
-        
+
         data : Dict[str, Any], optional
             The data to include in the request. Default is None.
-        
+
         signed : bool, optional
             Whether the header is pre-signed or not. Default is False.
 
@@ -217,7 +215,7 @@ class Client(ABC):
             try:
                 if headers and not signed:
                     headers = self.sign_headers(method, headers)
-                
+
                 # print(f"\n{method} :: {url}\n{headers}\n{orjson.dumps(data).decode() if data else ''} ")
 
                 response = await self.session.request(
@@ -225,7 +223,7 @@ class Client(ABC):
                     method=method,
                     headers=headers if headers else None,
                     params=params if params else None,
-                    data=orjson.dumps(data).decode() if data else None
+                    data=orjson.dumps(data).decode() if data else None,
                 )
 
                 # Successful usually within: 200 <= Code <= 299
@@ -236,15 +234,17 @@ class Client(ABC):
                         retry, msg = self.error_handler(response_json)
 
                         if retry and msg:
-                            await self.logging.warning(f"Retry attempt {attempt} due to: {msg}")
-                            await asyncio.sleep(attempt/10)  # Exponential backoff
+                            await self.logging.warning(
+                                f"Retry attempt {attempt} due to: {msg}"
+                            )
+                            await asyncio.sleep(attempt / 10)  # Exponential backoff
                             continue
 
                         elif msg:
                             await self.logging.warning(f"Failed to send request: {msg}")
 
                     return response_json
-                    
+
             except orjson.JSONDecodeError as e:
                 await self.logging.error(f"JSON decode error: {e}")
                 if attempt >= self.max_retries:
@@ -254,7 +254,7 @@ class Client(ABC):
                 await self.logging.error(f"Client error: {e}")
                 if attempt >= self.max_retries:
                     raise e
-                
+
                 await asyncio.sleep(attempt)
 
     async def shutdown(self) -> None:
