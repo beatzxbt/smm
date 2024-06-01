@@ -3,6 +3,7 @@ import aiosonic
 import asyncio
 from time import time_ns, strftime
 
+
 def time_ms() -> int:
     """
     Get the current time in milliseconds since the epoch.
@@ -13,6 +14,7 @@ def time_ms() -> int:
         The current time in milliseconds.
     """
     return time_ns() // 1_000_000
+
 
 def time_now() -> str:
     """
@@ -25,13 +27,18 @@ def time_now() -> str:
     """
     return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:05d}"
 
+
 class Logger:
     def __init__(
-        self, print_to_console: bool = True, discord_webhook: str = ""
+        self,
+        print_to_console: bool = True,
+        discord_webhook: str = "",
+        debug_mode: bool = False,
     ) -> None:
         self.print_to_console = print_to_console
-
         self.discord_webhook = discord_webhook
+        self.debug_mode = debug_mode
+
         self.send_to_discord = bool(discord_webhook)
         self.discord_client = None
         self.discord_data = {"content": ""}
@@ -69,7 +76,7 @@ class Logger:
             del self.discord_client
 
         if self.tasks:
-            await asyncio.gather(*self.tasks, return_exceptions=True)
+            await asyncio.gather(*self.tasks)
 
     async def _send_to_discord_(self, formatted_msg: str) -> None:
         """
@@ -129,7 +136,8 @@ class Logger:
         await self._message_("INFO", msg)
 
     async def debug(self, msg: str) -> None:
-        await self._message_("DEBUG", msg)
+        if self.debug_mode:
+            await self._message_("DEBUG", msg)
 
     async def warning(self, msg: str) -> None:
         await self._message_("WARNING", msg)
