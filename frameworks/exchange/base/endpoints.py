@@ -181,10 +181,10 @@ class Endpoints(ABC):
         AttributeError
             If the endpoint name does not exist in the endpoints dictionary.
         """
-        if name in self._endpoints_:
+        try:
             return self._endpoints_[name]
-
-        raise AttributeError(f"'Endpoints' object has no attribute '{name}'")
+        except KeyError:
+            raise AttributeError(f"'Endpoints' object has no attribute '{name}'")
 
     def __delattr__(self, name: str):
         """
@@ -200,9 +200,9 @@ class Endpoints(ABC):
         AttributeError
             If the endpoint name does not exist in the endpoints dictionary.
         """
-        if name in self._endpoints_:
+        try:
             del self._endpoints_[name]
-        else:
+        except KeyError:
             raise AttributeError(f"'Endpoints' object has no attribute '{name}'")
 
     def __repr__(self) -> str:
