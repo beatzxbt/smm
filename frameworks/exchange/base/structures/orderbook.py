@@ -2,17 +2,9 @@ import numpy as np
 from numba.types import int64, float64, Array
 from numba.experimental import jitclass
 
-from frameworks.tools.numba import nbisin
+from frameworks.tools.numba import nbisin, nb_float_to_str
 
-spec = [
-    ("size", int64),
-    ("asks", float64[:, :]),
-    ("bids", float64[:, :]),
-    ("bba", float64[:, :]),
-]
-
-
-@jitclass(spec)
+@jitclass
 class Orderbook:
     """
     An orderbook class, maintaining separate arrays for bid and
@@ -33,6 +25,10 @@ class Orderbook:
     bba : Array
         Array to store best bid and ask, each with price and quantity.
     """
+    size: int64
+    asks: float64[:, :]
+    bids: float64[:, :]
+    bba: float64[:, :]
 
     def __init__(self, size: int) -> None:
         """
@@ -48,6 +44,26 @@ class Orderbook:
         self.bids = np.zeros((self.size, 2), dtype=float64)
         self.bba = np.zeros((2, 2), dtype=float64)
 
+    def display(self, levels: int) -> None:
+        """
+        Displays the top X bid/ask levels of the order book.
+        """
+        levels = self.size if self.size < levels else levels
+        first_asks = self.asks[::-1][:levels]
+        first_bids = self.bids[:levels]
+
+        ask_str = "Asks: |" + "\n      |".join([
+            f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
+            for price, size in zip(first_asks[:, 0], first_asks[:, 1])
+        ])
+
+        bid_str = "Bids: |" + "\n      |".join([
+            f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
+            for price, size in zip(first_bids[:, 0], first_bids[:, 1])
+        ])
+
+        return print(f"{ask_str}\n{'-' * 40}\n{bid_str}")
+    
     def sort_bids(self) -> None:
         """
         Sorts the bid orders in descending order of price and updates the best bid.
@@ -79,8 +95,11 @@ class Orderbook:
         self.bids = np.zeros_like(self.bids)
         self.bba = np.zeros_like(self.bba)
 
-        self.asks[:, :] = asks[: min(asks.shape[0], self.size), :]
-        self.bids[:, :] = bids[: min(bids.shape[0], self.size), :]
+        max_asks_idx = min(asks.shape[0], self.size)
+        max_bids_idx = min(bids.shape[0], self.size)
+        
+        self.asks[: max_asks_idx, :] = asks[: max_asks_idx, :]
+        self.bids[: max_bids_idx, :] = bids[: max_bids_idx, :]
         self.sort_bids()
         self.sort_asks()
 
@@ -208,7 +227,7 @@ class Orderbook:
 
         total_size = bid_cum_size + ask_cum_size
 
-        if total_size == 0:
+        if total_size == 0.0:
             return 0.0
 
         return (bid_size_weighted_sum + ask_size_weighted_sum) / total_size
