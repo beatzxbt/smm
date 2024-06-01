@@ -228,13 +228,14 @@ class WebsocketStream(ABC):
             If there is an issue with the WebSocket connection.
         """
         session = self.private if private else self.public
-        stream_str = "Private" if private else "Public"
+        stream_str = "private" if private else "public"
 
         try:
             await self.logging.info(f"Attempting to start {stream_str} ws stream...")
 
             async with session.ws_connect(url) as ws:
                 for payload in on_connect:
+                    await self.logging.debug(f"Sending payload to {stream_str} ws: {payload}")
                     await self.send(ws, stream_str, payload)
 
                 async for msg in ws:
@@ -256,6 +257,7 @@ class WebsocketStream(ABC):
 
         except Exception as e:
             await self.logging.error(f"Issue with {stream_str.lower()} occured: {e}")
+            await self.logging.debug(f"Faulty payload: {e}")
             return True
 
     async def _create_reconnect_task_(
@@ -281,9 +283,10 @@ class WebsocketStream(ABC):
         """
         while True:
             reconnect = await self._single_conn_(url, handler_map, on_connect, private)
+            await self.logging.debug(f"Attempting to reconnect ws task, status :: {reconnect}")
             if not reconnect:
                 break
-            await asyncio.sleep(1)
+            await asyncio.sleep(1.0)
 
     async def _manage_connections_(
         self, url: str, handler_map: Callable, on_connect: List[Dict], private: bool

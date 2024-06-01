@@ -306,10 +306,12 @@ class Exchange(ABC):
         try:
             tasks = []
 
-            for _ in range(3):
+            for attempt in range(3):
+                await self.logging.debug(f"Trying cancel all, attempt {attempt}")
                 tasks.append(asyncio.create_task(self.cancel_all_orders(self.symbol)))
 
-            for _ in range(1):
+            for attempt in range(1):
+                await self.logging.debug(f"Trying delta neutralizer, attempt {attempt}")
                 tasks.append(
                     asyncio.create_task(
                         self.create_order(

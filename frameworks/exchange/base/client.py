@@ -216,7 +216,7 @@ class Client(ABC):
                 if headers and not signed:
                     headers = self.sign_headers(method, headers)
 
-                # print(f"\n{method} :: {url}\n{headers}\n{orjson.dumps(data).decode() if data else ''} ")
+                await self.logging.debug(f"\n{method} :: {url}\n{headers}\n{orjson.dumps(data).decode() if data else ''} ")
 
                 response = await self.session.request(
                     url=url,
@@ -242,6 +242,8 @@ class Client(ABC):
 
                         elif msg:
                             await self.logging.warning(f"Failed to send request: {msg}")
+
+                    await self.logging.debug(f"{response.status_code} :: {response.content()}")
 
                     return response_json
 
