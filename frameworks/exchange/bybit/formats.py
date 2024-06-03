@@ -16,6 +16,7 @@ class BybitFormats(Formats):
         orderType,
         size,
         price,
+        clientOrderId
     ):
         format = {
             **self.base_payload,
@@ -23,6 +24,7 @@ class BybitFormats(Formats):
             "side": self.convert_side.to_str(side),
             "orderType": self.convert_order_type.to_str(orderType),
             "qty": str(size),
+            **({"orderLinkId": clientOrderId} if clientOrderId else {})
         }
 
         # Market order
@@ -36,23 +38,108 @@ class BybitFormats(Formats):
 
         return format
 
+    def batch_create_orders(
+        self,
+        symbol,
+        sides,
+        orderTypes,
+        sizes,
+        prices,
+        clientOrderIds
+    ):
+        orders = []
+
+        for side, orderType, size, price, clientOrderId in zip(sides, orderTypes, sizes, prices, clientOrderIds):
+            order = {
+                "symbol": symbol,
+                "side": self.convert_side.to_str(side),
+                "orderType": self.convert_order_type.to_str(orderType),
+                "qty": str(size),
+                 **({"orderLinkId": clientOrderId} if clientOrderId else {})
+            }
+
+            if orderType == 1:
+                return order
+
+            elif orderType == 0:
+                order["price"] = str(price)
+                order["timeInForce"] = "PostOnly"
+
+            orders.append(order)
+            
+        format = {
+            **self.base_payload,
+            "request": orders
+        }
+
+        return format
+    
     def amend_order(
         self,
+        symbol,
         orderId,
+        clientOrderId,
         side,
         size,
         price,
     ):
         return {
             **self.base_payload,
-            "orderId": orderId,
             "price": str(price),
             "qty": str(size),
+            **({"orderId": orderId} if orderId else {}),
+            **({"orderLinkId": clientOrderId} if clientOrderId else {}),
         }
 
+    def batch_amend_orders(self, symbol, orderIds, clientOrderIds, sides, sizes, prices):
+        if not orderIds:
+            orderIds = [None] * len(clientOrderIds)
+
+        if not clientOrderIds:
+            clientOrderIds = [None] * len(orderIds)
+
+        amend_orders = []
+
+        for orderId, clientOrderId, size, price in zip(orderIds, clientOrderIds, sizes, prices):
+            amend_orders.append({
+                "price": str(price),
+                "qty": str(size)
+                **({"orderId": orderId} if orderId else {}),
+                **({"orderLinkId": clientOrderId} if clientOrderId else {}),
+            })
+
+        format = {
+            **self.base_payload,
+            "request": amend_orders
+        }
+
+        return format
+    
     def cancel_order(self, symbol, orderId):
         return {**self.base_payload, "orderId": orderId}
+    
+    def batch_cancel_orders(self, symbol, orderIds, clientOrderIds):
+        if not orderIds:
+            orderIds = [None] * len(clientOrderIds)
 
+        if not clientOrderIds:
+            clientOrderIds = [None] * len(orderIds)
+
+        cancel_orders = []
+
+        for orderId, clientOrderId in zip(orderIds, clientOrderIds):
+            cancel_orders.append({
+                **({"orderId": orderId} if orderId else {}),
+                **({"orderLinkId": clientOrderId} if clientOrderId else {}),
+            })
+
+        format = {
+            **self.base_payload,
+            "request": cancel_orders
+        }
+
+        return format
+    
     def cancel_all_orders(self, symbol):
         return {**self.base_payload, "symbol": symbol}
 

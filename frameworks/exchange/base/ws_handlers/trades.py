@@ -3,14 +3,16 @@ from numpy_ringbuffer import RingBuffer
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
+
 class TradesHandler(ABC):
     """
     A base class for handling trades data.
 
     This class provides methods for managing trades data,
-    including abstract methods for refreshing and processing 
+    including abstract methods for refreshing and processing
     trades data, which should be implemented by subclasses.
     """
+
     def __init__(self, trades: RingBuffer) -> None:
         """
         Initializes the TradesHandler class with a RingBuffer for trades.
@@ -21,13 +23,8 @@ class TradesHandler(ABC):
             A RingBuffer instance to store trades data.
         """
         self.trades = trades
-        self.format = np.array([
-            0.0,  # Time
-            0.0,  # Side
-            0.0,  # Price
-            0.0   # Size
-        ])
-    
+        self.format = np.array([0.0, 0.0, 0.0, 0.0])  # Time  # Side  # Price  # Size
+
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
         """

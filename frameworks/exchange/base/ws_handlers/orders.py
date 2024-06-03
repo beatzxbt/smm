@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
+
 class OrdersHandler(ABC):
     """
     A base class for handling orders data.
 
     This class provides methods for managing orders data,
-    including abstract methods for refreshing and processing 
+    including abstract methods for refreshing and processing
     orders data, which should be implemented by subclasses.
     """
+
     def __init__(self, orders: Dict) -> None:
         """
         Initializes the OrdersHandler class with an orders dictionary.
@@ -19,13 +21,8 @@ class OrdersHandler(ABC):
             A dictionary to store orders data.
         """
         self.orders = orders
-        self.format = {
-            "createTime": 0.0,
-            "side": 0.0,
-            "price": 0.0,
-            "size": 0.0
-        }
-    
+        self.format = {"createTime": 0.0, "side": 0.0, "price": 0.0, "size": 0.0}
+
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
         """

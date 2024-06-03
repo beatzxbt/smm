@@ -4,6 +4,7 @@ from numba.experimental import jitclass
 
 from frameworks.tools.numba import nbisin, nb_float_to_str
 
+
 @jitclass
 class Orderbook:
     """
@@ -25,6 +26,7 @@ class Orderbook:
     bba : Array
         Array to store best bid and ask, each with price and quantity.
     """
+
     size: int64
     asks: float64[:, :]
     bids: float64[:, :]
@@ -52,18 +54,22 @@ class Orderbook:
         first_asks = self.asks[::-1][:levels]
         first_bids = self.bids[:levels]
 
-        ask_str = "Asks: |" + "\n      |".join([
-            f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
-            for price, size in zip(first_asks[:, 0], first_asks[:, 1])
-        ])
+        ask_str = "Asks: |" + "\n      |".join(
+            [
+                f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
+                for price, size in zip(first_asks[:, 0], first_asks[:, 1])
+            ]
+        )
 
-        bid_str = "Bids: |" + "\n      |".join([
-            f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
-            for price, size in zip(first_bids[:, 0], first_bids[:, 1])
-        ])
+        bid_str = "Bids: |" + "\n      |".join(
+            [
+                f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
+                for price, size in zip(first_bids[:, 0], first_bids[:, 1])
+            ]
+        )
 
         return print(f"{ask_str}\n{'-' * 40}\n{bid_str}")
-    
+
     def sort_bids(self) -> None:
         """
         Sorts the bid orders in descending order of price and updates the best bid.
@@ -97,9 +103,9 @@ class Orderbook:
 
         max_asks_idx = min(asks.shape[0], self.size)
         max_bids_idx = min(bids.shape[0], self.size)
-        
-        self.asks[: max_asks_idx, :] = asks[: max_asks_idx, :]
-        self.bids[: max_bids_idx, :] = bids[: max_bids_idx, :]
+
+        self.asks[:max_asks_idx, :] = asks[:max_asks_idx, :]
+        self.bids[:max_bids_idx, :] = bids[:max_bids_idx, :]
         self.sort_bids()
         self.sort_asks()
 

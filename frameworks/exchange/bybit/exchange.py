@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import List, Dict, Optional
 
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.bybit.endpoints import BybitEndpoints
@@ -22,10 +22,31 @@ class Bybit(Exchange):
         side: float,
         orderType: float,
         size: float,
-        price: Optional[float] = None,
+        price: Optional[float],
+        clientOrderId: Optional[str]
     ) -> Dict:
         endpoint = self.endpoints.createOrder
-        headers = self.formats.create_order(symbol, side, orderType, size, price)
+        headers = self.formats.create_order(symbol, side, orderType, size, price, clientOrderId)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=headers,
+            data=headers,
+            signed=False,
+        )
+    
+    async def batch_create_orders(
+        self,
+        symbol: str,
+        sides: List[float],
+        orderTypes: List[float],
+        sizes: List[float],
+        prices: List[Optional[float]],
+        orderIds: List[Optional[str]],
+        clientOrderIds: List[Optional[str]]
+    ) -> Dict:
+        endpoint = self.endpoints.batchCreateOrders
+        headers = self.formats.batch_create_orders(symbol, sides, orderTypes, sizes, prices, orderIds, clientOrderIds)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
@@ -35,10 +56,10 @@ class Bybit(Exchange):
         )
 
     async def amend_order(
-        self, symbol: str, orderId: int, side: float, size: float, price: float
+        self, symbol: str, orderId: str, clientOrderId: str, side: float, size: float, price: float
     ) -> Dict:
         endpoint = self.endpoints.amendOrder
-        headers = self.formats.amend_order(orderId, size, price)
+        headers = self.formats.amend_order(symbol, orderId, clientOrderId, side, size, price)
         return await self.client.request(
             url=self.base_endpoint.url.url + endpoint.url,
             method=endpoint.method,
@@ -46,10 +67,19 @@ class Bybit(Exchange):
             data=headers,
             signed=False,
         )
-
-    async def cancel_order(self, symbol: str, orderId: str) -> Dict:
-        endpoint = self.endpoints.cancelOrder
-        headers = self.formats.cancel_order(symbol, orderId)
+    
+    async def batch_amend_orders(
+        self,
+        symbol: str,
+        sides: List[float],
+        orderTypes: List[float],
+        sizes: List[float],
+        prices: List[Optional[float]],
+        orderIds: List[Optional[str]],
+        clientOrderIds: List[Optional[str]]
+    ) -> Dict:
+        endpoint = self.endpoints.batchAmendOrders
+        headers = self.formats.batch_amend_orders(symbol, sides, orderTypes, sizes, prices, orderIds, clientOrderIds)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
@@ -58,6 +88,33 @@ class Bybit(Exchange):
             signed=False,
         )
 
+    async def cancel_order(self, symbol: str, orderId: str, clientOrderId: str) -> Dict:
+        endpoint = self.endpoints.cancelOrder
+        headers = self.formats.cancel_order(symbol, orderId, clientOrderId)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=headers,
+            data=headers,
+            signed=False,
+        )
+    
+    async def batch_cancel_orders(
+        self,
+        symbol: str, 
+        orderIds: List[Optional[str]],
+        clientOrderIds: List[Optional[str]]
+    ) -> Dict:
+        endpoint = self.endpoints.batchCancelOrders
+        headers = self.formats.batch_cancel_orders(symbol, orderIds, clientOrderIds)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=headers,
+            data=headers,
+            signed=False,
+        )
+    
     async def cancel_all_orders(self, symbol: str) -> Dict:
         endpoint = self.endpoints.cancelAllOrders
         headers = self.formats.cancel_all_orders(symbol)

@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
+
 class PositionHandler(ABC):
     """
     A base class for handling position data.
 
     This class provides methods for managing position data,
-    including abstract methods for refreshing and processing 
+    including abstract methods for refreshing and processing
     position data, which should be implemented by subclasses.
     """
+
     def __init__(self, position: Dict) -> None:
         """
         Initializes the PositionHandler class with a position dictionary.
@@ -19,12 +21,8 @@ class PositionHandler(ABC):
             A dictionary to store position data.
         """
         self.position = position
-        self.format = {
-            "price": 0.0,
-            "size": 0.0,
-            "uPnl": 0.0
-        }
-    
+        self.format = {"price": 0.0, "size": 0.0, "uPnl": 0.0}
+
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
         """

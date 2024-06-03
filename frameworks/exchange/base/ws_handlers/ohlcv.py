@@ -3,14 +3,16 @@ from numpy_ringbuffer import RingBuffer
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
+
 class OhlcvHandler(ABC):
     """
     A base class for handling OHLCV (Open, High, Low, Close, Volume) data.
 
-    This class provides methods for clearing the OHLCV RingBuffer and 
-    abstract methods for refreshing and processing OHLCV data, which 
+    This class provides methods for clearing the OHLCV RingBuffer and
+    abstract methods for refreshing and processing OHLCV data, which
     should be implemented by subclasses.
     """
+
     def __init__(self, ohlcv: RingBuffer) -> None:
         """
         Initializes the OhlcvHandler class with an OHLCV RingBuffer.
@@ -21,15 +23,17 @@ class OhlcvHandler(ABC):
             A RingBuffer instance to store OHLCV data.
         """
         self.ohlcv = ohlcv
-        self.format = np.array([
-            0.0,  # Open Timestamp
-            0.0,  # Open
-            0.0,  # High
-            0.0,  # Low
-            0.0,  # Close
-            0.0,  # Volume
-        ])
-    
+        self.format = np.array(
+            [
+                0.0,  # Open Timestamp
+                0.0,  # Open
+                0.0,  # High
+                0.0,  # Low
+                0.0,  # Close
+                0.0,  # Volume
+            ]
+        )
+
     def clear_ohlcv_ringbuffer(self) -> None:
         """
         Clears the OHLCV RingBuffer.

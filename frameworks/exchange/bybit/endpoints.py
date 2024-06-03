@@ -26,6 +26,9 @@ class BybitEndpoints(Endpoints):
 
         self.load_additional(
             ping={"method": "GET", "url": "/v5/market/time"},
+            batchCreateOrders={"method": "POST", "url": "/v5/order/create-batch"},
+            batchAmendOrders={"method": "POST", "url": "/v5/order/amend-batch"},
+            batchCancelOrders={"method": "POST", "url": "/v5/order/cancel-batch"},
             getInstrumentInfo={"method": "GET", "url": "/v5/market/instruments-info"},
             getAccountInfo={"method": "GET", "url": "/v5/account/wallet-balance"},
             setLeverage={"method": "POST", "url": "/v5/position/set-leverage"},

@@ -70,7 +70,7 @@ class Exchange(ABC):
         orderType: int,
         size: float,
         price: Optional[float] = None,
-        orderId: Optional[Union[str, int]] = None,
+        clientOrderId: Optional[Union[str, int]] = None,
     ) -> Dict:
         """
         Abstract method to create an order.
@@ -92,7 +92,7 @@ class Exchange(ABC):
         price : float, optional
             The price of the order (for limit orders).
 
-        orderId : str or int, optional
+        clientOrderId : str or int, optional
             The ID of the order.
 
 
@@ -107,7 +107,8 @@ class Exchange(ABC):
     async def amend_order(
         self,
         symbol: str,
-        orderId: Union[str, int],
+        orderId: Optional[Union[str, int]],
+        clientOrderId: Optional[Union[str, int]],
         side: int,
         size: float,
         price: float,
@@ -120,8 +121,11 @@ class Exchange(ABC):
         symbol : str
             The trading symbol.
 
-        orderId : str or int
+        orderId : str or int, optional
             The ID of the order to be amended.
+
+        clientOrderId : str or int, optional
+            The client-provided ID of the order to be amended.
 
         side : int
             The side of the order.
@@ -141,7 +145,12 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(self, symbol: str, orderId: Union[str, int]) -> Dict:
+    async def cancel_order(
+        self,
+        symbol: str,
+        orderId: Optional[Union[str, int]],
+        clientOrderId: Optional[Union[str, int]],
+    ) -> Dict:
         """
         Abstract method to cancel an existing order.
 
@@ -150,8 +159,11 @@ class Exchange(ABC):
         symbol : str
             The trading symbol.
 
-        orderId : str or int
+        orderId : str or int, optional
             The ID of the order to be canceled.
+
+        clientOrderId : str or int, optional
+            The client-provided ID of the order to be canceled.
 
         Returns
         -------

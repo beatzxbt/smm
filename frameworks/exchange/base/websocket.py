@@ -235,7 +235,9 @@ class WebsocketStream(ABC):
 
             async with session.ws_connect(url) as ws:
                 for payload in on_connect:
-                    await self.logging.debug(f"Sending payload to {stream_str} ws: {payload}")
+                    await self.logging.debug(
+                        f"Sending payload to {stream_str} ws: {payload}"
+                    )
                     await self.send(ws, stream_str, payload)
 
                 async for msg in ws:
@@ -283,7 +285,9 @@ class WebsocketStream(ABC):
         """
         while True:
             reconnect = await self._single_conn_(url, handler_map, on_connect, private)
-            await self.logging.debug(f"Attempting to reconnect ws task, status :: {reconnect}")
+            await self.logging.debug(
+                f"Attempting to reconnect ws task, status :: {reconnect}"
+            )
             if not reconnect:
                 break
             await asyncio.sleep(1.0)

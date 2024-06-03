@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
 from typing import Dict
 
+
 class TickerHandler(ABC):
     """
     A base class for handling ticker data.
 
     This class provides methods for managing ticker data,
-    including abstract methods for refreshing and processing 
+    including abstract methods for refreshing and processing
     ticker data, which should be implemented by subclasses.
     """
+
     def __init__(self, ticker: Dict) -> None:
         """
         Initializes the TickerHandler class with a ticker dictionary.
@@ -23,7 +25,7 @@ class TickerHandler(ABC):
             "markPrice": 0.0,
             "indexPrice": 0.0,
             "fundingTime": 0.0,
-            "fundingRate": 0.0
+            "fundingRate": 0.0,
         }
 
     @abstractmethod

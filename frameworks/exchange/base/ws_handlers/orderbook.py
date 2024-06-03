@@ -5,14 +5,16 @@ from typing import Dict, List, Union
 from frameworks.tools.logging import time_ms
 from frameworks.exchange.base.structures.orderbook import Orderbook
 
+
 class OrderbookHandler(ABC):
     """
     A base class for handling order book data.
 
     This class provides methods for managing order book data,
-    including abstract methods for refreshing and processing 
+    including abstract methods for refreshing and processing
     order book data, which should be implemented by subclasses.
     """
+
     def __init__(self, orderbook: Orderbook) -> None:
         """
         Initializes the OrderbookHandler class with an Orderbook instance.
@@ -26,7 +28,7 @@ class OrderbookHandler(ABC):
         self.timestamp = time_ms()
         self.bids = np.array([[0.0, 0.0]], dtype=np.float64)
         self.asks = np.array([[0.0, 0.0]], dtype=np.float64)
-    
+
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
         """
