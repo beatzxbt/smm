@@ -10,27 +10,48 @@ class BinanceOhlcvHandler(OhlcvHandler):
         super().__init__(self.data["ohlcv"])
 
     def refresh(self, recv: List[List]) -> None:
-        for candle in recv:
-            self.format[:] = np.array(candle[0:7], dtype=np.float64)
-            self.ohlcv.append(self.format.copy())
+        try:
+            self.clear_ohlcv_ringbuffer()
+            for candle in recv:
+                self.format[:] = np.array(
+                    [
+                        float(candle[0]),
+                        float(candle[1]),
+                        float(candle[2]),
+                        float(candle[3]),
+                        float(candle[4]),
+                        float(candle[5]),
+                    ],
+                    dtype=np.float64,
+                )
+                self.ohlcv.append(self.format.copy())
+
+        except Exception as e:
+            raise Exception(f"OHLCV Refresh :: {e}")
 
     def process(self, recv: Dict) -> None:
-        candle_open = float(recv["k"]["t"])
-        new = True if candle_open > self.format[0] else False
+        try:
+            candle = recv["k"]
+            ts = float(candle["t"])
+            new = True if ts > self.format[0] else False
 
-        self.format[:] = np.array(
-            [
-                float(recv["k"]["t"]),
-                float(recv["k"]["o"]),
-                float(recv["k"]["h"]),
-                float(recv["k"]["l"]),
-                float(recv["k"]["c"]),
-                float(recv["k"]["v"]),
-                float(recv["k"]["q"]),
-            ]
-        )
+            self.format[:] = np.array(
+                [
+                    ts,
+                    float(candle["o"]),
+                    float(candle["h"]),
+                    float(candle["l"]),
+                    float(candle["c"]),
+                    float(candle["v"]),
+                    float(candle["q"]),
+                ],
+                dtype=np.float64,
+            )
 
-        if not new:
-            self.ohlcv.pop()
+            if not new:
+                self.ohlcv.pop()
 
-        self.ohlcv.append(self.format.copy())
+            self.ohlcv.append(self.format.copy())
+
+        except Exception as e:
+            raise Exception(f"OHLCV Process :: {e}")
