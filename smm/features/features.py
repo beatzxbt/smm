@@ -1,14 +1,14 @@
 import numpy as np
 
-from smm.sharedstate import SmmSharedState
 from smm.features.trades_diff import trades_diffs
 from smm.features.trades_imbalance import trades_imbalance
 from smm.features.orderbook_imbalance import orderbook_imbalance
+from smm.sharedstate import SmmSharedState
 
 
 class FeatureEngine:
     def __init__(self, ss: SmmSharedState) -> None:
-        self.ss = ss
+        self.data = ss.data
 
         self.fair_price_pred = {
             "wmid": 0.10,
@@ -22,24 +22,24 @@ class FeatureEngine:
         self.volatility_pred = {"trades_diffs": 1.0}
 
     def wmid_imbalance(self) -> float:
-        return self.ss.data["orderbook"].get_wmid() / self.ss.data["orderbook"].get_mid()
+        return np.log(self.data["orderbook"].get_wmid() / self.data["orderbook"].get_mid())
 
     def vamp_imbalance(self, depth: int) -> float:
-        dollars_to_size = depth / self.ss.data["orderbook"].get_mid()
-        return self.ss.data["orderbook"].get_vamp(dollars_to_size) / self.ss.data["orderbook"].get_mid()
+        dollars_to_size = depth / self.data["orderbook"].get_mid()
+        return np.log(self.data["orderbook"].get_vamp(dollars_to_size) / self.data["orderbook"].get_mid())
 
     def orderbook_imbalance(self) -> float:
         return orderbook_imbalance(
-            bids=self.ss.data["orderbook"].bids,
-            asks=self.ss.data["orderbook"].asks,
+            bids=self.data["orderbook"].bids,
+            asks=self.data["orderbook"].asks,
             depths=np.array([10.0, 25.0, 50.0, 100.0, 250.0]),
         )
 
     def trades_imbalance(self) -> float:
-        return trades_imbalance(trades=self.ss.data["trades"]._unwrap(), window=100)
+        return trades_imbalance(trades=self.data["trades"]._unwrap(), window=100)
 
     def trades_differences(self) -> float:
-        return trades_diffs(trades=self.ss.data["trades"]._unwrap(), lookback=100)
+        return trades_diffs(trades=self.data["trades"]._unwrap(), lookback=100)
 
     def generate_skew(self) -> float:
         skew = 0.0
