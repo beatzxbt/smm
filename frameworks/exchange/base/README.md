@@ -45,5 +45,13 @@ This class aims to provide a normalized interface to access all required & optio
 
 Adding an endpoint & accessing it is fairly straightforward, and is well documented [here](/frameworks/exchange/base/endpoints.py). The [Binance implementation](/frameworks/exchange/binance/endpoints.py) can also provide some useful context in understanding how this structure works.
 
-# Integration Guide
+### Formats & Types 
+These class manages most of the translation between the normalized API and exchange-spec API. Used together, they take in some form of normalized information, map it to a format that the exchange requires (including converting things like order type & order side) and return a format ready to send to the client.
 
+Once again, it has a set of required functions (indentical to the exchange class), with an easy way to add supporting format functions to the additional functions in the exchange class.
+
+Making these translation functions is very straight forward, and [this Bybit implemenation](/frameworks/exchange/bybit/formats.py) should be enough to understand how it all works. The supporting order side/type converters can be found [here](/frameworks/exchange/binance/types.py), with the full implementation found [here](/frameworks/exchange/base/types.py).
+
+
+# Integration Guide
+abc
