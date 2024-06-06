@@ -1,4 +1,5 @@
 import asyncio
+import numpy as np
 
 from smm.sharedstate import SmmSharedState
 from smm.quote_generators.base import QuoteGenerator
@@ -15,7 +16,7 @@ class TradingLogic:
     async def load_quote_generator(self) -> QuoteGenerator:
         quote_gen_name = self.ss.quote_generator.lower()
         await self.ss.logging.info(f"Attempting to load quote generator: {quote_gen_name}")
-
+        
         match quote_gen_name:
             case "plain":
                 from smm.quote_generators.plain import PlainQuoteGenerator
@@ -27,7 +28,7 @@ class TradingLogic:
 
             case _:
                 await self.ss.logging.error(
-                    f"Invalid quote generator, double check available options!"
+                    f"Invalid quote generator, check available options!"
                 )
                 raise ValueError(f"Invalid quote generator: {quote_gen_name}")
 
@@ -44,17 +45,19 @@ class TradingLogic:
 
             if len(self.ss.data["ohlcv"]) < 100:
                 continue
-
-            if len(self.ss.data["ticker"].items()) == 0:
+                
+            if all(value == 0.0 for value in self.ss.data["ticker"].values()):
                 continue
 
-            # if self.ss.data["orderbook"].bids.:
-            #     continue
+            if np.all(self.ss.data["orderbook"].bids[:, 0] == 0.0) or np.all(self.ss.data["orderbook"].asks[:, 0] == 0.0):
+                continue
 
             if (self.ss.data["tick_size"], self.ss.data["lot_size"]) == (0.0, 0.0):
                 continue
             
-            break
+            await self.ss.logging.success("Feeds successfully warmed up.")
+            
+            return None
 
     async def start_loop(self) -> None:
         await self.ss.logging.info("Warming up data feeds...")
@@ -65,7 +68,7 @@ class TradingLogic:
         )
 
         while True:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(5.0)
             fp_skew = self.feature_engine.generate_skew()
             vol = self.feature_engine.generate_vol()
             new_orders = self.quote_generator.generate_orders(fp_skew, vol)
