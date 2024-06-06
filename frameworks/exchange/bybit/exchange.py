@@ -196,6 +196,17 @@ class Bybit(Exchange):
             method=endpoint.method,
             params=params,
         )
+    
+    async def set_leverage(self, symbol: str, leverage: int) -> Dict:
+        endpoint = self.endpoints.setLeverage
+        headers = self.formats.set_leverage(symbol, leverage)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=headers,
+            data=headers,
+            signed=False,
+        )
 
     async def warmup(self) -> None:
         try:
@@ -207,7 +218,7 @@ class Bybit(Exchange):
 
                 self.data["tick_size"] = float(instrument["priceFilter"]["tickSize"])
                 self.data["lot_size"] = float(instrument["lotSizeFilter"]["qtyStep"])
-
+                
                 return None
 
         except Exception as e:
