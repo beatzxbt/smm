@@ -45,10 +45,24 @@ class SharedState(ABC):
             "ohlcv": RingBuffer(1000, dtype=(np.float64, 6)),
             "trades": RingBuffer(1000, dtype=(np.float64, 4)),
             "orderbook": Orderbook(50), # NOTE: Modify OB size if required!
-            "ticker": {},
+            "ticker": {
+                "markPrice": 0.0,
+                "indexPrice": 0.0,
+                "fundingTime": 0.0,
+                "fundingRate": 0.0,
+            },
 
-            "position": {},
-            "orders": {},
+            "position": {
+                "price": 0.0, 
+                "size": 0.0, 
+                "uPnl": 0.0
+            },
+            "orders": {
+                "createTime": 0.0,
+                "side": 0.0,
+                "price": 0.0,
+                "size": 0.0
+            },
             "account_balance": 0.0,
         }
 
@@ -251,5 +265,5 @@ class SharedState(ABC):
         """
         self.load_parameters(reload=False)
         while True:
-            await asyncio.sleep(10)     # NOTE: Can be altered as needed
+            await asyncio.sleep(10)
             self.load_parameters(reload=True)
