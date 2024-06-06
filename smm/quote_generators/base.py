@@ -144,7 +144,7 @@ class QuoteGenerator(ABC):
         float
             The equivalent decimal price.
         """
-        return self.mid + (self.mid * self.bps_to_decimal(bps))
+        return self.mid_price + (self.mid_price * self.bps_to_decimal(bps))
 
     def offset_to_decimal(self, offset: float) -> float:
         """
@@ -160,7 +160,7 @@ class QuoteGenerator(ABC):
         float
             The equivalent decimal price.
         """
-        return self.mid + (self.mid * offset)
+        return self.mid_price + (self.mid_price * offset)
 
     def round_bid(self, bid_price: float) -> float:
         """
