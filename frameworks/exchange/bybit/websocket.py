@@ -146,9 +146,6 @@ class BybitWebsocket(WebsocketStream):
             await self.logging.error(f"Bybit Private Ws: {e}")
 
     async def start(self) -> None:
-        """
-        Starts all necessary asynchronous tasks for Websocket stream management and data refreshing.
-        """
         self.create_handlers()
         await asyncio.gather(
             self.refresh_orderbook_data(),

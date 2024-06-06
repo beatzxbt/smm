@@ -179,3 +179,11 @@ class BybitFormats(Formats):
 
     def get_instrument_info(self, symbol: str) -> Dict:
         return {**self.base_payload, "symbol": symbol}
+    
+    def set_leverage(self, symbol: str, leverage: int) -> Dict:
+        return {
+            **self.base_payload, 
+            "symbol": symbol, 
+            "buyLeverage": leverage, 
+            "sellLeverage": leverage
+        }
