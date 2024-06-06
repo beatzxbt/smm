@@ -1,114 +1,88 @@
-import numpy as np
-from numba import njit
-from numpy_ringbuffer import RingBuffer
-from numpy.typing import NDArray
+from numba.types import bool_, uint32, float64, Array
+from numba.experimental import jitclass
 from typing import Optional
 
+from frameworks.tools.trading.ringbuffer import RingBufferF64
 
+@jitclass
 class EMA:
     """
-    A class representing the Exponential Moving Average (EMA) calculation for a dataset.
+    Exponential Moving Average (EMA) with optional RingBuffer to store history.
 
-    Attributes
-    ----------
+    Attributes:
+    -----------
     window : int
         The window size for the EMA calculation.
 
     alpha : float
-        The smoothing factor for the EMA. If set to 0, it is calculated as 3 / (window + 1).
+        The smoothing factor applied to the EMA. Default is calculated as `3 / (window + 1)`.
 
-    arr : RingBuffer
-        A ring buffer to store EMA values.
+    fast : bool
+        If True, the history of calculated EMA values is not stored.
 
     value : float
-        The current EMA value.
+        The current value of the EMA.
+
+    rb : RingBufferF64
+        A ring buffer to store EMA values history, activated if `fast` is False.
     """
+    
+    window: uint32
+    alpha: float64
+    fast: bool_
+    value: float64
+    rb: RingBufferF64.class_type.instance_type
 
-    def __init__(self, window: int, alpha: Optional[float] = 0) -> None:
-        """
-        Initializes the EMA instance with a specified window size and alpha.
-
-        Parameters
-        ----------
-        window : int
-            The window size for the EMA calculation.
-
-        alpha : float, optional
-            The smoothing factor. If 0, it is calculated based on the window size.
-        """
+    def __init__(self, window: int, alpha: Optional[float]=0.0, fast: bool=True):
         self.window = window
-        self.alpha = 3 / float(window + 1) if alpha == 0 else alpha
-        self._arr_ = None
+        self.alpha = alpha if alpha != 0.0 else 3.0 / (self.window + 1)
+        self.fast = fast
         self.value = 0.0
+        self.rb = RingBufferF64(self.window)
 
-    @property
-    def array(self) -> NDArray:
-        """Unwraps and returns the internal ring buffer as an NDArray."""
-        return self._arr_._unwrap()
-
-    def initialize(self, arr_in: NDArray) -> None:
+    def _recursive_ema_(self, update: float) -> float:
         """
-        Initializes the EMA calculation with a given array of input values.
+        Internal method to calculate the EMA given a new data point.
 
-        Parameters
-        ----------
-        arr_in : NDArray
-            An array of input values to initialize the EMA calculation.
+        Parameters:
+        -----------
+        update : float
+            The new data point to include in the EMA calculation.
+
+        Returns:
+        --------
+        float
+            The updated EMA value.
         """
-        self._arr_ = RingBuffer(arr_in.size, dtype=np.float64)
-        for val in _ema_(arr_in, self.alpha):
-            self._arr_.append(val)
-        self.value = self._arr_[-1]
+        return self.alpha * update + (1.0 - self.alpha) * self.value
+
+    def initialize(self, arr_in: Array) -> None:
+        """
+        Initializes the EMA calculator with a series of data points.
+
+        Parameters:
+        -----------
+        arr_in : Iterable[float]
+            The initial series of data points to feed into the EMA calculator.
+        """
+        self.rb.reset()
+        self.value = arr_in[0]
+        
+        if not self.fast:
+            self.rb.appendright(self.value)
+
+        for value in arr_in[1:]:
+            self.update(value)
 
     def update(self, new_val: float) -> None:
         """
-        Updates the EMA calculation with a new incoming value.
+        Updates the EMA calculator with a new data point.
 
-        Parameters
-        ----------
+        Parameters:
+        -----------
         new_val : float
-            The new value to include in the EMA calculation.
+            The new data point to include in the EMA calculation.
         """
-        updated_value = self.alpha * new_val + (1 - self.alpha) * self.value
-        self._arr_.append(updated_value)
-        self.value = updated_value
-
-
-@njit(cache=True)
-def _ema_(arr_in: NDArray, alpha: float) -> NDArray:
-    """
-    Calculates the EMA for an array of input values.
-
-    The EMA is calculated using the following steps:
-    1. Initialize an empty array for the EMA values.
-    2. Set the first value of the EMA array to the first value of the input array.
-    3. For each subsequent value in the input array:
-       a. Apply the EMA formula: EMA_old = EMA_old * (1 - alpha) + new_value.
-       b. Divide the updated EMA_old by the cumulative weight for the current position.
-       c. Store this value in the corresponding position in the EMA array.
-
-    Parameters
-    ----------
-    arr_in : NDArray
-        The input array for which to calculate the EMA.
-
-    alpha : float
-        The smoothing factor for the EMA.
-
-    Returns
-    -------
-    NDArray
-        An array of EMA values.
-    """
-    len_arr_in = arr_in.size
-    ewma = np.empty(len_arr_in, dtype=np.float64)
-    w = 1
-    ewma_old = arr_in[0]
-    ewma[0] = ewma_old
-
-    for i in range(1, len_arr_in):
-        w += (1 - alpha) ** i
-        ewma_old = ewma_old * (1 - alpha) + arr_in[i]
-        ewma[i] = ewma_old / w
-
-    return ewma
+        self.value = self._recursive_ema_(new_val)
+        if not self.fast:
+            self.rb.appendright(self.value)
