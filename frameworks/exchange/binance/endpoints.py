@@ -1,23 +1,33 @@
-BinanceEndpoints = {
-    "main1": "https://fapi.binance.com",
-    "pub_ws": "wss://fstream.binance.com",
-    "priv_ws": "wss://fstream.binance.com",
-    "ping": ("/fapi/v1/ping", "GET"),
-    "exchangeInfo": ("/fapi/v1/exchangeInfo", "GET"),
-    "instrumentInfo": ("/fapi/v1/exchangeInfo", "GET"),
-    "orderbook": ("/fapi/v1/depth", "GET"),
-    "trades": ("/fapi/v1/trades", "GET"),
-    "ohlcv": ("/fapi/v1/klines", "GET"),
-    "markPrice": ("/fapi/v1/premiumIndex", "GET"),
-    "allOpenOrders": ("/fapi/v1/openOrders", "GET"),
-    "accountInfo": ("/fapi/v2/account", "GET"),
-    "positionInfo": ("/fapi/v2/positionRisk", "GET"),
-    "feeRate": ("/fapi/v1/commissionRate", "GET"),
-    "listenKey": ("/fapi/v1/listenKey", "POST"),
-    "pingListenKey": ("/fapi/v1/listenKey", "PUT"),
-    "createOrder": ("/fapi/v1/order", "POST"),
-    "amendOrder": ("/fapi/v1/order", "PUT"),
-    "cancelOrder": ("/fapi/v1/order", "DELETE"),
-    "cancelAllOrders": ("/fapi/v1/allOpenOrders", "DELETE"),
-    "setLeverage": ("/fapi/v1/leverage", "POST"),
-}
+from frameworks.exchange.base.endpoints import Endpoints
+
+
+class BinanceEndpoints(Endpoints):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.load_base(
+            main="https://fapi.binance.com",
+            public_ws="wss://fstream.binance.com/ws",
+            private_ws="wss://fstream.binance.com/ws",
+        )
+
+        self.load_required(
+            createOrder={"method": "POST", "url": "/fapi/v1/order"},
+            amendOrder={"method": "PUT", "url": "/fapi/v1/order"},
+            cancelOrder={"method": "DELETE", "url": "/fapi/v1/order"},
+            cancelAllOrders={"method": "DELETE", "url": "/fapi/v1/allOpenOrders"},
+            getOrderbook={"method": "GET", "url": "/fapi/v1/depth"},
+            getTrades={"method": "GET", "url": "/fapi/v1/trades"},
+            getOhlcv={"method": "GET", "url": "/fapi/v1/klines"},
+            getTicker={"method": "GET", "url": "/fapi/v1/premiumIndex"},
+            getOpenOrders={"method": "GET", "url": "/fapi/v1/openOrders"},
+            getPosition={"method": "GET", "url": "/fapi/v2/positionRisk"},
+        )
+
+        self.load_additional(
+            accountInfo={"method": "GET", "url": "/fapi/v2/account"},
+            feeRate={"method": "GET", "url": "/fapi/v1/commissionRate"},
+            listenKey={"method": "POST", "url": "/fapi/v1/listenKey"},
+            pingListenKey={"method": "PUT", "url": "/fapi/v1/listenKey"},
+            setLeverage={"method": "POST", "url": "/fapi/v1/leverage"},
+        )

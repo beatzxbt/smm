@@ -1,49 +1,49 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
+
 from frameworks.tools.logging import time_ms
+from frameworks.exchange.base.formats import Formats
 from frameworks.exchange.binance.types import BinanceOrderSides, BinanceOrderTypes
 
 
-class BinanceFormats:
+class BinanceFormats(Formats):
     def __init__(self) -> None:
-        self.convert_side = BinanceOrderSides
-        self.convert_type = BinanceOrderTypes
+        super().__init__(BinanceOrderSides, BinanceOrderTypes)
 
-    def create_order(
+    async def create_order(
         self,
         symbol: str,
-        side: int,
-        orderType: int,
+        side: Union[int, float],
+        orderType: Union[int, float],
         size: float,
-        price: Optional[float],
+        price: Optional[float] = None,
+        orderId: Optional[Union[str, int]] = None,
     ) -> Dict:
         format = {
             "symbol": symbol,
             "side": self.convert_side.to_str(side),
-            "type": self.convert_type.to_str(orderType),
+            "type": self.convert_order_type.to_str(orderType),
             "quantity": str(size),
             "timestamp": str(time_ms()),
         }
 
-        # Market order
         if orderType == 1:
             return format
 
-        # Limit order
-        elif orderType == 0:
+        if orderType == 0:
             format["price"] = str(price)
-            format["timeInForce"] = "PostOnly"
+            format["timeInForce"] = "GTX"
 
         return format
 
-    def amend_order(
+    async def amend_order(
         self,
-        orderId: str,
         symbol: str,
-        side: int,
+        orderId: Union[str, int],
+        side: Union[int, float],
         size: float,
         price: float,
     ) -> Dict:
-        format = {
+        return {
             "orderId": orderId,
             "symbol": symbol,
             "side": self.convert_side.to_str(side),
@@ -52,57 +52,38 @@ class BinanceFormats:
             "timestamp": str(time_ms()),
         }
 
-        return format
+    async def cancel_order(self, symbol: str, orderId: Union[str, int]) -> Dict:
+        return {"symbol": symbol, "orderId": orderId, "timestamp": str(time_ms())}
 
-    def cancel_order(self, symbol: str, orderId: str) -> Dict:
-        format = {"symbol": symbol, "orderId": orderId, "timestamp": str(time_ms())}
+    async def cancel_all_orders(self, symbol: str) -> Dict:
+        return {"symbol": symbol, "timestamp": str(time_ms())}
 
-        return format
+    async def get_ohlcv(self, symbol: str, interval: Union[int, str]) -> Dict:
+        return {"symbol": symbol, "interval": interval, "limit": "1000"}
 
-    def cancel_all_orders(self, symbol: str) -> Dict:
-        format = {"symbol": symbol, "timestamp": str(time_ms())}
+    async def get_trades(self, symbol: str) -> Dict:
+        return {"symbol": symbol, "limit": "1000"}
 
-        return format
+    async def get_orderbook(self, symbol: str) -> Dict:
+        return {"symbol": symbol, "limit": "100"}
 
-    def get_ohlcv(self, symbol: str, interval: str, limit: int) -> str:
-        format = {
-            "symbol": symbol,
-            "interval": interval,
-            "limit": limit
-        }
-        
-        return format
+    async def get_ticker(self, symbol: str) -> Dict:
+        return {"symbol": symbol}
 
-    def get_trades(self, symbol: str, limit: int) -> str:
-        format = {"symbol": symbol, "limit": limit}
+    async def get_open_orders(self, symbol: str) -> Dict:
+        return {"symbol": symbol, "timestamp": str(time_ms())}
 
-        return format
+    async def get_position(self, symbol: str) -> Dict:
+        return {"symbol": symbol, "timestamp": str(time_ms())}
 
-    def get_orderbook(self, symbol: str, limit: int) -> str:
-        format = {"symbol": symbol, "limit": limit}
+    async def get_account_info(self) -> Dict:
+        return {"timestamp": str(time_ms())}
 
-        return format
-
-    def get_ticker(self, symbol: str) -> str:
-        format = {"symbol": symbol}
-
-        return format
-
-    def get_open_orders(self, symbol: str) -> str:
-        format = {"symbol": symbol, "timestamp": str(time_ms())}
-
-        return format
-
-    def get_open_position(self, symbol: str) -> str:
-        format = {"symbol": symbol, "timestamp": str(time_ms())}
-
-        return format
-
-    def get_exchange_info(self) -> str:
+    async def get_exchange_info(self) -> Dict:
         return {}
 
-    def get_listen_key(self) -> str:
+    async def get_listen_key(self) -> Dict:
         return {}
 
-    def ping_listen_key(self) -> Dict:
+    async def ping_listen_key(self) -> Dict:
         return {}

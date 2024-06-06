@@ -1,5 +1,4 @@
-import asyncio
-from typing import Dict, Union, Optional, Any
+from typing import Dict, Optional
 
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.binance.endpoints import BinanceEndpoints
@@ -13,189 +12,175 @@ class Binance(Exchange):
         self.api_secret = api_secret
         self.client = BinanceClient(self.api_key, self.api_secret)
         self.formats = BinanceFormats()
-        self.endpoints = BinanceEndpoints
-        self.base_endpoint = self.endpoints["main1"]
+        self.endpoints = BinanceEndpoints()
+        self.base_endpoint = self.endpoints.main
         super().__init__(self.client)
 
     async def create_order(
         self,
-        symbol,
-        side,
-        orderType,
-        size,
-        price,
-    ):
-        endpoint, method = self.endpoints["createOrder"]
-        payload = self.formats.create_order(symbol, side, orderType, size, price)
+        symbol: str,
+        side: str,
+        orderType: str,
+        size: float,
+        price: Optional[float] = None,
+    ) -> Dict:
+        endpoint = self.endpoints.createOrder
+        data = self.formats.create_order(symbol, side, orderType, size, price)
         return await self.client.request(
-            url=self.base_endpoint+endpoint,
-            method=method,
-            payload=payload, 
-            signed=False
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            data=data,
+            signed=False,
         )
 
     async def amend_order(
-        self, 
-        symbol: str,
-        orderId: str,
-        side: int,
-        size: float,
-        price: float,
-    ):
-        endpoint, method = self.endpoints["amendOrder"]
-        payload = self.formats.amend_order(symbol, orderId, side, price, size)
+        self, symbol: str, orderId: int, side: str, size: float, price: float
+    ) -> Dict:
+        endpoint = self.endpoints.amendOrder
+        data = self.formats.amend_order(orderId, size, price)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            payload=payload, 
-            signed=False
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            data=data,
+            signed=False,
         )
 
-    async def cancel_order(self, symbol: str, orderId: str):
-        endpoint, method = self.endpoints["cancelOrder"]
-        payload = self.formats.cancel_order(symbol, orderId)
+    async def cancel_order(self, symbol: str, orderId: str) -> Dict:
+        endpoint = self.endpoints.cancelOrder
+        data = self.formats.cancel_order(symbol, orderId)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            payload=payload, 
-            signed=False
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            data=data,
+            signed=False,
         )
 
-    async def cancel_all_orders(self, symbol: str):
-        endpoint, method = self.endpoints["cancelAllOrders"]
-        payload = self.formats.cancel_all_orders(symbol)
+    async def cancel_all_orders(self, symbol: str) -> Dict:
+        endpoint = self.endpoints.cancelAllOrders
+        data = self.formats.cancel_all_orders(symbol)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            payload=payload, 
-            signed=False
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            data=data,
+            signed=False,
         )
 
     async def get_orderbook(self, symbol: str) -> Dict:
-        endpoint, method = self.endpoints["orderbook"]
-        params = self.formats.get_orderbook(symbol, limit=1000)
+        endpoint = self.endpoints.getOrderbook
+        params = self.formats.get_orderbook(symbol)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            params=params
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
     async def get_trades(self, symbol: str) -> Dict:
-        endpoint, method = self.endpoints["trades"]
-        params = self.formats.get_trades(symbol, limit=1000)
+        endpoint = self.endpoints.getTrades
+        params = self.formats.get_trades(symbol)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            params=params
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
     async def get_ohlcv(self, symbol: str, interval: str = "1m") -> Dict:
-        endpoint, method = self.endpoints["ohlcv"]
-        params = self.formats.get_ohlcv(symbol, interval, limit=1000)
+        endpoint = self.endpoints.getOhlcv
+        params = self.formats.get_ohlcv(symbol, interval)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            params=params
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
     async def get_ticker(self, symbol: str) -> Dict:
-        endpoint, method = self.endpoints["markPrice"]
+        endpoint = self.endpoints.getTicker
         params = self.formats.get_ticker(symbol)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            params=params
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
     async def get_open_orders(self, symbol: str) -> Dict:
-        endpoint, method = self.endpoints["allOpenOrders"]
+        endpoint = self.endpoints.getOpenOrders
         params = self.formats.get_open_orders(symbol)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method, 
-            headers={},
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
             params=params,
-            payload=payload, 
-            signed=False
+            signed=False,
         )
 
     async def get_position(self, symbol: str) -> Dict:
-        endpoint, method = self.endpoints["positionInfo"]
-        payload = self.formats.get_position(symbol)
+        endpoint = self.endpoints.getPosition
+        params = self.formats.get_position(symbol)
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            payload=payload, 
-            signed=False
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
-    async def exchange_info(self):
-        endpoint, method = self.endpoints["exchangeInfo"]
-        payload = self.formats.get_exchange_info()
+    async def get_account_info(self) -> Dict:
+        endpoint = self.endpoints.accountInfo
+        params = self.formats.get_account_info()
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            payload=payload 
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
-    async def get_listen_key(self):
-        endpoint, method = self.endpoints["listenKey"]
-        payload = self.formats.get_listen_key()
+    async def get_exchange_info(self) -> Dict:
+        endpoint = self.endpoints.exchangeInfo
+        params = self.formats.get_exchange_info()
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            payload=payload, 
-            signed=False
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
-    async def ping_listen_key(self):
-        endpoint, method = self.endpoints["pingListenKey"]
-        payload = self.formats.ping_listen_key()
+    async def get_listen_key(self) -> Dict:
+        endpoint = self.endpoints.listenKey
+        params = self.formats.get_listen_key()
         return await self.client.request(
-            url=self.base_endpoint + endpoint,
-            method=method,
-            payload=payload, 
-            signed=False
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+
+    async def ping_listen_key(self) -> Dict:
+        endpoint = self.endpoints.pingListenKey
+        params = self.formats.ping_listen_key()
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
         )
 
     async def warmup(self) -> None:
         try:
-            for symbol in (await self.exchange_info())["symbols"]:
+            for symbol in (await self.get_exchange_info())["symbols"]:
                 if self.symbol != symbol["symbol"]:
                     continue
 
                 for filter in symbol["filters"]:
-                    if filter["filterType"] == "PRICE_FILTER":
-                        self.data["tick_size"] = float(filter["tickSize"])
-                    elif filter["filterType"] == "LOT_SIZE":
-                        self.data["lot_size"] = float(filter["stepSize"])
+                    match filter["filterType"]:
+                        case "PRICE_FILTER":
+                            self.data["tick_size"] = float(filter["tickSize"])
+
+                        case "LOT_SIZE":
+                            self.data["lot_size"] = float(filter["stepSize"])
 
         except Exception as e:
-            self.logging.error(f"Binance exchange warmup: {e}")
+            await self.logging.error(f"Exchange warmup: {e}")
 
         finally:
-            self.logging.success(f"Binance warmup sequence complete.")
-
-    async def shutdown(self) -> None:
-        try:
-            tasks = []
-
-            for _ in range(3):
-                tasks.append(asyncio.create_task(self.cancel_all_orders(self.symbol))) 
-            
-            for _ in range(1):
-                tasks.append(asyncio.create_task(self.create_order(
-                    symbol=self.symbol,
-                    side=0.0 if self.data["position"]["size"] < 0.0 else 1.0,
-                    orderType=1.0,
-                    size=self.data["position"]["size"],
-                    price=0.0   # NOTE: Ignored for taker orders
-                ))) 
-            
-            await asyncio.gather(*tasks)
-
-        except Exception as e:
-            await self.logging.error(f"Binance shutdown: {e}")
-
-        finally:
-            await self.logging.info(f"Binance shutdown sequence complete.")
+            await self.logging.info(f"Exchange warmup sequence complete.")
