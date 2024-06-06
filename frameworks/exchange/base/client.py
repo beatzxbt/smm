@@ -272,7 +272,7 @@ class Client(ABC):
         None
         """
         if self.session:
-            await self.logging.warning("Shutting down client...")
+            await self.logging.info("Shutting down client...")
             await self.session.connector.cleanup()
             await self.session.__aexit__(None, None, None)
             del self.session

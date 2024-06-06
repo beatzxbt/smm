@@ -293,7 +293,7 @@ class Exchange(ABC):
             The position data from the exchange.
         """
         pass
-
+    
     async def shutdown(self) -> None:
         """
         Initiates the shutdown sequence for the exchange.
@@ -338,7 +338,7 @@ class Exchange(ABC):
 
             await asyncio.gather(*tasks)
 
-        except KeyError as ke:
+        except KeyError:
             await self.logging.info("No position found, skipping...")
 
         except Exception as e:
@@ -347,3 +347,4 @@ class Exchange(ABC):
 
         finally:
             await self.logging.info(f"Exchange shutdown sequence complete.")
+            await self.client.shutdown()
