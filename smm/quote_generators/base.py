@@ -3,6 +3,7 @@ from numpy.typing import NDArray
 from typing import List, Tuple, Dict
 
 from smm.sharedstate import SmmSharedState
+from frameworks.tools.trading.rounding import round_ceil, round_floor
 
 
 class QuoteGenerator(ABC):
@@ -27,7 +28,7 @@ class QuoteGenerator(ABC):
         self.params = ss.parameters
 
     @property
-    def mid(self) -> float:
+    def mid_price(self) -> float:
         """
         Returns the mid price of the order book.
 
@@ -60,7 +61,7 @@ class QuoteGenerator(ABC):
         NDArray
             The live best bid from the order book.
         """
-        return self.data["orderbook"].bids[0]
+        return self.data["orderbook"].bba[0]
 
     @property
     def live_best_ask(self) -> NDArray:
@@ -72,7 +73,7 @@ class QuoteGenerator(ABC):
         NDArray
             The live best ask from the order book.
         """
-        return self.data["orderbook"].asks[0]
+        return self.data["orderbook"].bba[1]
 
     @property
     def inventory_delta(self) -> float:
@@ -161,6 +162,72 @@ class QuoteGenerator(ABC):
         """
         return self.mid + (self.mid * offset)
 
+    def round_bid(self, bid_price: float) -> float:
+        """
+        Round the bid price down to the nearest multiple of the tick size.
+
+        Parameters
+        ----------
+        bid_price : float
+            The bid price to be rounded.
+
+        Returns
+        -------
+        float
+            The bid price rounded down to the nearest multiple of the tick size.
+
+        Examples
+        --------
+        >>> self.data["tick_size"] = 0.01
+        >>> self.round_bid(10.057)
+        10.05
+        """
+        return round_floor(num=bid_price, step_size=self.data["tick_size"])
+
+    def round_ask(self, ask_price: float) -> float:
+        """
+        Round the ask price up to the nearest multiple of the tick size.
+
+        Parameters
+        ----------
+        ask_price : float
+            The ask price to be rounded.
+
+        Returns
+        -------
+        float
+            The ask price rounded up to the nearest multiple of the tick size.
+
+        Examples
+        --------
+        >>> self.data["tick_size"] = 0.01
+        >>> self.round_ask(10.057)
+        10.06
+        """
+        return round_ceil(num=ask_price, step_size=self.data["tick_size"])
+
+    def round_size(self, size: float) -> float:
+        """
+        Round the size up to the nearest multiple of the lot size.
+
+        Parameters
+        ----------
+        size : float
+            The size to be rounded.
+
+        Returns
+        -------
+        float
+            The size rounded up to the nearest multiple of the lot size.
+
+        Examples
+        --------
+        >>> self.data["lot_size"] = 0.001
+        >>> self.round_size(1.2345)
+        1.235
+        """
+        return round_ceil(num=size, step_size=self.data["lot_size"])
+  
     def generate_single_quote(
         self, side: float, orderType: float, price: float, size: float
     ) -> Dict:
