@@ -4,7 +4,7 @@ from numba.types import float64, Array
 from frameworks.tools.trading.weights import generate_geometric_weights
 
 
-@njit(["float64(float64[:, :], float64[:, :], float64[:])"], error_model="numpy")
+@njit(["float64(float64[:, :], float64[:, :], float64[:])"], error_model="numpy", fastmath=True)
 def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
     """
     Calculates the geometrically weighted order book imbalance across different price depths.
@@ -52,12 +52,12 @@ def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
     ...     [101.75, 0.39473],
     ...     [102.00, 0.97438]
     ... ])
-    >>> depths = np.array([10, 20, 30, 40, 50])
+    >>> depths = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
     >>> orderbook_imbalance(bids, asks, depths)
     -0.24142990048382099
     """
     num_depths = depths.size
-    depths = depths / 1e-4  # NOTE: Converting from BPS to decimals
+    depths = depths / 1e-4  # NOTE: BPS -> Decimals
     weights = generate_geometric_weights(num_depths)
     imbalances = np.empty(num_depths, dtype=float64)
 
@@ -66,8 +66,8 @@ def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
     best_bid_p, best_ask_p = bid_p[0], ask_p[0]
 
     for i in range(num_depths):
-        min_bid = best_bid_p * (1 - depths[i])
-        max_ask = best_ask_p * (1 + depths[i])
+        min_bid = best_bid_p * (1.0 - depths[i])
+        max_ask = best_ask_p * (1.0 + depths[i])
 
         num_bids_within_depth = bid_p[bid_p >= min_bid].size
         num_asks_within_depth = ask_p[ask_p <= max_ask].size
