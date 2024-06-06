@@ -29,6 +29,14 @@ def nbclip(val: float, min: float, max: float) -> float:
         return val
 
 
+@njit(["float64(float64)"], error_model="numpy")
+def nbsqrt(num: float) -> float:
+    if num >= 0.0:
+        return num ** 0.5
+    else:
+        return -(abs(num) ** 0.5)
+    
+    
 @njit(fastmath=True)
 def nbdiff_1d(a: Array, n: int = 1) -> Array:
     """

@@ -2,8 +2,7 @@ import numpy as np
 from typing import List, Tuple
 from numba.types import Array
 
-from frameworks.tools.numba import nbclip, nbgeomspace
-from frameworks.tools.trading.rounding import round_ceil, round_floor
+from frameworks.tools.numba import nbclip, nbgeomspace, nbsqrt
 from frameworks.tools.trading.weights import generate_geometric_weights
 from smm.quote_generators.base import QuoteGenerator
 from smm.sharedstate import SmmSharedState
@@ -31,8 +30,8 @@ class PlainQuoteGenerator(QuoteGenerator):
         float
             The corrected skew value.
         """
-        corrective_amount = self.inventory_delta**0.5
-        skew += corrective_amount if self.inventory_delta < 0.0 else -corrective_amount
+        corrective_amount = nbsqrt(self.inventory_delta)
+        skew += -corrective_amount
         return skew
 
     def corrected_spread(self, spread: float) -> float:
@@ -53,7 +52,7 @@ class PlainQuoteGenerator(QuoteGenerator):
         if spread < min_spread:
             return min_spread
         else:
-            return nbclip(spread, spread, min_spread * 5)
+            return nbclip(spread, min_spread, min_spread * 5.0)
 
     def prepare_orders(
         self, bid_prices: Array, bid_sizes: Array, ask_prices: Array, ask_sizes: Array
@@ -92,8 +91,8 @@ class PlainQuoteGenerator(QuoteGenerator):
                 self.generate_single_quote(
                     side=0.0,
                     orderType=0.0,
-                    price=round_floor(num=bid_price, step_size=self.data["tick_size"]),
-                    size=round_ceil(num=bid_size, step_size=self.data["lot_size"])
+                    price=self.round_bid(bid_price),
+                    size=self.round_size(bid_size)
                 )
             )
 
@@ -101,8 +100,8 @@ class PlainQuoteGenerator(QuoteGenerator):
                 self.generate_single_quote(
                     side=1.0,
                     orderType=0.0,
-                    price=round_ceil(num=ask_price, step_size=self.data["tick_size"]),
-                    size=round_ceil(num=ask_size, step_size=self.data["lot_size"])
+                    price=self.round_ask(ask_price),
+                    size=self.round_size(ask_size)
                 )
             )
 
@@ -127,21 +126,22 @@ class PlainQuoteGenerator(QuoteGenerator):
         List[Dict]
             A list of single quotes.
         """
-        half_spread = spread / 2
-        aggressiveness = self.params["aggressiveness"] * (skew**0.5)
+        corrected_spread = self.corrected_spread(spread)
+        half_spread = corrected_spread / 2.0
+        aggressiveness = self.params["aggressiveness"] * nbsqrt(skew)
 
-        best_bid_price = self.mid - (half_spread * (1.0 - aggressiveness))
-        best_ask_price = best_bid_price + spread
+        best_bid_price = self.mid_price - (half_spread * (1.0 - aggressiveness))
+        best_ask_price = best_bid_price + corrected_spread
 
         bid_prices = nbgeomspace(
             start=best_bid_price,
-            end=best_bid_price - (spread * 5),
+            end=best_bid_price - (corrected_spread * 5.0),
             n=self.total_orders // 2,
         )
 
         ask_prices = nbgeomspace(
             start=best_ask_price,
-            end=best_ask_price + (spread * 5),
+            end=best_ask_price + (corrected_spread * 5.0),
             n=self.total_orders // 2,
         )
 
@@ -153,8 +153,8 @@ class PlainQuoteGenerator(QuoteGenerator):
 
         ask_sizes = self.max_position * generate_geometric_weights(
             num=self.total_orders // 2,
-            r=0.5 + (clipped_r ** (2 + aggressiveness)),
-            reverse=True,
+            r=clipped_r ** (2.0 + aggressiveness),
+            reverse=False,
         )
 
         return self.prepare_orders(bid_prices, bid_sizes, ask_prices, ask_sizes)
@@ -178,21 +178,22 @@ class PlainQuoteGenerator(QuoteGenerator):
         List[Tuple]
             A list of single quotes generated from self.generate_single_quote()
         """
-        half_spread = spread / 2
-        aggressiveness = self.params["aggressiveness"] * (skew**0.5)
+        corrected_spread = self.corrected_spread(spread)
+        half_spread = corrected_spread / 2.0
+        aggressiveness = self.params["aggressiveness"] * nbsqrt(abs(skew))
 
-        best_ask_price = self.mid + (half_spread * (1.0 - aggressiveness))
-        best_bid_price = best_ask_price - spread
+        best_ask_price = self.mid_price + (half_spread * (1.0 - aggressiveness))
+        best_bid_price = best_ask_price - corrected_spread
 
         bid_prices = nbgeomspace(
             start=best_bid_price,
-            end=best_bid_price - (spread**1.5),
+            end=best_bid_price - (corrected_spread**1.5),
             n=self.total_orders // 2,
         )
 
         ask_prices = nbgeomspace(
             start=best_ask_price,
-            end=best_ask_price + (spread**1.5),
+            end=best_ask_price + (corrected_spread**1.5),
             n=self.total_orders // 2,
         )
 
@@ -202,18 +203,18 @@ class PlainQuoteGenerator(QuoteGenerator):
 
         bid_sizes = self.max_position * generate_geometric_weights(
             num=self.total_orders // 2,
-            r=0.5 + (clipped_r ** (2 + aggressiveness)),
+            r=clipped_r ** (2.0 + aggressiveness),
             reverse=True,
         )
 
         ask_sizes = self.max_position * generate_geometric_weights(
-            num=self.total_orders // 2, r=clipped_r, reverse=True
+            num=self.total_orders // 2, r=clipped_r, reverse=False
         )
 
         return self.prepare_orders(bid_prices, bid_sizes, ask_prices, ask_sizes)
 
     def generate_orders(self, skew: float, spread: float) -> List:
-        if skew > 0.0:
+        if skew >= 0.0:
             return self.generate_positive_skew_quotes(skew, spread)
-        elif skew <= 0.0:
+        else:
             return self.generate_negative_skew_quotes(skew, spread)
