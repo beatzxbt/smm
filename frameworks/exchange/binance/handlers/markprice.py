@@ -9,11 +9,35 @@ class BinanceTickerHandler(TickerHandler):
         super().__init__(self.data["ticker"])
 
     def refresh(self, recv: Dict) -> None:
-        pass
+        try:
+            self.format["markPrice"] = float(
+                recv.get("markPrice", self.format["markPrice"])
+            )
+            self.format["indexPrice"] = float(
+                recv.get("indexPrice", self.format["indexPrice"])
+            )
+            self.format["fundingRate"] = float(
+                recv.get("lastFundingRate", self.format["fundingRate"])
+            )
+            self.format["fundingTime"] = float(
+                recv.get("nextFundingTime", self.format["fundingTime"])
+            )
+            self.ticker.update(self.format)
+
+        except Exception as e:
+            raise Exception(f"Ticker Refresh :: {e}")
 
     def process(self, recv: Dict) -> None:
-        self.format["markPrice"] = float(recv["p"])
-        self.format["indexPrice"] = float(recv["i"])
-        self.format["fundingTime"] = float(recv["T"])
-        self.format["fundingRate"] = float(recv["r"])
-        self.ticker.update(self.format)
+        try:
+            self.format["markPrice"] = float(recv.get("p", self.format["markPrice"]))
+            self.format["indexPrice"] = float(recv.get("i", self.format["indexPrice"]))
+            self.format["fundingRate"] = float(
+                recv.get("r", self.format["fundingRate"])
+            )
+            self.format["fundingTime"] = float(
+                recv.get("T", self.format["fundingTime"])
+            )
+            self.ticker.update(self.format)
+
+        except Exception as e:
+            raise Exception(f"Ticker Process :: {e}")
