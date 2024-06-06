@@ -58,6 +58,9 @@ class BybitClient(Client):
             case 10016:
                 return (True, "Bybit server error...")
 
+            case 10010:
+                return (False, "Unmatched IP, check your API key's bound IP addresses.")
+            
             case 110001:
                 return (False, "Order doesn't exist anymore!")
 
