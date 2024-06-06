@@ -1,6 +1,6 @@
 import asyncio
 import numpy as np
-from typing import Dict, List, Union
+from typing import Dict, List, Coroutine, Union
 
 from smm.sharedstate import SmmSharedState
 
@@ -10,13 +10,11 @@ class OrderManagementSystem:
     Written to spec: [https://twitter.com/BeatzXBT/status/1731757053113147524]
     """
     def __init__(self, ss: SmmSharedState) -> None:
-        self.exch = ss.exchange
-        self.data = ss.data
-        self.params = ss.parameters
+        self.ss = ss
     
     @property
     def mid(self) -> float:
-        return self.data["orderbook"].get_mid()
+        return self.ss.data["orderbook"].get_mid()
     
     def find_closest_order(self, new_order: Dict, sensitivity=0.1) -> Dict:
         """
@@ -41,7 +39,7 @@ class OrderManagementSystem:
         closest_order = {}
         min_distance = float('inf')
 
-        for current_order in self.data["current_orders"].values():
+        for current_order in self.ss.data["current_orders"].values():
             if current_order["side"] == new_order["side"]:
                 distance = abs(current_order["price"] - new_order["price"])
     
@@ -51,45 +49,45 @@ class OrderManagementSystem:
 
         return closest_order
 
-    async def create_order_task(self, new_order: Dict) -> asyncio.Task:
-        """Format a create order task and send to exchange"""
-        return asyncio.create_task(self.exch.create_order(
+    async def create_order(self, new_order: Dict) -> Coroutine:
+        """Format a create order and send to exchange"""
+        return await self.ss.exchange.create_order(
             symbol=self.ss.symbol,
             side=new_order["side"], 
             orderType=new_order["orderType"],
             size=new_order["size"], 
             price=new_order["price"]
-        ))
+        )
     
-    async def amend_order_task(self, orderId: Union[int, str], old_order: Dict, new_order: Dict) -> asyncio.Task:
-        """Format an amend order task and send to exchange"""
-        return asyncio.create_task(self.exch.amend_order(
+    async def amend_order(self, orderId: Union[int, str], old_order: Dict, new_order: Dict) -> Coroutine:
+        """Format an amend order and send to exchange"""
+        return await self.ss.exchange.amend_order(
             symbol=self.ss.symbol,
             orderId=orderId, 
             side=old_order["orderId"],
             size=new_order["size"], 
             price=new_order["price"]
-        ))
+        )
             
-    async def cancel_order_task(self, orderId: Union[int, str]) -> asyncio.Task:
-        """Format a cancel order task and send to exchange"""
-        return asyncio.create_task(self.exch.cancel_order(
+    async def cancel_order(self, orderId: Union[int, str]) -> Coroutine:
+        """Format a cancel order and send to exchange"""
+        return await self.ss.exchange.cancel_order(
             symbol=self.ss.symbol,
             orderId=orderId
-        ))
+        )
     
-    async def cancel_all_orders_task(self) -> asyncio.Task:
-        """Format a cancel order task and send to exchange"""
-        return asyncio.create_task(self.exch.cancel_all_orders(
+    async def cancel_all_orders(self) -> Coroutine:
+        """Format a cancel order and send to exchange"""
+        return await self.ss.exchange.cancel_all_orders(
             symbol=self.ss.symbol
-        ))
+        )
 
     async def update(self, new_orders: List[Dict]) -> None:
         tasks = []
-        current_order_count = len(self.data["current_orders"])
+        current_order_count = len(self.ss.data["current_orders"])
 
         # If network bugs cause overexposure, reset state
-        if current_order_count > self.params["total_orders"]:
+        if current_order_count > self.ss.parameters["total_orders"]:
             tasks.append(self.cancel_all_orders_task())
             current_order_count = 0
 
@@ -101,7 +99,7 @@ class OrderManagementSystem:
 
                 # Send limit orders if certain criteria are met
                 case 0.0:
-                    if current_order_count < self.params["total_orders"]:
+                    if current_order_count < self.ss.parameters["total_orders"]:
                         tasks.append(self.create_order_task(order))
                         current_order_count += 1
 
@@ -110,16 +108,16 @@ class OrderManagementSystem:
                         
                 case _:
                     await self.ss.logging.error(f"Incorrect orderType encountered in OMS: {order}")
-                    raise ValueError(f"Invalid order type: {order["orderType"]}")
+                    raise ValueError(f"Invalid order type: {order['orderType']}")
                 
     async def update_simple(self, new_orders: List[Dict]) -> None:
-        tasks = []
-        tasks.append(self.cancel_all_orders_task())
+        try:
+            await self.cancel_all_orders()
+            await asyncio.gather(*[self.create_order(order) for order in new_orders])
 
-        for order in new_orders:
-            tasks.append(self.create_order_task(order))
-
-        await asyncio.gather(*tasks)
+        except Exception as e:
+            await self.ss.logging.error(f"Order Management System: {e}")
+        
 
 
 
