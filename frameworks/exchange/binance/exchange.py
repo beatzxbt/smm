@@ -4,17 +4,20 @@ from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.binance.endpoints import BinanceEndpoints
 from frameworks.exchange.binance.formats import BinanceFormats
 from frameworks.exchange.binance.client import BinanceClient
+from frameworks.exchange.binance.orderid import BinanceOrderIdGenerator
 
 
 class Binance(Exchange):
     def __init__(self, api_key: str, api_secret: str) -> None:
         self.api_key = api_key
         self.api_secret = api_secret
-        self.client = BinanceClient(self.api_key, self.api_secret)
-        self.formats = BinanceFormats()
-        self.endpoints = BinanceEndpoints()
-        self.base_endpoint = self.endpoints.main
-        super().__init__(self.client)
+        
+        super().__init__(
+            client=BinanceClient(self.api_key, self.api_secret),
+            formats=BinanceFormats(),
+            endpoints=BinanceEndpoints(),
+            orderIdGenerator=BinanceOrderIdGenerator()
+        )
 
     async def create_order(
         self,

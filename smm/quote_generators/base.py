@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
+from typing import List, Tuple, Dict, Union
 from numpy.typing import NDArray
-from typing import List, Tuple, Dict
 
 from smm.sharedstate import SmmSharedState
 from frameworks.tools.trading.rounding import round_ceil, round_floor
@@ -26,6 +26,7 @@ class QuoteGenerator(ABC):
         """
         self.data = ss.data
         self.params = ss.parameters
+        self.orderid = ss.exchange.orderid
 
     @property
     def mid_price(self) -> float:
@@ -229,17 +230,17 @@ class QuoteGenerator(ABC):
         return round_ceil(num=size, step_size=self.data["lot_size"])
   
     def generate_single_quote(
-        self, side: float, orderType: float, price: float, size: float
+        self, side: int, orderType: int, price: float, size: float, clientOrderId: Union[str, int]
     ) -> Dict:
         """
         Generates a single quote dictionary.
 
         Parameters
         ----------
-        side : float
+        side : int
             The side of the order.
             
-        orderType : float
+        orderType : int
             The type of the order.
             
         price : float
@@ -248,7 +249,9 @@ class QuoteGenerator(ABC):
         size : float
             The size of the order.
 
-
+        clientOrderId: Union[str, int]
+            The custom order ID.
+            
         Returns
         -------
         dict
@@ -259,6 +262,7 @@ class QuoteGenerator(ABC):
             "orderType": orderType,
             "price": price,
             "size": size,
+            "clientOrderId": clientOrderId,
         }
 
     @abstractmethod

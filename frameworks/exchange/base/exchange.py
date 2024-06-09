@@ -4,19 +4,35 @@ from typing import Dict, Optional, Union
 
 from frameworks.tools.logging import Logger
 from frameworks.exchange.base.client import Client
+from frameworks.exchange.base.formats import Formats
+from frameworks.exchange.base.endpoints import Endpoints
+from frameworks.exchange.base.orderid import OrderIdGenerator
 
 
 class Exchange(ABC):
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Client, formats: Formats, endpoints: Endpoints, orderIdGenerator: OrderIdGenerator) -> None:
         """
-        Initializes the Exchange class with a client.
+        Initializes the Exchange class with the necessary components.
 
         Parameters
         ----------
         client : Client
             The client instance to interact with the exchange.
+
+        formats : Formats
+            The formats instance used to format various exchange-related data.
+
+        endpoints : Endpoints
+            The endpoints instance containing the URLs for the exchange's API endpoints.
+
+        orderIdGenerator : OrderIdGenerator
+            The order ID generator instance used to generate order IDs.
         """
         self.client = client
+        self.formats = formats
+        self.endpoints = endpoints
+        self.base_endpoint = self.endpoints.main
+        self.orderid = orderIdGenerator
 
     def load_required_refs(self, logging: Logger, symbol: str, data: Dict) -> None:
         """
@@ -41,24 +57,7 @@ class Exchange(ABC):
     @abstractmethod
     async def warmup(self) -> None:
         """
-        Abstract method for warming up the exchange-specific data.
-        """
-        pass
-
-    @abstractmethod
-    async def shutdown(self) -> None:
-        """
-        Abstract method for dumping/clearing open delta on the exchange.
-
-        Steps
-        -----
-        1. Send 3 cancel all requests (increased at discretion)
-        2. Send 1 market dump of the current position, if existing
-
-        Improvements
-        --------
-        -> Once reduce-only is supported, perform step 2 thrice, not once.
-        -> Shuts down the client session and any other internal tasks.
+        Abstract method for warming up the exchange-specific data. 
         """
         pass
 
@@ -107,11 +106,11 @@ class Exchange(ABC):
     async def amend_order(
         self,
         symbol: str,
-        orderId: Optional[Union[str, int]],
-        clientOrderId: Optional[Union[str, int]],
         side: int,
         size: float,
         price: float,
+        orderId: Optional[Union[str, int]]=None,
+        clientOrderId: Optional[Union[str, int]]=None,
     ) -> Dict:
         """
         Abstract method to amend an existing order.
@@ -120,12 +119,6 @@ class Exchange(ABC):
         ----------
         symbol : str
             The trading symbol.
-
-        orderId : str or int, optional
-            The ID of the order to be amended.
-
-        clientOrderId : str or int, optional
-            The client-provided ID of the order to be amended.
 
         side : int
             The side of the order.
@@ -136,6 +129,11 @@ class Exchange(ABC):
         price : float
             The new price of the order.
 
+        orderId : str or int, optional
+            The ID of the order to be amended.
+
+        clientOrderId : str or int, optional
+            The client-provided ID of the order to be amended.
 
         Returns
         -------
@@ -148,8 +146,8 @@ class Exchange(ABC):
     async def cancel_order(
         self,
         symbol: str,
-        orderId: Optional[Union[str, int]],
-        clientOrderId: Optional[Union[str, int]],
+        orderId: Optional[Union[str, int]]=None,
+        clientOrderId: Optional[Union[str, int]]=None,
     ) -> Dict:
         """
         Abstract method to cancel an existing order.
@@ -322,16 +320,19 @@ class Exchange(ABC):
                 await self.logging.debug(f"Trying cancel all, attempt {attempt}")
                 tasks.append(asyncio.create_task(self.cancel_all_orders(self.symbol)))
 
-            for attempt in range(1):
+            delta_neutralizer_orderid = self.orderid.generate_order_id()
+
+            for attempt in range(3):
                 await self.logging.debug(f"Trying delta neutralizer, attempt {attempt}")
                 tasks.append(
                     asyncio.create_task(
                         self.create_order(
                             symbol=self.symbol,
-                            side=0.0 if self.data["position"]["size"] < 0.0 else 1.0,
-                            orderType=1.0,
+                            side=0 if self.data["position"]["size"] < 0 else 1,
+                            orderType=1,
                             size=self.data["position"]["size"],
                             price=0.0,  # NOTE: Ignored for taker orders
+                            clientOrderId=delta_neutralizer_orderid
                         )
                     )
                 )
@@ -343,7 +344,7 @@ class Exchange(ABC):
 
         except Exception as e:
             await self.logging.error(f"Shutdown sequence: {e}")
-            raise
+            raise e
 
         finally:
             await self.logging.info(f"Exchange shutdown sequence complete.")

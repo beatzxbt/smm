@@ -18,8 +18,8 @@ class Formats(ABC):
         side: Union[int, float],
         orderType: Union[int, float],
         size: float,
-        price: Optional[float] = None,
-        clientOrderId: Optional[Union[str, int]] = None,
+        price: Optional[float],
+        clientOrderId: Optional[Union[str, int]],
     ) -> Dict:
         """
         Abstract method to create an order.
@@ -55,11 +55,11 @@ class Formats(ABC):
     async def amend_order(
         self,
         symbol: str,
-        orderId: Optional[Union[str, int]],
-        clientOrderId: Optional[Union[str, int]],
         side: Union[int, float],
         size: float,
         price: float,
+        orderId: Optional[Union[str, int]],
+        clientOrderId: Optional[Union[str, int]],
     ) -> Dict:
         """
         Abstract method to amend an existing order.
@@ -69,12 +69,6 @@ class Formats(ABC):
         symbol : str
             The trading symbol.
 
-        orderId : str or int, optional
-            The ID of the order to be amended.
-
-        clientOrderId : str or int, optional
-            The client-provided ID of the order to be amended.
-
         side : Union[int, float]
             The side of the order.
 
@@ -83,6 +77,12 @@ class Formats(ABC):
 
         price : float
             The new price of the order.
+
+        orderId : str or int, optional
+            The ID of the order to be amended.
+
+        clientOrderId : str or int, optional
+            The client-provided ID of the order to be amended.
 
 
         Returns
