@@ -1,8 +1,7 @@
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 from frameworks.tools.logging import time_ms
 from frameworks.tools.numba import nbgeomspace
-from frameworks.tools.trading.rounding import round_ceil, round_floor
 from frameworks.tools.trading.weights import generate_geometric_weights
 from smm.quote_generators.base import QuoteGenerator
 from smm.sharedstate import SmmSharedState
@@ -23,7 +22,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
         Generate deep orders in a range from the base spread to base^1.5 away from mid.
 
         This method generates a series of bid and ask orders based on geometric spreads 
-        and sizes, ranging from a base spread to a spread raised to the power of 1.5.
+        and sizes, ranging from base spread to a spread raised to the power of 1.5.
 
         Returns
         -------
@@ -31,6 +30,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
             A list of single quotes.
         """
         orders = []
+        level = 0
 
         spreads = nbgeomspace(
             start=self.bps_to_decimal(self.params["base_spread"]),
@@ -41,24 +41,28 @@ class StinkyQuoteGenerator(QuoteGenerator):
         sizes = self.max_position * generate_geometric_weights(num=self.total_orders//2)
 
         for spread, size in zip(spreads, sizes):
-            bid_price = self.mid - spread
-            ask_price = self.mid + spread
+            bid_price = self.mid_price - spread
+            ask_price = self.mid_price + spread
+
+            str_level = str(level).zfill(2)
 
             orders.append(
                 self.generate_single_quote(
-                    side=0.0,
-                    orderType=0.0,
-                    price=round_floor(num=bid_price, step_size=self.data["tick_size"]),
-                    size=round_ceil(num=size, step_size=self.data["lot_size"]),
+                    side=0,
+                    orderType=0,
+                    price=self.round_bid(bid_price),
+                    size=self.round_size(size),
+                    clientOrderId=self.orderid.generate_order_id(end=str_level)
                 )
             )
 
-            orders.append(  
+            orders.append(
                 self.generate_single_quote(
-                    side=1.0,
-                    orderType=0.0,
-                    price=round_ceil(num=ask_price, step_size=self.data["tick_size"]),
-                    size=round_ceil(num=size, step_size=self.data["lot_size"]),
+                    side=1,
+                    orderType=0,
+                    price=self.round_ask(ask_price),
+                    size=self.round_size(size),
+                    clientOrderId=self.orderid.generate_order_id(end=str_level)
                 )
             )
 
@@ -94,14 +98,15 @@ class StinkyQuoteGenerator(QuoteGenerator):
                 self.local_position_time = time_ms()
 
             else:
-                max_duration_ms = self.local_position_time + (max_duration * 1000)
+                max_duration_ms = self.local_position_time + (max_duration * 1000.0)
             
                 if max_duration_ms < time_ms():
                     order.append(self.generate_single_quote(
-                        side=1.0 if self.data["position"]["size"] > 0.0 else 0.0,    
-                        orderType=1.0,
-                        price=self.mid, # NOTE: Ignored value for takers
-                        size=self.data["position"]["size"]
+                        side=1 if self.data["position"]["size"] > 0.0 else 0,    
+                        orderType=1,
+                        price=self.mid_price, # NOTE: Ignored value for takers
+                        size=self.data["position"]["size"],
+                        clientOrderId=self.orderid.generate_order_id(end="00")
                     ))
 
                 self.local_position.clear()

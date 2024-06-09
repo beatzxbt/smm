@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple
+from typing import List, Dict
 from numba.types import Array
 
 from frameworks.tools.numba import nbclip, nbgeomspace, nbsqrt
@@ -49,19 +49,19 @@ class PlainQuoteGenerator(QuoteGenerator):
             The adjusted spread value.
         """
         min_spread = self.bps_to_decimal(self.params["minimum_spread"])
-        if spread < min_spread:
-            return min_spread
-        else:
-            return nbclip(spread, min_spread, min_spread * 5.0)
+        return nbclip(spread, min_spread, min_spread * 5.0)
 
     def prepare_orders(
         self, bid_prices: Array, bid_sizes: Array, ask_prices: Array, ask_sizes: Array
-    ) -> List[Tuple]:
+    ) -> List[Dict]:
         """
         Prepare bid and ask orders based on given prices and sizes.
 
         Ordering is done 1-bid-1-ask for greater priority to inner (closer to mid) orders
-        and decreasing priority going outward (away from mid).
+        and decreasing priority going outward (away from mid). 
+        
+        The order ID's are to-spec with the Order Management System, which interprets 
+        the last 2 digits as the order level, with a min max of 00 and 99 respectively.
 
         Parameters
         ----------
@@ -79,39 +79,43 @@ class PlainQuoteGenerator(QuoteGenerator):
 
         Returns
         -------
-        List[Tuple]
+        List[Dict]
             List of tuples representing bid and ask orders.
         """
         orders = []
+        level = 0
 
         for bid_price, bid_size, ask_price, ask_size in zip(
             bid_prices, bid_sizes, ask_prices, ask_sizes
-        ):
+        ):  
+            str_level = str(level).zfill(2)
+
             orders.append(
                 self.generate_single_quote(
-                    side=0.0,
-                    orderType=0.0,
+                    side=0,
+                    orderType=0,
                     price=self.round_bid(bid_price),
-                    size=self.round_size(bid_size)
+                    size=self.round_size(bid_size),
+                    clientOrderId=self.orderid.generate_order_id(end=str_level)
                 )
             )
 
             orders.append(
                 self.generate_single_quote(
-                    side=1.0,
-                    orderType=0.0,
+                    side=1,
+                    orderType=0,
                     price=self.round_ask(ask_price),
-                    size=self.round_size(ask_size)
+                    size=self.round_size(ask_size),
+                    clientOrderId=self.orderid.generate_order_id(end=str_level)
                 )
             )
 
         return orders
 
-    def generate_positive_skew_quotes(self, skew: float, spread: float) -> List[Tuple]:
+    def generate_positive_skew_quotes(self, skew: float, spread: float) -> List[Dict]:
         """
         Generate positively skewed bid/ask quotes, with the intention to fill
-        more on the bid side (buy more) than the ask side (sell less). A larger strategy
-        breakdown can be found in the README.md, or at the top of this class.
+        more on the bid side (buy more) than the ask side (sell less).
 
         Parameters
         ----------
@@ -162,8 +166,7 @@ class PlainQuoteGenerator(QuoteGenerator):
     def generate_negative_skew_quotes(self, skew: float, spread: float) -> List:
         """
         Generate positively skewed bid/ask quotes, with the intention to fill
-        more on the bid side (buy more) than the ask side (sell less). A larger strategy
-        breakdown can be found in the README.md, or at the top of this class.
+        more on the bid side (buy more) than the ask side (sell less).
 
         Parameters
         ----------
@@ -175,7 +178,7 @@ class PlainQuoteGenerator(QuoteGenerator):
 
         Returns
         -------
-        List[Tuple]
+        List[Dict]
             A list of single quotes generated from self.generate_single_quote()
         """
         corrected_spread = self.corrected_spread(spread)
@@ -187,19 +190,17 @@ class PlainQuoteGenerator(QuoteGenerator):
 
         bid_prices = nbgeomspace(
             start=best_bid_price,
-            end=best_bid_price - (corrected_spread**1.5),
+            end=best_bid_price - (corrected_spread * 5.0),
             n=self.total_orders // 2,
         )
 
         ask_prices = nbgeomspace(
             start=best_ask_price,
-            end=best_ask_price + (corrected_spread**1.5),
+            end=best_ask_price + (corrected_spread * 5.0),
             n=self.total_orders // 2,
         )
 
-        clipped_r = 0.5 + nbclip(
-            skew, 0.0, 0.5
-        )  # NOTE: Geometric ratio cant exceed 1.0
+        clipped_r = 0.5 + nbclip(abs(skew), 0.0, 0.5) # NOTE: Geometric ratio cant exceed 1.0
 
         bid_sizes = self.max_position * generate_geometric_weights(
             num=self.total_orders // 2,
