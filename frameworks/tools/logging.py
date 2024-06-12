@@ -38,15 +38,15 @@ class Logger:
         self.discord_client = None
         self.telegram_client = None
 
-        self.send_to_discord = bool(os.get_env("DISCORD_WEBHOOK"))
+        self.send_to_discord = bool(os.getenv("DISCORD_WEBHOOK"))
         if self.send_to_discord:
             self.discord_client = DiscordClient()
-            self.discord_client.start(os.get_env("DISCORD_WEBHOOK"))
+            self.discord_client.start(os.getenv("DISCORD_WEBHOOK"))
 
-        self.send_to_telegram = bool(os.get_env("TELEGRAM_BOT_TOKEN") and os.get_env("TELEGRAM_CHAT_ID"))
+        self.send_to_telegram = bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"))
         if self.send_to_telegram:
             self.telegram_client = TelegramClient()
-            self.telegram_client.start(os.get_env("TELEGRAM_BOT_TOKEN"), os.get_env("TELEGRAM_CHAT_ID"))
+            self.telegram_client.start(os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID"))
 
         self.tasks = []
 
