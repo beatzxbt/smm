@@ -5,6 +5,8 @@ from frameworks.exchange.base.types import StrNumConverter
 
 
 class Formats(ABC):
+    recvWindow = 1000
+
     def __init__(
         self, convert_side: StrNumConverter, convert_order_type: StrNumConverter
     ) -> None:
@@ -12,7 +14,7 @@ class Formats(ABC):
         self.convert_order_type = convert_order_type
 
     @abstractmethod
-    async def create_order(
+    def create_order(
         self,
         symbol: str,
         side: Union[int, float],
@@ -52,7 +54,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def amend_order(
+    def amend_order(
         self,
         symbol: str,
         side: Union[int, float],
@@ -93,7 +95,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(
+    def cancel_order(
         self,
         symbol: str,
         orderId: Optional[Union[str, int]],
@@ -121,7 +123,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def cancel_all_orders(self, symbol: str) -> Dict:
+    def cancel_all_orders(self, symbol: str) -> Dict:
         """
         Abstract method to cancel all existing orders for a symbol.
 
@@ -138,7 +140,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_ohlcv(
+    def get_ohlcv(
         self, symbol: str, interval: Union[int, str]
     ) -> Union[Dict, str]:
         """
@@ -160,7 +162,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_trades(self, symbol: str) -> Union[Dict, str]:
+    def get_trades(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get recent trades.
 
@@ -177,7 +179,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_orderbook(self, symbol: str) -> Union[Dict, str]:
+    def get_orderbook(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get an orderbook snapshot.
 
@@ -194,7 +196,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> Union[Dict, str]:
+    def get_ticker(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get ticker data.
 
@@ -211,7 +213,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_open_orders(self, symbol: str) -> Union[Dict, str]:
+    def get_open_orders(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get open orders.
 
@@ -228,7 +230,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    async def get_position(self, symbol: str) -> Union[Dict, str]:
+    def get_position(self, symbol: str) -> Union[Dict, str]:
         """
         Abstract method to get current position data.
 
