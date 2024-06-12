@@ -55,7 +55,7 @@ class BybitFormats(Formats):
                 "side": self.convert_side.to_str(side),
                 "orderType": self.convert_order_type.to_str(orderType),
                 "qty": str(size),
-                 **({"orderLinkId": clientOrderId} if clientOrderId else {})
+                **({"orderLinkId": clientOrderId} if clientOrderId else {})
             }
 
             if orderType == 1:

@@ -21,7 +21,14 @@ class OrdersHandler(ABC):
             A dictionary to store orders data.
         """
         self.orders = orders
-        self.format = {"createTime": 0.0, "side": 0.0, "price": 0.0, "size": 0.0}
+        self.format = {
+            "createTime": 0.0, 
+            "side": 0.0, 
+            "price": 0.0, 
+            "size": 0.0, 
+            "orderId": "", 
+            "clientOrderId": ""
+        }
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
@@ -40,11 +47,12 @@ class OrdersHandler(ABC):
         -----
         1. Extract the orders list from the recv payload.
            -> Ensure the following data points are present:
-                - OrderId
-                - Create Time
-                - Side
-                - Price
-                - Size
+                - createTime
+                - side
+                - price
+                - size
+                - orderId
+                - clientOrderId
         2. For each order in the list:
            -> Overwrite self.format with the respective values.
            -> self.orders[OrderId] = self.format.copy().
@@ -68,11 +76,12 @@ class OrdersHandler(ABC):
         -----
         1. Extract the orders list from the recv payload.
            -> Ensure the following data points are present:
-                - OrderId
-                - Create Time
-                - Side
-                - Price
-                - Size
+                - createTime
+                - side
+                - price
+                - size
+                - orderId
+                - clientOrderId
         2. For each order in the payload:
            -> Overwrite self.format with the respective values.
            -> self.orders[OrderId] = self.format.copy().
