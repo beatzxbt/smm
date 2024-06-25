@@ -26,7 +26,7 @@ def time_now() -> str:
     str
         The current time string.
     """
-    return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:05d}"
+    return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:04d}"
 
 class Logger:
     def __init__(
@@ -68,8 +68,7 @@ class Logger:
         """
         formatted_msg = f"{time_now()} | {level} | {msg}"
 
-        if self.print_to_console:
-            print(formatted_msg)
+        print(formatted_msg)
 
         if self.send_to_discord:
             task = asyncio.create_task(self.discord_client.send(formatted_msg))
@@ -170,12 +169,16 @@ class DiscordClient:
             self.buffer.append(self.data.copy())
 
             if len(self.buffer) >= self.max_buffer_size or flush_buffer:
+                tasks = []
+
                 for message in self.buffer:
-                    await self.client.post(
+                    tasks.append(self.client.post(
                         url=self.webhook,
                         data=orjson.dumps(message).decode(),
                         headers=self.headers,
-                    )
+                    ))
+
+                _ = await asyncio.gather(*tasks)
 
                 self.buffer.clear()
 
@@ -260,13 +263,18 @@ class TelegramClient:
             self.buffer.append(self.data.copy())
 
             if len(self.buffer) >= self.max_buffer_size or flush_buffer:
+                tasks = []
+
                 for message in self.buffer:
-                    await self.client.post(
+                    tasks.append(asyncio.create_task(self.client.post(
                         url=f"https://api.telegram.org/bot{self.bot_token}/sendMessage?chat_id={self.chat_id}",
                         data=orjson.dumps(message).decode(),
                         headers=self.headers,
-                    )
+                    )))
 
+                _ = await asyncio.gather(*tasks)
+                tasks.clear()
+                
                 self.buffer.clear()
 
         except Exception as e:
