@@ -61,7 +61,7 @@ class Client(ABC):
         """
         self.api_key, self.api_secret = api_key, api_secret
         self.session = aiosonic.HTTPClient()
-        self.timestamp = str(time_ms())
+        self.timestamp = time_ms()
 
         self.default_headers = {"Accept": "application/json"}
 
@@ -119,10 +119,10 @@ class Client(ABC):
 
             case code if code in self.http_exceptions:
                 reason = self.http_exceptions[code]
-                raise Exception(f"Known status code :: {code} | {reason}")
+                raise Exception(f"Known status code [{code}] | {reason}")
 
             case _:
-                raise Exception(f"Unknown status code :: {code}")
+                raise Exception(f"Unknown status code [{code}]")
 
     @abstractmethod
     def sign_headers(self, method: str, header: Dict) -> Dict[str, Any]:
@@ -217,14 +217,14 @@ class Client(ABC):
                     headers = self.sign_headers(method, headers)
 
                 await self.logging.debug(
-                    f"\n{method} :: {url}\n{headers}\n{orjson.dumps(data).decode() if data else ''} "
+                    f"{method} :: {url} | P: {params} | H: {headers} | D: {orjson.dumps(data).decode()}"
                 )
 
                 response = await self.session.request(
                     url=url,
                     method=method,
-                    headers=headers if headers else None,
-                    params=params if params else None,
+                    headers=headers,
+                    params=params,
                     data=orjson.dumps(data).decode() if data else None,
                 )
 
@@ -235,29 +235,25 @@ class Client(ABC):
                     if isinstance(response_json, Dict):
                         retry, msg = self.error_handler(response_json)
 
-                        if retry and msg:
+                        if retry:
                             await self.logging.warning(
-                                f"Retry attempt {attempt} due to: {msg}"
+                                f"Retry attempt {attempt}: {msg}"
                             )
                             await asyncio.sleep(attempt / 10)  # Exponential backoff
                             continue
 
                         elif msg:
-                            await self.logging.warning(f"Failed to send request: {msg}")
-
-                    await self.logging.debug(
-                        f"{response.status_code} :: {await response.content()}"
-                    )
-
+                            await self.logging.warning(f"Failed request: {msg}")
+            
                     return response_json
 
             except orjson.JSONDecodeError as e:
-                await self.logging.error(f"JSON decode error: {e}")
+                await self.logging.error(f"Client JSON Decode: {e}")
                 if attempt >= self.max_retries:
                     raise e
 
             except Exception as e:
-                await self.logging.error(f"Client error: {e}")
+                await self.logging.error(f"Client: {e}")
                 if attempt >= self.max_retries:
                     raise e
 
