@@ -1,17 +1,26 @@
-from frameworks.exchange.base.types import StrNumConverter
+from frameworks.exchange.base.types import SideConverter, TimeInForceConverter, OrderTypeConverter
 
 
-class BinanceOrderSides(StrNumConverter):
-    str_to_num = {"BUY": 0.0, "SELL": 1.0}
-    num_to_str = {v: k for k, v in str_to_num.items()}
+class BinanceSideConverter(SideConverter):
+    def __init__(self) -> None:
+        super().__init__(
+            BUY="BUY", 
+            SELL="SELL"
+        )
 
+class BinanceOrderTypeConverter(OrderTypeConverter):
+    def __init__(self) -> None:
+        super().__init__(
+            LIMIT="LIMIT", 
+            MARKET="MARKET", 
+            STOP_LIMIT="STOP", 
+            TAKE_PROFIT_LIMIT="TAKE_PROFIT"
+        )
 
-class BinanceOrderTypes(StrNumConverter):
-    str_to_num = {
-        "LIMIT": 0.0,
-        "MARKET": 1.0,
-        "STOP": 2.0,
-        "TAKE_PROFIT": 3.0,
-        "LIQUIDATION": 9.0,
-    }
-    num_to_str = {v: k for k, v in str_to_num.items()}
+class BinanceTimeInForceConverter(TimeInForceConverter):
+    def __init__(self) -> None:
+        super().__init__(
+            GTC="GTC", 
+            FOK="FOK", 
+            POST_ONLY="GTX"
+        )

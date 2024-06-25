@@ -1,17 +1,18 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Union, Optional
 
-from frameworks.exchange.base.types import StrNumConverter
+from frameworks.exchange.base.types import SideConverter, OrderTypeConverter, TimeInForceConverter
 
 
 class Formats(ABC):
     recvWindow = 1000
 
     def __init__(
-        self, convert_side: StrNumConverter, convert_order_type: StrNumConverter
+        self, convert_side: SideConverter, convert_order_type: OrderTypeConverter, convert_time_in_force: TimeInForceConverter
     ) -> None:
         self.convert_side = convert_side
         self.convert_order_type = convert_order_type
+        self.convert_tif = convert_time_in_force
 
     @abstractmethod
     def create_order(
