@@ -27,9 +27,6 @@ class TradingLogic:
                 return StinkyQuoteGenerator(self.ss)
 
             case _:
-                await self.ss.logging.error(
-                    f"Invalid quote generator, check available options!"
-                )
                 raise ValueError(f"Invalid quote generator: {quote_gen_name}")
 
     async def wait_for_ws_warmup(self) -> None:
@@ -60,16 +57,21 @@ class TradingLogic:
             return None
 
     async def start_loop(self) -> None:
-        await self.ss.logging.info("Warming up data feeds...")
-        await self.wait_for_ws_warmup()
-        self.quote_generator = await self.load_quote_generator()
-        await self.ss.logging.info(
-            f"Starting '{self.ss.quote_generator.lower()}' strategy on {self.ss.symbol}..."
-        )
+        try:
+            await self.ss.logging.info("Warming up data feeds...")
+            await self.wait_for_ws_warmup()
+            self.quote_generator = await self.load_quote_generator()
+            await self.ss.logging.info(
+                f"Starting '{self.ss.quote_generator.lower()}' strategy on {self.ss.symbol}..."
+            )
 
-        while True:
-            await asyncio.sleep(5.0)
-            fp_skew = self.feature_engine.generate_skew()
-            vol = self.feature_engine.generate_vol()
-            new_orders = self.quote_generator.generate_orders(fp_skew, vol)
-            await self.oms.update_simple(new_orders)
+            while True:
+                await asyncio.sleep(5.0)
+                fp_skew = self.feature_engine.generate_skew()
+                vol = self.feature_engine.generate_vol()
+                new_orders = self.quote_generator.generate_orders(fp_skew, vol)
+                await self.oms.update_simple(new_orders)
+
+        except Exception as e:
+            await self.ss.logging.error(f"Main loop: {e}")
+            raise e
