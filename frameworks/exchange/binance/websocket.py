@@ -87,7 +87,7 @@ class BinanceWebsocket(WebsocketStream):
                 raise ke
 
         except Exception as e:
-            await self.logging.error(f"Error with Binance public ws handler: {e}")
+            await self.logging.error(f"Binance public ws handler: {e}")
 
     async def private_stream_sub(self) -> Tuple[str, List[Dict[str, Any]]]:
         listen_key_data = await self.exch.get_listen_key()
@@ -104,7 +104,7 @@ class BinanceWebsocket(WebsocketStream):
                 raise ke
 
         except Exception as e:
-            await self.logging.error(f"Error with Binance private ws handler: {e}")
+            await self.logging.error(f"Binance private ws handler: {e}")
 
     async def ping_listen_key(self, timer: int = 1800) -> None:
         while True:
@@ -113,7 +113,7 @@ class BinanceWebsocket(WebsocketStream):
                 await self.exch.ping_listen_key()
 
             except Exception as e:
-                await self.logging.error(f"Error with Binance listen key ping: {e}")
+                await self.logging.error(f"Binance listen key ping: {e}")
                 raise e
 
     async def start_public_stream(self) -> None:
