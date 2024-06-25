@@ -13,7 +13,7 @@ from frameworks.exchange.base.structures.orderbook import Orderbook
 
 
 class SharedState(ABC):
-    def __init__(self) -> None:
+    def __init__(self, debug) -> None:
         """
         Initializes the SharedState class with default values.
 
@@ -38,6 +38,8 @@ class SharedState(ABC):
             A dictionary to hold parameters loaded from the YAML file.
 
         """
+        self.debug = debug
+
         self.data = {
             "tick_size": 0.0,
             "lot_size": 0.0,
@@ -53,23 +55,16 @@ class SharedState(ABC):
             },
 
             "position": {
+                "createTime": 0.0,
                 "price": 0.0, 
                 "size": 0.0, 
                 "uPnl": 0.0
             },
-            "orders": {
-                "createTime": 0.0,
-                "side": 0.0,
-                "price": 0.0,
-                "size": 0.0
-            },
+            "orders": {},
             "account_balance": 0.0,
         }
 
-        self.logging = Logger(
-            print_to_console=True,
-            discord_webhook=""
-        )
+        self.logging = Logger(debug_mode=self.debug)
         self.param_path = self.set_parameters_path()
         self.load_config()
 
@@ -182,6 +177,24 @@ class SharedState(ABC):
                     data=self.data
                 )
 
+            case "dydx_v4":
+                from frameworks.exchange.dydx_v4.exchange import Dydx
+                from frameworks.exchange.dydx_v4.websocket import DydxWebsocket
+
+                self.exchange = Dydx(self.api_key, self.api_secret)
+                self.exchange.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
+
+                self.websocket = DydxWebsocket(self.exchange)
+                self.websocket.load_required_refs(
+                    logging=self.logging,
+                    symbol=self.symbol,
+                    data=self.data
+                )
+
             # TODO: Add Paradex, OKX, Vertex, Kraken (in that order)
 
             case _:
@@ -218,52 +231,23 @@ class SharedState(ABC):
 
         except Exception as e:
             raise Exception(f"Error loading parameters: {e}")
-
-    async def _debug_mode_(self, data: bool=True, params: bool=False) -> None:
-        """
-        Prints the shared state data and/or parameters periodically for debugging purposes.
-
-        Parameters
-        ----------
-        data : bool, optional
-            Flag to print the shared state data (default is True).
-
-        params : bool, optional
-            Flag to print the parameters (default is False).
-        """
-        while True:
-            if data:
-                print(self.data)
-
-            if params:
-                print(self.parameters)
-            
-            await asyncio.sleep(1.0)
-
-    async def start_internal_processes(self, debug: bool=False) -> None:
+    
+    async def start_internal_processes(self) -> None:
         """
         Starts the internal processes such as warming up the exchange and starting the websocket.
-
-        Parameters
-        ----------
-        debug : bool, optional
-            Flag to enable debug mode (default is False).
         """
         tasks = [
             self.exchange.warmup(),
             self.websocket.start()
         ]
 
-        if debug:
-            tasks.append(self._debug_mode_())
-
         await asyncio.gather(*tasks)
 
-    async def refresh_parameters(self) -> None:
+    async def refresh_parameters(self, interval: float=10.0) -> None:
         """
         Periodically refreshes trading parameters from the parameters file.
         """
         self.load_parameters(reload=False)
         while True:
-            await asyncio.sleep(10)
+            await asyncio.sleep(interval)
             self.load_parameters(reload=True)

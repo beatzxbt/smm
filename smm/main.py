@@ -16,16 +16,14 @@ from frameworks.tools.asynchronous import initialize_event_loop
 from smm.strategy.marketmaker import TradingLogic
 from smm.sharedstate import SmmSharedState
 
-
-    
 async def main():
     try:
-        ss = SmmSharedState()
+        ss = SmmSharedState(debug=False)
         trading_logic = TradingLogic(ss)
 
         await asyncio.gather(
-            ss.start_internal_processes(),
             ss.refresh_parameters(),
+            ss.start_internal_processes(),
             trading_logic.start_loop()
         )
 
@@ -35,11 +33,12 @@ async def main():
     
     except Exception as e:
         await ss.logging.critical(f"Unexpected exception occurred: {e}")
-        raise e
+        raise 
 
     finally:
         await ss.logging.critical("Starting shutdown sequence...")
         await ss.exchange.shutdown()
+        await ss.websocket.shutdown()
         await ss.logging.info("Goodnight...")
         await ss.logging.shutdown()
 

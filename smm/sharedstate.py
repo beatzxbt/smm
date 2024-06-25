@@ -7,8 +7,8 @@ from frameworks.sharedstate import SharedState
 class SmmSharedState(SharedState):
     required_keys = {"max_position", "total_orders"}
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, debug: bool=False) -> None:
+        super().__init__(debug)
 
     def set_parameters_path(self) -> str:
         return os.path.dirname(os.path.realpath(__file__)) + "/parameters.yaml"
