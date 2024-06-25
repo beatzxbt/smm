@@ -1,16 +1,15 @@
 import numpy as np
 from numba import njit
 from numba.types import Array, bool_
-from numpy.typing import NDArray
 
 
 @njit(["float64[:](float64, float64, int64)"])
-def nblinspace(start: float, end: float, n: int) -> NDArray:
+def nblinspace(start: float, end: float, n: int) -> Array:
     return np.linspace(start, end, n)
 
 
 @njit(["float64[:](float64, float64, int64)"])
-def nbgeomspace(start: float, end: float, n: int) -> NDArray:
+def nbgeomspace(start: float, end: float, n: int) -> Array:
     return np.geomspace(start, end, n)
 
 
@@ -60,7 +59,7 @@ def nbdiff_1d(a: Array, n: int = 1) -> Array:
     if n == 0:
         return a.copy()
 
-    if n < 0:
+    elif n < 0:
         raise ValueError("diff(): order must be non-negative")
 
     a_size = a.size
@@ -93,7 +92,7 @@ def nbisin(a: Array, b: Array) -> Array:
     b = set(b)
 
     for i in range(a.size):
-        out[i] = True if a[i] in b else False
+        out[i] = a[i] in b
 
     return out
 
