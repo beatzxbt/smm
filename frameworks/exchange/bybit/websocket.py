@@ -106,9 +106,7 @@ class BybitWebsocket(WebsocketStream):
             "op": "subscribe",
             "args": [
                 "position",
-                # "execution",
-                "order",
-                # "wallet"
+                "order"
             ],
         }
 
