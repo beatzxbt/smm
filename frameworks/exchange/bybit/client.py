@@ -45,7 +45,7 @@ class BybitClient(Client):
         return self.headers_template.copy()
 
     def error_handler(self, recv):
-        match int(recv.get("retCode")):
+        match int(recv.get("retCode", 0)):
             case 0 | 200:
                 return (False, "")
 

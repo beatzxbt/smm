@@ -40,8 +40,8 @@ class Bybit(Exchange):
     async def batch_create_orders(
         self,
         symbol: str,
-        sides: List[float],
-        orderTypes: List[float],
+        sides: List[int],
+        orderTypes: List[int],
         sizes: List[float],
         prices: Optional[List[float]]=None,
         clientOrderIds: Optional[List[str]]=None
@@ -72,8 +72,8 @@ class Bybit(Exchange):
     async def batch_amend_orders(
         self,
         symbol: str,
-        sides: List[float],
-        orderTypes: List[float],
+        sides: List[int],
+        orderTypes: List[int],
         sizes: List[float],
         prices: Optional[List[float]]=None,
         orderIds: Optional[List[str]]=None,
