@@ -1,11 +1,14 @@
-aiosonic==0.18.0
-aiohttp==3.9.5
-uvloop==0.19.0
-orjson==3.10.3
+# Network/IO 
+aiosonic
+aiohttp
+uvloop
+orjson
+pyyaml
 
-numba==0.59.1
-numpy==1.26.4
+# Compute
+numpy
+numpy_ringbuffer
+numba
 
-urllib3==2.2.1
-PyYAML==6.0.1
-numpy-ringbuffer==0.2.2
+# Official SDKs 
+dydx-v4-client # DYDX V4
