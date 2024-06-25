@@ -21,7 +21,12 @@ class PositionHandler(ABC):
             A dictionary to store position data.
         """
         self.position = position
-        self.format = {"price": 0.0, "size": 0.0, "uPnl": 0.0}
+        self.format = {
+            "createTime": 0.0,
+            "price": 0.0, 
+            "size": 0.0, 
+            "uPnl": 0.0
+        }
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
