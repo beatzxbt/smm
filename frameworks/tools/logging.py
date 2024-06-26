@@ -1,5 +1,6 @@
 import os
 import orjson
+import aiofiles
 import aiosonic
 import asyncio
 from time import time_ns, strftime
@@ -49,6 +50,23 @@ class Logger:
             self.telegram_client.start(os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID"))
 
         self.tasks = []
+        self.msgs = []
+
+    async def _write_logs_to_file_(self) -> None:
+        """
+        Asynchronously write log messages to a file.
+
+        Returns
+        -------
+        None
+        """
+        try:
+            async with aiofiles.open("logs.txt", "a") as file:
+                await file.writelines(f"{line}\n" for line in self.msgs)
+        except Exception as e:
+            await self.error(f"Error writing logs to file: {e}")
+        finally:
+            self.msgs.clear()
 
     async def _message_(self, level: str, msg: str) -> None:
         """
@@ -68,8 +86,6 @@ class Logger:
         """
         formatted_msg = f"{time_now()} | {level} | {msg}"
 
-        print(formatted_msg)
-
         if self.send_to_discord:
             task = asyncio.create_task(self.discord_client.send(formatted_msg))
             self.tasks.append(task)
@@ -77,6 +93,13 @@ class Logger:
         if self.send_to_telegram:
             task = asyncio.create_task(self.telegram_client.send(formatted_msg))
             self.tasks.append(task)
+
+        print(formatted_msg)
+
+        self.msgs.append(formatted_msg)
+
+        if len(self.msgs) >= 1000:
+            await self._write_logs_to_file_()
 
     async def success(self, msg: str) -> None:
         await self._message_("SUCCESS", msg)
@@ -113,6 +136,9 @@ class Logger:
 
         if self.tasks:
             await asyncio.gather(*self.tasks)
+
+        if self.msgs:
+            await self._write_logs_to_file_()
 
 class DiscordClient:
     """

@@ -1,6 +1,7 @@
 # Network/IO 
 aiosonic
 aiohttp
+aiofiles
 uvloop
 orjson
 pyyaml
