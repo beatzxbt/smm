@@ -3,6 +3,7 @@ from typing import Dict, List, Union
 from frameworks.tools.logging import time_ms
 from frameworks.tools.numba import nbgeomspace
 from frameworks.tools.trading.weights import generate_geometric_weights
+from frameworks.exchange.base.types import Side, TimeInForce, OrderType, Order
 from smm.quote_generators.base import QuoteGenerator
 from smm.sharedstate import SmmSharedState
 
@@ -17,17 +18,34 @@ class StinkyQuoteGenerator(QuoteGenerator):
         self.local_position = {}
         self.local_position_time = 0.0
 
-    def generate_stinky_orders(self) -> List[Dict]:
+    def generate_stinky_orders(self) -> List[Order]:
         """
         Generate deep orders in a range from the base spread to base^1.5 away from mid.
 
-        This method generates a series of bid and ask orders based on geometric spreads 
-        and sizes, ranging from base spread to a spread raised to the power of 1.5.
+        Steps
+        -----
+        1. Convert the base spread from basis points to a decimal.
+        2. Generate geometric sequences for spreads and sizes:
+            a. The spreads range from the base spread to the base spread raised to the power of 1.5.
+            b. The sizes are generated using geometric weights.
+        3. For each spread and size pair:
+            a. Calculate the bid price by subtracting the spread from the mid-price.
+            b. Calculate the ask price by adding the spread to the mid-price.
+        4. Generate and append a bid order:
+            a. Use the calculated bid price and size.
+            b. Assign a client order ID with the level suffix.
+        5. Generate and append an ask order:
+            a. Use the calculated ask price and size.
+            b. Assign a client order ID with the level suffix.
+
+        Parameters
+        ----------
+        None
 
         Returns
         -------
-        List[Dict]
-            A list of single quotes.
+        List[Order]
+            A list of orders.
         """
         orders = []
         level = 0
@@ -48,8 +66,9 @@ class StinkyQuoteGenerator(QuoteGenerator):
 
             orders.append(
                 self.generate_single_quote(
-                    side=0,
-                    orderType=0,
+                    side=Side.BUY,
+                    orderType=OrderType.LIMIT,
+                    timeInForce=TimeInForce.POST_ONLY,
                     price=self.round_bid(bid_price),
                     size=self.round_size(size),
                     clientOrderId=self.orderid.generate_order_id(end=str_level)
@@ -58,15 +77,16 @@ class StinkyQuoteGenerator(QuoteGenerator):
 
             orders.append(
                 self.generate_single_quote(
-                    side=1,
-                    orderType=0,
-                    price=self.round_ask(ask_price),
+                    side=Side.SELL,
+                    orderType=OrderType.LIMIT,
+                    timeInForce=TimeInForce.POST_ONLY,
+                    price=self.round_bid(ask_price),
                     size=self.round_size(size),
                     clientOrderId=self.orderid.generate_order_id(end=str_level)
                 )
             )
 
-    def position_executor(self, max_duration: float=5.0) -> List[Union[Dict, None]]:
+    def position_executor(self, max_duration: float=10.0) -> List[Union[Order, None]]:
         """
         Purge a position if its duration exceeds a value.
 
@@ -87,8 +107,8 @@ class StinkyQuoteGenerator(QuoteGenerator):
 
         Returns
         -------
-        List[Union[Dict, None]]
-            A list containing a single taker order, or an empty list if no order is generated.
+        List[Union[Order, None]]
+            A list containing either a single taker order, or an empty list if no order is generated.
         """
         order = []
 
@@ -102,11 +122,12 @@ class StinkyQuoteGenerator(QuoteGenerator):
             
                 if max_duration_ms < time_ms():
                     order.append(self.generate_single_quote(
-                        side=1 if self.data["position"]["size"] > 0.0 else 0,    
-                        orderType=1,
+                        side=Side.SELL if self.data["position"]["size"] > 0.0 else Side.BUY,    
+                        orderType=OrderType.MARKET,
+                        timeInForce=TimeInForce.GTC,
                         price=self.mid_price, # NOTE: Ignored value for takers
                         size=self.data["position"]["size"],
-                        clientOrderId=self.orderid.generate_order_id(end="00")
+                        clientOrderId=self.orderid.generate_order_id(end="99")
                     ))
 
                 self.local_position.clear()
@@ -114,5 +135,5 @@ class StinkyQuoteGenerator(QuoteGenerator):
             
         return order
 
-    def generate_orders(self, fp_skew: float, vol: float) -> List[Dict]:
+    def generate_orders(self, fp_skew: float, vol: float) -> List[Order]:
         return self.position_executor() + self.generate_stinky_orders()
