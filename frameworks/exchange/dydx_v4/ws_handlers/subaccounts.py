@@ -1,7 +1,7 @@
 from typing import List, Dict
 
-from frameworks.exchange.dydx_v4.handlers.orders import DydxOrdersHandler
-from frameworks.exchange.dydx_v4.handlers.position import DydxPositionHandler
+from frameworks.exchange.dydx_v4.ws_handlers.orders import DydxOrdersHandler
+from frameworks.exchange.dydx_v4.ws_handlers.position import DydxPositionHandler
 
 
 class DydxSubaccountsHandler:

@@ -4,11 +4,11 @@ from typing import Tuple, Dict, List
 from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.dydx_v4.exchange import Dydx
 from frameworks.exchange.dydx_v4.endpoints import DydxEndpoints
-from frameworks.exchange.dydx_v4.handlers.orderbook import DydxOrderbookHandler
-from frameworks.exchange.dydx_v4.handlers.trades import DydxTradesHandler
-from frameworks.exchange.dydx_v4.handlers.ticker import DydxTickerHandler
-from frameworks.exchange.dydx_v4.handlers.ohlcv import DydxOhlcvHandler
-from frameworks.exchange.dydx_v4.handlers.subaccounts import DydxSubaccountsHandler
+from frameworks.exchange.dydx_v4.ws_handlers.orderbook import DydxOrderbookHandler
+from frameworks.exchange.dydx_v4.ws_handlers.trades import DydxTradesHandler
+from frameworks.exchange.dydx_v4.ws_handlers.ticker import DydxTickerHandler
+from frameworks.exchange.dydx_v4.ws_handlers.ohlcv import DydxOhlcvHandler
+from frameworks.exchange.dydx_v4.ws_handlers.subaccounts import DydxSubaccountsHandler
 
 
 class DydxWebsocket(WebsocketStream):
@@ -101,11 +101,8 @@ class DydxWebsocket(WebsocketStream):
             topic = recv["channel"]
             self.public_handler_map[topic].process(recv)
 
-        except KeyError as ke:
-            raise ke
-        
         except Exception as e:
-            await self.logging.error(f"Error with Dydx public ws handler: {e}")
+            raise e
 
     def private_stream_sub(self) -> Tuple[str, List[Dict]]:
         pass
@@ -121,7 +118,7 @@ class DydxWebsocket(WebsocketStream):
             url, requests = self.public_stream_sub()
             await self.start_public_ws(url, self.public_stream_handler, requests)
         except Exception as e:
-            await self.logging.error(f"Dydx Public Ws: {e}")
+            await self.logging.error(f"Dydx public ws: {e}")
 
     async def start(self) -> None:
         self.create_handlers()
