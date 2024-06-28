@@ -27,7 +27,7 @@ class BinanceOhlcvHandler(OhlcvHandler):
                 self.ohlcv.append(self.format.copy())
 
         except Exception as e:
-            raise Exception(f"OHLCV Refresh :: {e}")
+            raise Exception(f"[OHLCV refresh] {e}")
 
     def process(self, recv: Dict) -> None:
         try:
@@ -42,8 +42,7 @@ class BinanceOhlcvHandler(OhlcvHandler):
                     float(candle["h"]),
                     float(candle["l"]),
                     float(candle["c"]),
-                    float(candle["v"]),
-                    float(candle["q"]),
+                    float(candle["v"])
                 ],
                 dtype=np.float64,
             )
@@ -54,4 +53,4 @@ class BinanceOhlcvHandler(OhlcvHandler):
             self.ohlcv.append(self.format.copy())
 
         except Exception as e:
-            raise Exception(f"OHLCV Process :: {e}")
+            raise Exception(f"[OHLCV process] {e}")

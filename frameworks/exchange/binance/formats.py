@@ -1,89 +1,144 @@
-from typing import Dict, Optional, Union
+from typing import List, Dict
 
 from frameworks.tools.logging import time_ms
+from frameworks.exchange.base.types import Order, OrderType
 from frameworks.exchange.base.formats import Formats
-from frameworks.exchange.binance.types import BinanceOrderSides, BinanceOrderTypes
+from frameworks.exchange.binance.types import BinanceSideConverter, BinanceOrderTypeConverter, BinanceTimeInForceConverter, BinancePositionDirectionConverter
 
 
 class BinanceFormats(Formats):
     def __init__(self) -> None:
-        super().__init__(BinanceOrderSides, BinanceOrderTypes)
+        super().__init__(
+            convert_side=BinanceSideConverter(),
+            convert_order_type=BinanceOrderTypeConverter(),
+            convert_time_in_force=BinanceTimeInForceConverter(),
+            convert_position_direction=BinancePositionDirectionConverter()
+        )
+        self.base_payload = {"recvWindow": str(self.recvWindow)}
 
-    async def create_order(
+    def create_order(
         self,
-        symbol: str,
-        side: Union[int, float],
-        orderType: Union[int, float],
-        size: float,
-        price: Optional[float] = None,
-        orderId: Optional[Union[str, int]] = None,
+        order
     ) -> Dict:
         format = {
-            "symbol": symbol,
-            "side": self.convert_side.to_str(side),
-            "type": self.convert_order_type.to_str(orderType),
-            "quantity": str(size),
+            **self.base_payload,
+            "symbol": order.symbol,
+            "side": self.convert_side.to_str(order.side),
+            "type": self.convert_order_type.to_str(order.orderType),
+            "timeInForce": self.convert_tif.to_str(order.timeInForce),
+            "quantity": str(order.size),
+            **({"newClientOrderId": order.clientOrderId} if order.clientOrderId else {}),
             "timestamp": str(time_ms()),
         }
 
-        if orderType == 1:
-            return format
+        match order.orderType:
+            case OrderType.MARKET:
+                return format
 
-        if orderType == 0:
-            format["price"] = str(price)
-            format["timeInForce"] = "GTX"
+            case OrderType.LIMIT:
+                format["price"] = str(order.price)
 
         return format
-
-    async def amend_order(
+    
+    def batch_create_orders(
         self,
-        symbol: str,
-        orderId: Union[str, int],
-        side: Union[int, float],
-        size: float,
-        price: float,
+        orders: List[Order]
     ) -> Dict:
+        batched_orders = []
+
+        for order in orders:
+            single_order = self.create_order(order)
+            del single_order["recvWindow"]
+            del single_order["timestamp"]
+            batched_orders.append(order)
+
         return {
-            "orderId": orderId,
-            "symbol": symbol,
-            "side": self.convert_side.to_str(side),
-            "quantity": str(size),
-            "price": str(price),
+            "batchOrders": batched_orders,
+            **self.base_payload,
             "timestamp": str(time_ms()),
         }
+    
+    def amend_order(
+        self,
+        order
+    ) -> Dict:
+        return {
+            **self.base_payload,
+            **({"orderId": order.orderId} if order.orderId else {}),
+            **({"origClientOrderId": order.clientOrderId} if order.clientOrderId else {}),
+            "symbol": order.symbol,
+            "side": self.convert_side.to_str(order.side),
+            "quantity": str(order.size),
+            "price": str(order.price),
+            "timestamp": str(time_ms())
+        }
 
-    async def cancel_order(self, symbol: str, orderId: Union[str, int]) -> Dict:
-        return {"symbol": symbol, "orderId": orderId, "timestamp": str(time_ms())}
+    def batch_amend_orders(self, orders: List[Order]) -> Dict:
+        batched_amends = []
 
-    async def cancel_all_orders(self, symbol: str) -> Dict:
-        return {"symbol": symbol, "timestamp": str(time_ms())}
+        for order in orders:
+            single_amend = self.amend_order(order)
+            del single_amend["recvWindow"]
+            del single_amend["timestamp"]
+            batched_amends.append(order)
+    
+        return {
+            "batchOrders": batched_amends,
+            **self.base_payload,
+            "timestamp": str(time_ms()),
+        }
+    
+    def cancel_order(self, order) -> Dict:
+        return {
+            **self.base_payload,
+            "symbol": order.symbol, 
+            **({"orderId": order.orderId} if order.orderId else {}),
+            **({"origClientOrderId": order.clientOrderId} if order.clientOrderId else {}),
+            "timestamp": str(time_ms())
+        }
 
-    async def get_ohlcv(self, symbol: str, interval: Union[int, str]) -> Dict:
+    def batch_cancel_orders(self, orders: List[Order]) -> Dict:
+        return {
+            "symbol": orders[0].symbol, # TODO: Find a better solution for this!
+            "orderIdList": [order.orderId for order in orders if order.orderId is not None],
+            "origClientOrderIdList": [order.clientOrderId for order in orders if order.clientOrderId is not None],
+            **self.base_payload,
+            "timestamp": str(time_ms()),
+        }
+    
+    def cancel_all_orders(self, symbol: str) -> Dict:
+        return {
+            **self.base_payload,
+            "symbol": symbol, 
+            "timestamp": str(time_ms())
+        }
+
+    def get_ohlcv(self, symbol, interval) -> Dict:
         return {"symbol": symbol, "interval": interval, "limit": "1000"}
 
-    async def get_trades(self, symbol: str) -> Dict:
+    def get_trades(self, symbol) -> Dict:
         return {"symbol": symbol, "limit": "1000"}
 
-    async def get_orderbook(self, symbol: str) -> Dict:
+    def get_orderbook(self, symbol) -> Dict:
         return {"symbol": symbol, "limit": "100"}
 
-    async def get_ticker(self, symbol: str) -> Dict:
+    def get_ticker(self, symbol) -> Dict:
         return {"symbol": symbol}
 
-    async def get_open_orders(self, symbol: str) -> Dict:
+    def get_open_orders(self, symbol) -> Dict:
         return {"symbol": symbol, "timestamp": str(time_ms())}
 
-    async def get_position(self, symbol: str) -> Dict:
+    def get_position(self, symbol) -> Dict:
         return {"symbol": symbol, "timestamp": str(time_ms())}
 
-    async def get_account_info(self) -> Dict:
+    def get_account_info(self) -> Dict:
         return {"timestamp": str(time_ms())}
 
-    async def get_exchange_info(self) -> Dict:
+    def get_exchange_info(self) -> Dict:
         return {}
 
-    async def get_listen_key(self) -> Dict:
+    def get_listen_key(self) -> Dict:
         return {}
 
-    async def ping_listen_key(self) -> Dict:
+    def ping_listen_key(self) -> Dict:
         return {}

@@ -1,51 +1,41 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Union, Optional
+from typing import Dict, Union
 
-from frameworks.exchange.base.types import SideConverter, OrderTypeConverter, TimeInForceConverter
-
+from frameworks.exchange.base.types import (
+    Order,
+    SideConverter,
+    OrderTypeConverter,
+    TimeInForceConverter,
+    PositionDirectionConverter,
+)
 
 class Formats(ABC):
     recvWindow = 1000
 
     def __init__(
-        self, convert_side: SideConverter, convert_order_type: OrderTypeConverter, convert_time_in_force: TimeInForceConverter
+        self,
+        convert_side: SideConverter,
+        convert_order_type: OrderTypeConverter,
+        convert_time_in_force: TimeInForceConverter,
+        convert_position_direction: PositionDirectionConverter 
     ) -> None:
         self.convert_side = convert_side
         self.convert_order_type = convert_order_type
         self.convert_tif = convert_time_in_force
+        self.convert_pos_direction = convert_position_direction
 
     @abstractmethod
     def create_order(
         self,
-        symbol: str,
-        side: Union[int, float],
-        orderType: Union[int, float],
-        size: float,
-        price: Optional[float],
-        clientOrderId: Optional[Union[str, int]],
+        order: Order
     ) -> Dict:
         """
         Abstract method to create an order.
 
         Parameters
         ----------
-        symbol : str
-            The trading symbol.
-
-        side : Union[int, float]
-            The side of the order.
-
-        orderType : Union[int, float]
-            The type of the order.
-
-        size : float
-            The size of the order.
-
-        price : float, optional
-            The price of the order (for limit orders).
-
-        clientOrderId : str or int, optional
-            The client-provided ID of the order to be amended.
+        order: Order
+            The order to be sent to the exchange. 
 
         Returns
         -------
@@ -57,36 +47,15 @@ class Formats(ABC):
     @abstractmethod
     def amend_order(
         self,
-        symbol: str,
-        side: Union[int, float],
-        size: float,
-        price: float,
-        orderId: Optional[Union[str, int]],
-        clientOrderId: Optional[Union[str, int]],
+        order: Order
     ) -> Dict:
         """
         Abstract method to amend an existing order.
 
         Parameters
         ----------
-        symbol : str
-            The trading symbol.
-
-        side : Union[int, float]
-            The side of the order.
-
-        size : float
-            The new size of the order.
-
-        price : float
-            The new price of the order.
-
-        orderId : str or int, optional
-            The ID of the order to be amended.
-
-        clientOrderId : str or int, optional
-            The client-provided ID of the order to be amended.
-
+        order: Order
+            The order to be sent to the exchange. 
 
         Returns
         -------
@@ -98,23 +67,15 @@ class Formats(ABC):
     @abstractmethod
     def cancel_order(
         self,
-        symbol: str,
-        orderId: Optional[Union[str, int]],
-        clientOrderId: Optional[Union[str, int]],
+        order: Order
     ) -> Dict:
         """
         Abstract method to cancel an existing order.
 
         Parameters
         ----------
-        symbol : str
-            The trading symbol.
-
-        orderId : str or int, optional
-            The ID of the order to be canceled.
-
-        clientOrderId : str or int, optional
-            The client-provided ID of the order to be amended.
+        order: Order
+            The order to amend. 
 
         Returns
         -------
@@ -141,9 +102,7 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    def get_ohlcv(
-        self, symbol: str, interval: Union[int, str]
-    ) -> Union[Dict, str]:
+    def get_ohlcv(self, symbol: str, interval: Union[int, str]) -> Union[Dict, str]:
         """
         Abstract method to get OHLCV (Open, High, Low, Close, Volume) data.
 

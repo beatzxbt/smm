@@ -21,12 +21,6 @@ class PositionHandler(ABC):
             A dictionary to store position data.
         """
         self.position = position
-        self.format = {
-            "createTime": 0.0,
-            "price": 0.0, 
-            "size": 0.0, 
-            "uPnl": 0.0
-        }
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
@@ -43,13 +37,14 @@ class PositionHandler(ABC):
 
         Steps
         -----
-        1. Extract the position from the recv payload.
-           -> Ensure the following data points are present:
-                - Price
-                - Size
-                - Unrealized PnL
-        2. Overwrite self.format with the respective values.
-        3. Call self.position.update(self.format).
+        1. Extract the position from the recv payload. Ensure *at least* the following data points are present:
+            - side
+            - price
+            - size
+            - uPnl
+
+        2. Create an Position() instance with the respective values.
+        3. self.position = Position()
         """
         pass
 
@@ -68,12 +63,12 @@ class PositionHandler(ABC):
 
         Steps
         -----
-        1. Extract the position from the recv payload.
-           -> Ensure the following data points are present:
-                - Price
-                - Size
-                - Unrealized PnL
-        2. Overwrite self.format with the respective values.
-        3. Call self.position.update(self.format).
+        1. Extract the position from the recv payload. Ensure *at least* the following data points are present:
+            - side
+            - price
+            - size
+            - uPnl
+
+        2. Update the self.position attributes using self.position.update()
         """
         pass

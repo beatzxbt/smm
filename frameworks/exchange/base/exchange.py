@@ -7,10 +7,17 @@ from frameworks.exchange.base.client import Client
 from frameworks.exchange.base.formats import Formats
 from frameworks.exchange.base.endpoints import Endpoints
 from frameworks.exchange.base.orderid import OrderIdGenerator
+from frameworks.exchange.base.types import Order
 
 
 class Exchange(ABC):
-    def __init__(self, client: Client, formats: Formats, endpoints: Endpoints, orderIdGenerator: OrderIdGenerator) -> None:
+    def __init__(
+        self,
+        client: Client,
+        formats: Formats,
+        endpoints: Endpoints,
+        orderIdGenerator: OrderIdGenerator,
+    ) -> None:
         """
         Initializes the Exchange class with the necessary components.
 
@@ -57,43 +64,22 @@ class Exchange(ABC):
     @abstractmethod
     async def warmup(self) -> None:
         """
-        Abstract method for warming up the exchange-specific data. 
+        Abstract method for warming up the exchange-specific data.
         """
         pass
 
     @abstractmethod
     async def create_order(
         self,
-        symbol: str,
-        side: int,
-        orderType: int,
-        size: float,
-        price: Optional[float] = None,
-        clientOrderId: Optional[Union[str, int]] = None,
+        order: Order
     ) -> Dict:
         """
         Abstract method to create an order.
 
         Parameters
         ----------
-        symbol : str
-            The trading symbol.
-
-        side : int
-            The side of the order.
-
-        orderType : int
-            The type of the order.
-
-        size : float
-            The size of the order.
-
-        price : float, optional
-            The price of the order (for limit orders).
-
-        clientOrderId : str or int, optional
-            The ID of the order.
-
+        order: Order
+            The order to send to the exchange.
 
         Returns
         -------
@@ -105,35 +91,15 @@ class Exchange(ABC):
     @abstractmethod
     async def amend_order(
         self,
-        symbol: str,
-        side: int,
-        size: float,
-        price: float,
-        orderId: Optional[Union[str, int]]=None,
-        clientOrderId: Optional[Union[str, int]]=None,
+        order: Order
     ) -> Dict:
         """
         Abstract method to amend an existing order.
 
         Parameters
         ----------
-        symbol : str
-            The trading symbol.
-
-        side : int
-            The side of the order.
-
-        size : float
-            The new size of the order.
-
-        price : float
-            The new price of the order.
-
-        orderId : str or int, optional
-            The ID of the order to be amended.
-
-        clientOrderId : str or int, optional
-            The client-provided ID of the order to be amended.
+        order: Order
+            The order to modify/amend.
 
         Returns
         -------
@@ -145,23 +111,15 @@ class Exchange(ABC):
     @abstractmethod
     async def cancel_order(
         self,
-        symbol: str,
-        orderId: Optional[Union[str, int]]=None,
-        clientOrderId: Optional[Union[str, int]]=None,
+        order: Order
     ) -> Dict:
         """
         Abstract method to cancel an existing order.
 
         Parameters
         ----------
-        symbol : str
-            The trading symbol.
-
-        orderId : str or int, optional
-            The ID of the order to be canceled.
-
-        clientOrderId : str or int, optional
-            The client-provided ID of the order to be canceled.
+        order: Order
+            The order to cancel.
 
         Returns
         -------
@@ -291,7 +249,7 @@ class Exchange(ABC):
             The position data from the exchange.
         """
         pass
-    
+
     async def shutdown(self) -> None:
         """
         Initiates the shutdown sequence for the exchange.
@@ -317,23 +275,23 @@ class Exchange(ABC):
             tasks = []
 
             for attempt in range(3):
-                await self.logging.debug(f"Trying cancel all, attempt {attempt}")
-                tasks.append(asyncio.create_task(self.cancel_all_orders(self.symbol)))
+                await self.logging.debug(f"Cancel all, attempt {attempt}")
+                tasks.append(self.cancel_all_orders(self.symbol))
 
             delta_neutralizer_orderid = self.orderid.generate_order_id()
 
             for attempt in range(3):
-                await self.logging.debug(f"Trying delta neutralizer, attempt {attempt}")
+                await self.logging.debug(f"Delta neutralizer, attempt {attempt}")
                 tasks.append(
-                    asyncio.create_task(
-                        self.create_order(
-                            symbol=self.symbol,
-                            side=0 if self.data["position"]["size"] < 0 else 1,
-                            orderType=1,
-                            size=self.data["position"]["size"],
-                            price=0.0,  # NOTE: Ignored for taker orders
-                            clientOrderId=delta_neutralizer_orderid
-                        )
+                    self.create_order(
+                        symbol=self.symbol,
+                        side=(
+                            Side.BUY if self.data["position"].size < 0.0 else Side.SELL
+                        ),
+                        orderType=OrderType.MARKET,
+                        timeInForce=TimeInForce.GTC,
+                        size=self.data["position"].size,
+                        clientOrderId=delta_neutralizer_orderid,
                     )
                 )
 

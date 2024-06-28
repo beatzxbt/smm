@@ -1,145 +1,97 @@
-from typing import Dict
+from typing import Dict, List
 
-from frameworks.exchange.bybit.types import BybitSideConverter, BybitOrderTypeConverter
+from frameworks.exchange.base.types import Order, OrderType
 from frameworks.exchange.base.formats import Formats
+from frameworks.exchange.bybit.types import (
+    BybitSideConverter,
+    BybitOrderTypeConverter,
+    BybitTimeInForceConverter,
+    BybitPositionDirectionConverter
+)
 
 
 class BybitFormats(Formats):
     def __init__(self) -> None:
-        super().__init__(BybitSideConverter, BybitOrderTypeConverter)
+        super().__init__(
+            convert_side=BybitSideConverter(),
+            convert_order_type=BybitOrderTypeConverter(),
+            convert_time_in_force=BybitTimeInForceConverter(),
+            convert_position_direction=BybitPositionDirectionConverter()
+        )
         self.base_payload = {"category": "linear"}
 
-    def create_order(
-        self,
-        symbol,
-        side,
-        orderType,
-        size,
-        price,
-        clientOrderId
-    ):
+    def create_order(self, order):
         format = {
             **self.base_payload,
-            "symbol": symbol,
-            "side": self.convert_side.to_str(side),
-            "orderType": self.convert_order_type.to_str(orderType),
-            "qty": str(size),
-            **({"orderLinkId": clientOrderId} if clientOrderId else {})
+            "symbol": order.symbol,
+            "side": self.convert_side.to_str(order.side),
+            "orderType": self.convert_order_type.to_str(order.orderType),
+            "timeInForce": self.convert_tif.to_str(order.timeInForce),
+            "qty": str(order.size),
+            **({"orderLinkId": order.clientOrderId} if order.clientOrderId else {}),
         }
 
-        # Market order
-        if orderType == 1:
-            return format
+        match order.orderType:
+            case OrderType.MARKET:
+                return format
 
-        # Limit order
-        elif orderType == 0:
-            format["price"] = str(price)
-            format["timeInForce"] = "PostOnly"
+            case OrderType.LIMIT:
+                format["price"] = str(order.price)
 
         return format
 
-    def batch_create_orders(
-        self,
-        symbol,
-        sides,
-        orderTypes,
-        sizes,
-        prices,
-        clientOrderIds
-    ):
-        orders = []
+    def batch_create_orders(self, orders: List[Order]) -> Dict:
+        batched_orders = []
 
-        for side, orderType, size, price, clientOrderId in zip(sides, orderTypes, sizes, prices, clientOrderIds):
-            order = {
-                "symbol": symbol,
-                "side": self.convert_side.to_str(side),
-                "orderType": self.convert_order_type.to_str(orderType),
-                "qty": str(size),
-                **({"orderLinkId": clientOrderId} if clientOrderId else {})
-            }
+        for order in orders:
+            single_order = self.create_order(order)
+            del single_order["category"]
+            batched_orders.append(order)
 
-            if orderType == 1:
-                return order
-
-            elif orderType == 0:
-                order["price"] = str(price)
-                order["timeInForce"] = "PostOnly"
-
-            orders.append(order)
-            
-        format = {
-            **self.base_payload,
-            "request": orders
-        }
+        format = {**self.base_payload, "request": batched_orders}
 
         return format
-    
-    def amend_order(
-        self,
-        symbol,
-        orderId,
-        clientOrderId,
-        side,
-        size,
-        price,
-    ):
+
+    def amend_order(self, order):
         return {
             **self.base_payload,
-            "price": str(price),
-            "qty": str(size),
-            **({"orderId": orderId} if orderId else {}),
-            **({"orderLinkId": clientOrderId} if clientOrderId else {}),
+            "price": str(order.price),
+            "qty": str(order.size),
+            **({"orderId": order.orderId} if order.orderId else {}),
+            **({"orderLinkId": order.clientOrderId} if order.clientOrderId else {}),
         }
 
-    def batch_amend_orders(self, symbol, orderIds, clientOrderIds, sides, sizes, prices):
-        if not orderIds:
-            orderIds = [None] * len(clientOrderIds)
+    def batch_amend_orders(self, orders: List[Order]) -> Dict:
+        batched_amends = []
 
-        if not clientOrderIds:
-            clientOrderIds = [None] * len(orderIds)
+        for order in orders:
+            single_amend = self.amend_order(order)
+            del single_amend["category"]
+            batched_amends.append(order)
 
-        amend_orders = []
-
-        for orderId, clientOrderId, size, price in zip(orderIds, clientOrderIds, sizes, prices):
-            amend_orders.append({
-                "price": str(price),
-                "qty": str(size)
-                **({"orderId": orderId} if orderId else {}),
-                **({"orderLinkId": clientOrderId} if clientOrderId else {}),
-            })
-
-        format = {
-            **self.base_payload,
-            "request": amend_orders
-        }
+        format = {**self.base_payload, "request": batched_amends}
 
         return format
-    
-    def cancel_order(self, symbol, orderId):
-        return {**self.base_payload, "orderId": orderId}
-    
-    def batch_cancel_orders(self, symbol, orderIds, clientOrderIds):
-        if not orderIds:
-            orderIds = [None] * len(clientOrderIds)
 
-        if not clientOrderIds:
-            clientOrderIds = [None] * len(orderIds)
-
-        cancel_orders = []
-
-        for orderId, clientOrderId in zip(orderIds, clientOrderIds):
-            cancel_orders.append({
-                **({"orderId": orderId} if orderId else {}),
-                **({"orderLinkId": clientOrderId} if clientOrderId else {}),
-            })
-
-        format = {
+    def cancel_order(self, order):
+        return {
             **self.base_payload,
-            "request": cancel_orders
+            **({"orderId": order.orderId} if order.orderId else {}),
+            **({"orderLinkId": order.clientOrderId} if order.clientOrderId else {}),
         }
 
+    def batch_cancel_orders(self, orders: List[Order]) -> Dict:
+        batched_cancels = []
+
+        for order in orders:
+            single_cancel = self.cancel_order(order)
+            del single_cancel["category"]
+            batched_cancels.append(order)
+
+        format = {**self.base_payload, "request": batched_cancels}
+
         return format
-    
+
     def cancel_all_orders(self, symbol):
         return {**self.base_payload, "symbol": symbol}
 
@@ -175,15 +127,15 @@ class BybitFormats(Formats):
         return {**self.base_payload, "symbol": symbol}
 
     def get_account_info(self) -> Dict:
-        return f"category={self.base_payload['category']}"
+        return self.base_payload
 
     def get_instrument_info(self, symbol: str) -> Dict:
         return {**self.base_payload, "symbol": symbol}
-    
+
     def set_leverage(self, symbol: str, leverage: int) -> Dict:
         return {
-            **self.base_payload, 
-            "symbol": symbol, 
-            "buyLeverage": leverage, 
-            "sellLeverage": leverage
+            **self.base_payload,
+            "symbol": symbol,
+            "buyLeverage": leverage,
+            "sellLeverage": leverage,
         }

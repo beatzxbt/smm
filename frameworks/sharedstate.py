@@ -10,6 +10,7 @@ from frameworks.tools.logging import Logger
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.base.structures.orderbook import Orderbook
+from frameworks.exchange.base.types import Side, Position, Order
 
 
 class SharedState(ABC):
@@ -40,6 +41,7 @@ class SharedState(ABC):
         """
         self.debug = debug
 
+        # All values ignored/filler only, overwritten by websocket.
         self.data = {
             "tick_size": 0.0,
             "lot_size": 0.0,
@@ -53,13 +55,8 @@ class SharedState(ABC):
                 "fundingTime": 0.0,
                 "fundingRate": 0.0,
             },
-
-            "position": {
-                "createTime": 0.0,
-                "price": 0.0, 
-                "size": 0.0, 
-                "uPnl": 0.0
-            },
+            
+            "position": Position(),
             "orders": {},
             "account_balance": 0.0,
         }
@@ -159,23 +156,23 @@ class SharedState(ABC):
                     data=self.data
                 )
 
-            case "hyperliquid":
-                from frameworks.exchange.hyperliquid.exchange import Hyperliquid
-                from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
+            # case "hyperliquid":
+            #     from frameworks.exchange.hyperliquid.exchange import Hyperliquid
+            #     from frameworks.exchange.hyperliquid.websocket import HyperliquidWebsocket
 
-                self.exchange = Hyperliquid(self.api_key, self.api_secret)
-                self.exchange.load_required_refs(
-                    logging=self.logging,
-                    symbol=self.symbol,
-                    data=self.data
-                )
+            #     self.exchange = Hyperliquid(self.api_key, self.api_secret)
+            #     self.exchange.load_required_refs(
+            #         logging=self.logging,
+            #         symbol=self.symbol,
+            #         data=self.data
+            #     )
 
-                self.websocket = HyperliquidWebsocket(self.exchange)
-                self.websocket.load_required_refs(
-                    logging=self.logging,
-                    symbol=self.symbol,
-                    data=self.data
-                )
+            #     self.websocket = HyperliquidWebsocket(self.exchange)
+            #     self.websocket.load_required_refs(
+            #         logging=self.logging,
+            #         symbol=self.symbol,
+            #         data=self.data
+            #     )
 
             case "dydx_v4":
                 from frameworks.exchange.dydx_v4.exchange import Dydx
@@ -195,7 +192,8 @@ class SharedState(ABC):
                     data=self.data
                 )
 
-            # TODO: Add Paradex, OKX, Vertex, Kraken (in that order)
+            case "okx" | "paradex" | "hyperliquid" | "vertex" | "kraken" | "x10":
+                raise NotImplementedError
 
             case _:
                 raise ValueError("Invalid exchange name, not found...")

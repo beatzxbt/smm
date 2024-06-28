@@ -1,11 +1,11 @@
-from typing import Dict, Optional
+from typing import List, Dict, Optional
 
+from frameworks.exchange.base.types import Order
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.binance.endpoints import BinanceEndpoints
 from frameworks.exchange.binance.formats import BinanceFormats
 from frameworks.exchange.binance.client import BinanceClient
 from frameworks.exchange.binance.orderid import BinanceOrderIdGenerator
-
 
 class Binance(Exchange):
     def __init__(self, api_key: str, api_secret: str) -> None:
@@ -21,51 +21,93 @@ class Binance(Exchange):
 
     async def create_order(
         self,
-        symbol: str,
-        side: str,
-        orderType: str,
-        size: float,
-        price: Optional[float] = None,
+        order
     ) -> Dict:
         endpoint = self.endpoints.createOrder
-        data = self.formats.create_order(symbol, side, orderType, size, price)
+        headers = self.formats.create_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            data=data,
-            signed=False,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+    
+    async def batch_create_orders(
+        self,
+        orders: List[Order]
+    ) -> Dict:
+        endpoint = self.endpoints.batchCreateOrders
+        headers = self.formats.batch_create_orders(orders)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
         )
 
     async def amend_order(
-        self, symbol: str, orderId: int, side: str, size: float, price: float
+        self, order
     ) -> Dict:
         endpoint = self.endpoints.amendOrder
-        data = self.formats.amend_order(orderId, size, price)
+        headers = self.formats.amend_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            data=data,
-            signed=False,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+    
+    async def batch_amend_orders(
+        self,
+        orders: List[Order]
+    ) -> Dict:
+        endpoint = self.endpoints.batchAmendOrders
+        headers = self.formats.batch_amend_orders(orders)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
         )
 
-    async def cancel_order(self, symbol: str, orderId: str) -> Dict:
+    async def cancel_order(self, order) -> Dict:
         endpoint = self.endpoints.cancelOrder
-        data = self.formats.cancel_order(symbol, orderId)
+        headers = self.formats.cancel_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            data=data,
-            signed=False,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
         )
-
+    
+    async def batch_cancel_orders(
+        self,
+        orders: List[Order]
+    ) -> Dict:
+        endpoint = self.endpoints.batchCancelOrders
+        headers = self.formats.batch_cancel_orders(orders)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+    
     async def cancel_all_orders(self, symbol: str) -> Dict:
         endpoint = self.endpoints.cancelAllOrders
-        data = self.formats.cancel_all_orders(symbol)
+        headers = self.formats.cancel_all_orders(symbol)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            data=data,
-            signed=False,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
         )
 
     async def get_orderbook(self, symbol: str) -> Dict:
@@ -167,7 +209,7 @@ class Binance(Exchange):
             params=params,
             signed=False,
         )
-
+ 
     async def warmup(self) -> None:
         try:
             for symbol in (await self.get_exchange_info())["symbols"]:

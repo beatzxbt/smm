@@ -1,4 +1,4 @@
-from frameworks.exchange.base.types import SideConverter, TimeInForceConverter, OrderTypeConverter
+from frameworks.exchange.base.types import PositionDirectionConverter, SideConverter, TimeInForceConverter, OrderTypeConverter
 
 
 class BinanceSideConverter(SideConverter):
@@ -23,4 +23,11 @@ class BinanceTimeInForceConverter(TimeInForceConverter):
             GTC="GTC", 
             FOK="FOK", 
             POST_ONLY="GTX"
+        )
+
+class BinancePositionDirectionConverter(PositionDirectionConverter):
+    def __init__(self) -> None:
+        super().__init__(
+            LONG="LONG", 
+            SHORT="SHORT"
         )

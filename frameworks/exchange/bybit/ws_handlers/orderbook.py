@@ -22,7 +22,7 @@ class BybitOrderbookHandler(OrderbookHandler):
                 self.orderbook.refresh(self.asks, self.bids)
 
         except Exception as e:
-            raise Exception(f"Orderbook Refresh :: {e}")
+            raise Exception(f"[Orderbook refresh] {e}")
 
     def process(self, recv: Dict) -> None:
         try:
@@ -48,4 +48,4 @@ class BybitOrderbookHandler(OrderbookHandler):
                     self.orderbook.update_asks(self.asks)
 
         except Exception as e:
-            raise Exception(f"Orderbook Process :: {e}")
+            raise Exception(f"[Orderbook process] {e}")

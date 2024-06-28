@@ -1,10 +1,12 @@
-from typing import List, Dict, Optional
+from typing import List, Dict
 
+from frameworks.exchange.base.types import Order
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.bybit.endpoints import BybitEndpoints
 from frameworks.exchange.bybit.formats import BybitFormats
 from frameworks.exchange.bybit.client import BybitClient
 from frameworks.exchange.bybit.orderid import BybitOrderIdGenerator
+
 
 class Bybit(Exchange):
     def __init__(self, api_key: str, api_secret: str) -> None:
@@ -15,20 +17,15 @@ class Bybit(Exchange):
             client=BybitClient(self.api_key, self.api_secret),
             formats=BybitFormats(),
             endpoints=BybitEndpoints(),
-            orderIdGenerator=BybitOrderIdGenerator()
+            orderIdGenerator=BybitOrderIdGenerator(),
         )
 
     async def create_order(
         self,
-        symbol: str,
-        side: float,
-        orderType: float,
-        size: float,
-        price: Optional[float]=None,
-        clientOrderId: Optional[str]=None
+        order,
     ) -> Dict:
         endpoint = self.endpoints.createOrder
-        headers = self.formats.create_order(symbol, side, orderType, size, price, clientOrderId)
+        headers = self.formats.create_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
@@ -36,18 +33,13 @@ class Bybit(Exchange):
             data=headers,
             signed=False,
         )
-    
+
     async def batch_create_orders(
         self,
-        symbol: str,
-        sides: List[int],
-        orderTypes: List[int],
-        sizes: List[float],
-        prices: Optional[List[float]]=None,
-        clientOrderIds: Optional[List[str]]=None
+        orders: List[Order],
     ) -> Dict:
         endpoint = self.endpoints.batchCreateOrders
-        headers = self.formats.batch_create_orders(symbol, sides, orderTypes, sizes, prices, clientOrderIds)
+        headers = self.formats.batch_create_orders(orders)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
@@ -56,31 +48,9 @@ class Bybit(Exchange):
             signed=False,
         )
 
-    async def amend_order(
-        self, symbol: str, orderId: str, clientOrderId: str, side: float, size: float, price: float
-    ) -> Dict:
+    async def amend_order(self, order) -> Dict:
         endpoint = self.endpoints.amendOrder
-        headers = self.formats.amend_order(symbol, orderId, clientOrderId, side, size, price)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            headers=headers,
-            data=headers,
-            signed=False,
-        )
-    
-    async def batch_amend_orders(
-        self,
-        symbol: str,
-        sides: List[int],
-        orderTypes: List[int],
-        sizes: List[float],
-        prices: Optional[List[float]]=None,
-        orderIds: Optional[List[str]]=None,
-        clientOrderIds: Optional[List[str]]=None
-    ) -> Dict:
-        endpoint = self.endpoints.batchAmendOrders
-        headers = self.formats.batch_amend_orders(symbol, sides, orderTypes, sizes, prices, orderIds, clientOrderIds)
+        headers = self.formats.amend_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
@@ -89,9 +59,20 @@ class Bybit(Exchange):
             signed=False,
         )
 
-    async def cancel_order(self, symbol: str, orderId: str, clientOrderId: str) -> Dict:
+    async def batch_amend_orders(self, orders: List[Order]) -> Dict:
+        endpoint = self.endpoints.batchAmendOrders
+        headers = self.formats.batch_amend_orders(orders)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=headers,
+            data=headers,
+            signed=False,
+        )
+
+    async def cancel_order(self, order) -> Dict:
         endpoint = self.endpoints.cancelOrder
-        headers = self.formats.cancel_order(symbol, orderId, clientOrderId)
+        headers = self.formats.cancel_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
@@ -99,15 +80,10 @@ class Bybit(Exchange):
             data=headers,
             signed=False,
         )
-    
-    async def batch_cancel_orders(
-        self,
-        symbol: str, 
-        orderIds: List[Optional[str]],
-        clientOrderIds: List[Optional[str]]
-    ) -> Dict:
+
+    async def batch_cancel_orders(self, orders: List[Order]) -> Dict:
         endpoint = self.endpoints.batchCancelOrders
-        headers = self.formats.batch_cancel_orders(symbol, orderIds, clientOrderIds)
+        headers = self.formats.batch_cancel_orders(orders)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
@@ -115,7 +91,7 @@ class Bybit(Exchange):
             data=headers,
             signed=False,
         )
-    
+
     async def cancel_all_orders(self, symbol: str) -> Dict:
         endpoint = self.endpoints.cancelAllOrders
         headers = self.formats.cancel_all_orders(symbol)
@@ -197,7 +173,7 @@ class Bybit(Exchange):
             method=endpoint.method,
             params=params,
         )
-    
+
     async def set_leverage(self, symbol: str, leverage: int) -> Dict:
         endpoint = self.endpoints.setLeverage
         headers = self.formats.set_leverage(symbol, leverage)
@@ -219,7 +195,7 @@ class Bybit(Exchange):
 
                 self.data["tick_size"] = float(instrument["priceFilter"]["tickSize"])
                 self.data["lot_size"] = float(instrument["lotSizeFilter"]["qtyStep"])
-                
+
                 return None
 
         except Exception as e:

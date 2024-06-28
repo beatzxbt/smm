@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
-
 class OrdersHandler(ABC):
     """
     A base class for handling orders data.
@@ -21,14 +20,6 @@ class OrdersHandler(ABC):
             A dictionary to store orders data.
         """
         self.orders = orders
-        self.format = {
-            "createTime": 0.0, 
-            "side": 0.0, 
-            "price": 0.0, 
-            "size": 0.0, 
-            "orderId": "", 
-            "clientOrderId": ""
-        }
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
@@ -45,17 +36,15 @@ class OrdersHandler(ABC):
 
         Steps
         -----
-        1. Extract the orders list from the recv payload.
-           -> Ensure the following data points are present:
-                - createTime
-                - side
-                - price
-                - size
-                - orderId
-                - clientOrderId
-        2. For each order in the list:
-           -> Overwrite self.format with the respective values.
-           -> self.orders[OrderId] = self.format.copy().
+        1. Extract the orders from the recv payload. Ensure *at least* the following data points are present:
+            - orderId or clientOrderId
+            - side
+            - price
+            - size
+
+        2. For each order:
+           - Create an Order() instance with the respective values.
+           - self.orders[orderId or clientOrderId] = Order()
         """
         pass
 
@@ -74,18 +63,17 @@ class OrdersHandler(ABC):
 
         Steps
         -----
-        1. Extract the orders list from the recv payload.
-           -> Ensure the following data points are present:
-                - createTime
-                - side
-                - price
-                - size
-                - orderId
-                - clientOrderId
-        2. For each order in the payload:
-           -> Overwrite self.format with the respective values.
-           -> self.orders[OrderId] = self.format.copy().
+        1. Extract the orders from the recv payload. Ensure *at least* the following data points are present:
+            - orderId or clientOrderId
+            - side
+            - price
+            - size
+
+        2. For each order:
+           a. Create an Order() instance with the respective values. 
+           b. self.orders[orderId or clientOrderId] = Order()
+
         3. If any orders need to be deleted:
-           -> del self.orders[OrderId].
+           a. del self.orders[orderId or clientOrderId].
         """
         pass

@@ -7,12 +7,12 @@ from frameworks.tools.logging import time_ms
 from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.binance.exchange import Binance
 from frameworks.exchange.binance.endpoints import BinanceEndpoints
-from frameworks.exchange.binance.handlers.orderbook import BinanceOrderbookHandler
-from frameworks.exchange.binance.handlers.trades import BinanceTradesHandler
-from frameworks.exchange.binance.handlers.markprice import BinanceTickerHandler
-from frameworks.exchange.binance.handlers.ohlcv import BinanceOhlcvHandler
-from frameworks.exchange.binance.handlers.orders import BinanceOrdersHandler
-from frameworks.exchange.binance.handlers.position import BinancePositionHandler
+from frameworks.exchange.binance.ws_handlers.orderbook import BinanceOrderbookHandler
+from frameworks.exchange.binance.ws_handlers.trades import BinanceTradesHandler
+from frameworks.exchange.binance.ws_handlers.markprice import BinanceTickerHandler
+from frameworks.exchange.binance.ws_handlers.ohlcv import BinanceOhlcvHandler
+from frameworks.exchange.binance.ws_handlers.orders import BinanceOrdersHandler
+from frameworks.exchange.binance.ws_handlers.position import BinancePositionHandler
 
 
 class BinanceWebsocket(WebsocketStream):
