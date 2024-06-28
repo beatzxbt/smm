@@ -1,7 +1,7 @@
 from typing import Dict
 
 from frameworks.exchange.base.formats import Formats
-from frameworks.exchange.dydx_v4.types import DydxSideConverter, DydxTimeInForceConverter, DydxOrderTypeConverter
+from frameworks.exchange.dydx_v4.types import DydxSideConverter, DydxTimeInForceConverter, DydxOrderTypeConverter, DydxPositionDirectionConverter
 
 
 class DydxFormats(Formats):
@@ -10,5 +10,6 @@ class DydxFormats(Formats):
         super().__init__(
             convert_side=DydxSideConverter(),
             convert_order_type=DydxOrderTypeConverter(),
-            convert_time_in_force=DydxTimeInForceConverter()
+            convert_time_in_force=DydxTimeInForceConverter(),
+            convert_position_direction=DydxPositionDirectionConverter()
         )

@@ -1,5 +1,11 @@
 from dydx_v4_client.indexer.rest.constants import OrderType, OrderSide, OrderExecution
-from frameworks.exchange.base.types import SideConverter, TimeInForceConverter, OrderTypeConverter
+
+from frameworks.exchange.base.types import (
+    SideConverter,
+    TimeInForceConverter,
+    OrderTypeConverter,
+    PositionDirectionConverter,
+)
 
 
 class DydxSideConverter(SideConverter):
@@ -25,3 +31,7 @@ class DydxTimeInForceConverter(TimeInForceConverter):
             FOK=OrderExecution.FOK, 
             POST_ONLY=OrderExecution.POST_ONLY
         )
+
+class DydxPositionDirectionConverter(PositionDirectionConverter):
+    def __init__(self) -> None:
+        super().__init__(LONG="LONG", SHORT="SHORT")
