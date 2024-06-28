@@ -15,7 +15,7 @@ class OrderIdGenerator(ABC):
     max_len : int
         The maximum length of the order ID.
     """
-    
+
     def __init__(self, max_len: int) -> None:
         self.max_len = max_len
 
@@ -37,8 +37,10 @@ class OrderIdGenerator(ABC):
             A random string of the specified length.
         """
         pass
-    
-    def generate_order_id(self, start: Optional[str]="", end: Optional[str]="") -> str:
+
+    def generate_order_id(
+        self, start: Optional[str] = "", end: Optional[str] = ""
+    ) -> str:
         """
         Generates an order ID with optional starting and ending substrings.
 
@@ -60,4 +62,6 @@ class OrderIdGenerator(ABC):
         """
         start_len = len(start)
         end_len = len(end)
-        return start + self.generate_random_str(self.max_len - (start_len + end_len)) + end    
+        return (
+            start + self.generate_random_str(self.max_len - (start_len + end_len)) + end
+        )

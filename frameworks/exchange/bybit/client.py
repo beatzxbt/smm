@@ -32,7 +32,7 @@ class BybitClient(Client):
                 param_str += orjson.dumps(headers).decode()
 
             case _:
-                raise Exception("Invalid method for signing")
+                raise ValueError("Invalid method for signing")
 
         hash_signature = hmac.new(
             key=self.api_secret.encode(),
@@ -60,7 +60,7 @@ class BybitClient(Client):
 
             case 10010:
                 return (False, "Unmatched IP, check your API key's bound IP addresses.")
-            
+
             case 110001:
                 return (False, "Order doesn't exist anymore!")
 

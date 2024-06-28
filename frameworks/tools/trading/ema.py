@@ -4,6 +4,7 @@ from typing import Optional
 
 from frameworks.tools.trading.ringbuffer import RingBufferF64
 
+
 @jitclass
 class EMA:
     """
@@ -26,14 +27,14 @@ class EMA:
     rb : RingBufferF64
         A ring buffer to store EMA values history, activated if `fast` is False.
     """
-    
+
     window: uint32
     alpha: float64
     fast: bool_
     value: float64
     rb: RingBufferF64.class_type.instance_type
 
-    def __init__(self, window: int, alpha: Optional[float]=0.0, fast: bool=True):
+    def __init__(self, window: int, alpha: Optional[float] = 0.0, fast: bool = True):
         self.window = window
         self.alpha = alpha if alpha != 0.0 else 3.0 / (self.window + 1)
         self.fast = fast
@@ -67,7 +68,7 @@ class EMA:
         """
         self.rb.reset()
         self.value = arr_in[0]
-        
+
         if not self.fast:
             self.rb.appendright(self.value)
 

@@ -244,7 +244,7 @@ class Client(ABC):
 
                         elif msg:
                             await self.logging.warning(f"Failed request: {msg}")
-            
+
                     return response_json
 
             except orjson.JSONDecodeError as e:

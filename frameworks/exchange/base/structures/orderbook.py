@@ -266,16 +266,16 @@ class Orderbook:
         float
             The slippage cost, defined as the volume-weighted average deviation from the mid price for the given order size.
         """
-        mid = self.get_mid()
+        mid_price = self.get_mid()
         cum_size = 0.0
         slippage = 0.0
 
         for level in range(book.shape[0]):
             cum_size += book[level, 1]
-            slippage += np.abs(mid - book[level, 0]) * book[level, 1]
+            slippage += np.abs(mid_price - book[level, 0]) * book[level, 1]
 
             if cum_size >= size:
                 slippage /= cum_size
                 break
 
-        return slippage if slippage <= mid else mid
+        return slippage if slippage <= mid_price else mid_price

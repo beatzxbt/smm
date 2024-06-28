@@ -185,15 +185,12 @@ class WebsocketStream(ABC):
             If there is an issue sending the payload.
         """
         try:
-            await self.logging.debug(
-                f"Sending {stream_str} ws payload: {payload}"
-            )
+            await self.logging.debug(f"Sending {stream_str} ws payload: {payload}")
             await ws.send_json(payload)
         except Exception as e:
             await self.logging.error(
-                f"Failed {stream_str.lower()} ws payload send: {payload}"
+                f"Failed to send {stream_str.lower()} ws payload: {payload} | Error: {e}"
             )
-            raise e
 
     async def _single_conn_(
         self,
@@ -250,9 +247,7 @@ class WebsocketStream(ABC):
                         )
 
                     else:
-                        raise Exception(
-                            f"Unknown ws aioHTTP message type: {msg.type}"
-                        )
+                        raise Exception(f"Unknown ws aioHTTP message type: {msg.type}")
 
         except asyncio.CancelledError:
             return False
@@ -286,7 +281,7 @@ class WebsocketStream(ABC):
         while True:
             reconnect = await self._single_conn_(url, handler_map, on_connect, private)
             await self.logging.debug(
-                f"Attempting to reconnect ws task, status [{reconnect}]"
+                f"Attempting to reconnect ws task, status: [{reconnect}]"
             )
             if not reconnect:
                 break

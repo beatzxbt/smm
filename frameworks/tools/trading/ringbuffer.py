@@ -8,13 +8,14 @@ class RingBufferF64:
     """
     A fixed-size circular buffer using Numba JIT compilation.
 
-    Can only support Float64 values. 
+    Can only support Float64 values.
 
     Parameters
     ----------
     capacity : int
         The maximum number of elements the buffer can hold.
     """
+
     _arr_: float64[:]
     _left_index_: int32
     _right_index_: int32
@@ -46,9 +47,7 @@ class RingBufferF64:
         """Returns a linearized form of the buffer's contents."""
         return np.concatenate(
             (
-                self._arr_[
-                    self._left_index_ : min(self._right_index_, self.capacity)
-                ],
+                self._arr_[self._left_index_ : min(self._right_index_, self.capacity)],
                 self._arr_[: max(self._right_index_ - self.capacity, 0)],
             )
         )

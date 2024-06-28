@@ -29,6 +29,7 @@ def time_now() -> str:
     """
     return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:04d}"
 
+
 class Logger:
     def __init__(
         self,
@@ -44,10 +45,14 @@ class Logger:
             self.discord_client = DiscordClient()
             self.discord_client.start(os.getenv("DISCORD_WEBHOOK"))
 
-        self.send_to_telegram = bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"))
+        self.send_to_telegram = bool(
+            os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID")
+        )
         if self.send_to_telegram:
             self.telegram_client = TelegramClient()
-            self.telegram_client.start(os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID"))
+            self.telegram_client.start(
+                os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+            )
 
         self.tasks = []
         self.msgs = []
@@ -140,10 +145,12 @@ class Logger:
         if self.msgs:
             await self._write_logs_to_file_()
 
+
 class DiscordClient:
     """
     A client for sending messages to a Discord channel using a webhook URL with buffering capabilities.
     """
+
     def __init__(self, buffer_size: int = 5) -> None:
         self.max_buffer_size = buffer_size
         self.buffer = []
@@ -198,11 +205,15 @@ class DiscordClient:
                 tasks = []
 
                 for message in self.buffer:
-                    tasks.append(self.client.post(
-                        url=self.webhook,
-                        data=orjson.dumps(message).decode(),
-                        headers=self.headers,
-                    ))
+                    tasks.append(
+                        asyncio.create_task(
+                            self.client.post(
+                                url=self.webhook,
+                                data=orjson.dumps(message).decode(),
+                                headers=self.headers,
+                            )
+                        )
+                    )
 
                 _ = await asyncio.gather(*tasks)
 
@@ -229,10 +240,12 @@ class DiscordClient:
             await self.client.__aexit__(None, None, None)
             del self.client
 
+
 class TelegramClient:
     """
     A client for sending messages to a Telegram channel using a bot token and chat ID with buffering capabilities.
     """
+
     def __init__(self, buffer_size: int = 5) -> None:
         self.max_buffer_size = buffer_size
         self.buffer = []
@@ -283,7 +296,9 @@ class TelegramClient:
         """
         try:
             if not self.client or not self.bot_token or not self.chat_id:
-                raise RuntimeError("Client not initialized, bot token, or chat ID not set.")
+                raise RuntimeError(
+                    "Client not initialized, bot token, or chat ID not set."
+                )
 
             self.data["text"] = content
             self.buffer.append(self.data.copy())
@@ -292,15 +307,19 @@ class TelegramClient:
                 tasks = []
 
                 for message in self.buffer:
-                    tasks.append(asyncio.create_task(self.client.post(
-                        url=f"https://api.telegram.org/bot{self.bot_token}/sendMessage?chat_id={self.chat_id}",
-                        data=orjson.dumps(message).decode(),
-                        headers=self.headers,
-                    )))
+                    tasks.append(
+                        asyncio.create_task(
+                            self.client.post(
+                                url=f"https://api.telegram.org/bot{self.bot_token}/sendMessage?chat_id={self.chat_id}",
+                                data=orjson.dumps(message).decode(),
+                                headers=self.headers,
+                            )
+                        )
+                    )
 
                 _ = await asyncio.gather(*tasks)
                 tasks.clear()
-                
+
                 self.buffer.clear()
 
         except Exception as e:

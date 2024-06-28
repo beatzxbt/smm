@@ -3,6 +3,7 @@ import numpy as np
 
 from frameworks.exchange.base.orderid import OrderIdGenerator
 
+
 class BybitOrderIdGenerator(OrderIdGenerator):
     legal_chars = np.array([i for i in string.ascii_letters + string.digits + "-_"])
 
@@ -10,4 +11,4 @@ class BybitOrderIdGenerator(OrderIdGenerator):
         super().__init__(36)
 
     def generate_random_str(self, length: int) -> str:
-        return ''.join(np.random.choice(self.legal_chars, length).tolist())
+        return "".join(np.random.choice(self.legal_chars, length).tolist())
