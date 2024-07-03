@@ -279,44 +279,43 @@ class StrNumConverter:
     DEFAULT_UNKNOWN_STR = "UNKNOWN"
     DEFAULT_UNKNOWN_NUM = -1
 
-    num_to_str = {}
-    str_to_num = {}
+    def __init__(self, str_to_int: Dict[str, int]) -> None:
+        self.str_to_int = str_to_int
+        self.int_to_str = {v: k for k, v in self.str_to_int.items()}
 
-    @classmethod
-    def to_str(cls, value: float) -> str:
+    def to_str(self, value: int) -> str:
         """
-        Converts a numerical value to its string representation.
+        Converts a numerical value to its str representation.
 
         Parameters
         ----------
-        value : float
+        value : int
             The numerical value to convert.
 
         Returns
         -------
         str
-            The string representation of the numerical value.
+            The str representation of the numerical value.
             If the value is not found, returns "UNKNOWN".
         """
-        return cls.num_to_str.get(value, cls.DEFAULT_UNKNOWN_STR)
+        return self.int_to_str.get(value, self.DEFAULT_UNKNOWN_STR)
 
-    @classmethod
-    def to_num(cls, name: str) -> int:
+    def to_num(self, name: str) -> int:
         """
-        Converts a string name to its numerical representation.
+        Converts a str name to its numerical representation.
 
         Parameters
         ----------
         name : str
-            The string name to convert.
+            The str name to convert.
 
         Returns
         -------
         int
-            The numerical representation of the string name.
-            If the name is not found, returns -1.0.
+            The numerical representation of the str name.
+            If the name is not found, returns -1.
         """
-        return cls.str_to_num.get(name, cls.DEFAULT_UNKNOWN_NUM)
+        return self.str_to_int.get(name, self.DEFAULT_UNKNOWN_NUM)
 
 
 class SideConverter(StrNumConverter):
@@ -341,8 +340,7 @@ class SideConverter(StrNumConverter):
     """
 
     def __init__(self, BUY: str, SELL: str) -> None:
-        self.str_to_num = {f"{BUY}": Side.BUY, f"{SELL}": Side.SELL}
-        self.num_to_str = {v: k for k, v in self.str_to_num.items()}
+        super().__init__(str_to_int={f"{BUY}": Side.BUY, f"{SELL}": Side.SELL})
 
 
 class OrderTypeConverter(StrNumConverter):
@@ -379,13 +377,12 @@ class OrderTypeConverter(StrNumConverter):
         STOP_LIMIT: str = None,
         TAKE_PROFIT_LIMIT: str = None,
     ) -> None:
-        self.str_to_num = {
+        super().__init__(str_to_int={
             f"{LIMIT}": OrderType.LIMIT,
             f"{MARKET}": OrderType.MARKET,
             f"{STOP_LIMIT}": OrderType.STOP_LIMIT,
             f"{TAKE_PROFIT_LIMIT}": OrderType.TAKE_PROFIT_LIMIT,
-        }
-        self.num_to_str = {v: k for k, v in self.str_to_num.items()}
+        })
 
 
 class TimeInForceConverter(StrNumConverter):
@@ -413,13 +410,11 @@ class TimeInForceConverter(StrNumConverter):
     """
 
     def __init__(self, GTC: str, FOK: str, POST_ONLY: str) -> None:
-        self.str_to_num = {
+        super().__init__(str_to_int={
             f"{GTC}": TimeInForce.GTC,
             f"{FOK}": TimeInForce.FOK,
             f"{POST_ONLY}": TimeInForce.POST_ONLY,
-        }
-        self.num_to_str = {v: k for k, v in self.str_to_num.items()}
-
+        })
 
 class PositionDirectionConverter(StrNumConverter):
     """
@@ -443,5 +438,7 @@ class PositionDirectionConverter(StrNumConverter):
     """
 
     def __init__(self, LONG: str, SHORT: str) -> None:
-        self.str_to_num = {f"{LONG}": PositionDirection.LONG, f"{SHORT}": PositionDirection.SHORT}
-        self.num_to_str = {v: k for k, v in self.str_to_num.items()}
+        super().__init__(str_to_int={
+            f"{LONG}": PositionDirection.LONG, 
+            f"{SHORT}": PositionDirection.SHORT
+        })
