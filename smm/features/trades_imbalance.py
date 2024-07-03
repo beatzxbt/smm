@@ -12,7 +12,8 @@ def trades_imbalance(trades: Array, window: int) -> float:
     using geometrically weighted quantities. The imbalance reflects the dominance of buy or sell trades,
     weighted by the recency of trades in the window.
 
-    Steps:
+    Steps
+    -----
     1. Determine the effective window size, the lesser of the specified window or the total trades count.
 
     2. Generate geometric weights for the effective window size, with recent trades given higher significance.
