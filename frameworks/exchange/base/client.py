@@ -17,6 +17,7 @@ class Client(ABC):
     """
 
     max_retries = 3
+    unknown_error = (False, "Unknown error!")
 
     # [https://github.com/ccxt/ccxt/blob/9ab59963f780c4ded7cd76ffa9e58b7f3fdd6e79/python/ccxt/base/exchange.py#L229]
     http_exceptions = {

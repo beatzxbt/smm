@@ -3,11 +3,23 @@ import hashlib
 import hmac
 from urllib.parse import urlencode
 
+from typing import Dict, Tuple
 from frameworks.exchange.base.client import Client
 
 
 class BybitClient(Client):
-    recv_window = "5000"
+    recv_window = 1000
+
+    errors: Dict[int, Tuple[bool, str]] = {
+        0: (False, ""),
+        200: (False, ""),
+        10001: (False, "Illegal category"),
+        10006: (False, "Rate limits exceeded!"),
+        10016: (True, "Bybit server error..."),
+        10010: (False, "Unmatched IP, check your API key's bound IP addresses."),
+        110001: (False, "Order doesn't exist anymore!"),
+        110012: (False, "Insufficient available balance"),
+    }
 
     def __init__(self, api_key: str, api_secret: str) -> None:
         super().__init__(api_key, api_secret)
@@ -22,7 +34,7 @@ class BybitClient(Client):
 
     def sign_headers(self, method, headers):
         self.update_timestamp()
-        param_str = f"{self.timestamp}{self.api_key}{self.recv_window}"
+        param_str = f"{self.timestamp}{self.api_key}{str(self.recv_window)}"
 
         match method:
             case "GET":
@@ -45,27 +57,7 @@ class BybitClient(Client):
         return self.headers_template.copy()
 
     def error_handler(self, recv):
-        match int(recv.get("retCode", 0)):
-            case 0 | 200:
-                return (False, "")
-
-            case 10001:
-                return (False, "Illegal category")
-
-            case 10006:
-                return (False, "Rate limits exceeded!")
-
-            case 10016:
-                return (True, "Bybit server error...")
-
-            case 10010:
-                return (False, "Unmatched IP, check your API key's bound IP addresses.")
-
-            case 110001:
-                return (False, "Order doesn't exist anymore!")
-
-            case 110012:
-                return (False, "Insufficient available balance")
-
-            case _:
-                return (False, "Unknown error code...")
+        return self.errors.get(
+            int(recv.get("retCode", 0)),
+            (False, "Unknown error code...")
+        )
