@@ -1,9 +1,8 @@
 from typing import List, Dict
 
 from frameworks.sharedstate import SharedState
-from frameworks.exchange.hyperliquid.handlers.ticker import HyperliquidTickerHandler
-from frameworks.exchange.hyperliquid.handlers.position import HyperliquidPositionHandler
-from frameworks.exchange.hyperliquid.handlers.orders import HyperliquidOrdersHandler
+from frameworks.exchange.hyperliquid.ws_handlers.ticker import HyperliquidTickerHandler
+from frameworks.exchange.hyperliquid.ws_handlers.position import HyperliquidPositionHandler
 
 class HyperliquidWeb2DataHandler:
     def __init__(self, ss: SharedState) -> None:
