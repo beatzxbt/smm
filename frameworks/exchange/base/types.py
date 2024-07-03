@@ -277,7 +277,7 @@ class StrNumConverter:
     """
 
     DEFAULT_UNKNOWN_STR = "UNKNOWN"
-    DEFAULT_UNKNOWN_NUM = -1.0
+    DEFAULT_UNKNOWN_NUM = -1
 
     num_to_str = {}
     str_to_num = {}
@@ -301,7 +301,7 @@ class StrNumConverter:
         return cls.num_to_str.get(value, cls.DEFAULT_UNKNOWN_STR)
 
     @classmethod
-    def to_num(cls, name: str) -> float:
+    def to_num(cls, name: str) -> int:
         """
         Converts a string name to its numerical representation.
 
@@ -312,7 +312,7 @@ class StrNumConverter:
 
         Returns
         -------
-        float
+        int
             The numerical representation of the string name.
             If the name is not found, returns -1.0.
         """
