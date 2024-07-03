@@ -11,5 +11,10 @@ numpy
 numpy_ringbuffer
 numba
 
+# DEX signing
+msgpack
+eth_account
+eth_utils
+
 # Official SDKs 
 dydx-v4-client # DYDX V4
