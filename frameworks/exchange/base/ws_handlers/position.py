@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
+from frameworks.exchange.base.types import Position
 
 class PositionHandler(ABC):
     """
@@ -11,14 +12,14 @@ class PositionHandler(ABC):
     position data, which should be implemented by subclasses.
     """
 
-    def __init__(self, position: Dict) -> None:
+    def __init__(self, position: Position) -> None:
         """
-        Initializes the PositionHandler class with a position dictionary.
+        Initializes the PositionHandler class with a position data structure.
 
         Parameters
         ----------
-        position : dict
-            A dictionary to store position data.
+        position : Position
+            A structure to store position data.
         """
         self.position = position
 
