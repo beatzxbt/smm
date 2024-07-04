@@ -9,6 +9,7 @@ from frameworks.exchange.base.types import (
     PositionDirectionConverter,
 )
 
+
 class Formats(ABC):
     recvWindow = 1000
 
@@ -17,7 +18,7 @@ class Formats(ABC):
         convert_side: SideConverter,
         convert_order_type: OrderTypeConverter,
         convert_time_in_force: TimeInForceConverter,
-        convert_position_direction: PositionDirectionConverter 
+        convert_position_direction: PositionDirectionConverter,
     ) -> None:
         self.convert_side = convert_side
         self.convert_order_type = convert_order_type
@@ -25,17 +26,14 @@ class Formats(ABC):
         self.convert_pos_direction = convert_position_direction
 
     @abstractmethod
-    def create_order(
-        self,
-        order: Order
-    ) -> Dict:
+    def create_order(self, order: Order) -> Dict:
         """
         Abstract method to create an order.
 
         Parameters
         ----------
         order: Order
-            The order to be sent to the exchange. 
+            The order to be sent to the exchange.
 
         Returns
         -------
@@ -45,17 +43,14 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    def amend_order(
-        self,
-        order: Order
-    ) -> Dict:
+    def amend_order(self, order: Order) -> Dict:
         """
         Abstract method to amend an existing order.
 
         Parameters
         ----------
         order: Order
-            The order to be sent to the exchange. 
+            The order to be sent to the exchange.
 
         Returns
         -------
@@ -65,17 +60,14 @@ class Formats(ABC):
         pass
 
     @abstractmethod
-    def cancel_order(
-        self,
-        order: Order
-    ) -> Dict:
+    def cancel_order(self, order: Order) -> Dict:
         """
         Abstract method to cancel an existing order.
 
         Parameters
         ----------
         order: Order
-            The order to amend. 
+            The order to amend.
 
         Returns
         -------

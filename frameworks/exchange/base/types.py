@@ -5,20 +5,24 @@ class Side:
     BUY = 0
     SELL = 1
 
+
 class OrderType:
     LIMIT = 0
     MARKET = 1
     STOP_LIMIT = 2
     TAKE_PROFIT_LIMIT = 3
 
+
 class TimeInForce:
     GTC = 0
     FOK = 1
     POST_ONLY = 2
 
+
 class PositionDirection:
     LONG = 0
     SHORT = 1
+
 
 class Order:
     def __init__(
@@ -220,7 +224,14 @@ class Position:
             "uPnl": self.uPnl,
         }
 
-    def update(self, symbol: str = None, side: Side = None, price: float = None, size: float = None, uPnl: float = None) -> None:
+    def update(
+        self,
+        symbol: str = None,
+        side: Side = None,
+        price: float = None,
+        size: float = None,
+        uPnl: float = None,
+    ) -> None:
         """
         Updates the attributes of the Position object with the provided values.
 
@@ -256,7 +267,7 @@ class Position:
 
         if uPnl is not None:
             self._uPnl = uPnl
-            
+
     def clear(self) -> None:
         """
         Clears all attributes of the Position object.
@@ -377,12 +388,14 @@ class OrderTypeConverter(StrNumConverter):
         STOP_LIMIT: str = None,
         TAKE_PROFIT_LIMIT: str = None,
     ) -> None:
-        super().__init__(str_to_int={
-            f"{LIMIT}": OrderType.LIMIT,
-            f"{MARKET}": OrderType.MARKET,
-            f"{STOP_LIMIT}": OrderType.STOP_LIMIT,
-            f"{TAKE_PROFIT_LIMIT}": OrderType.TAKE_PROFIT_LIMIT,
-        })
+        super().__init__(
+            str_to_int={
+                f"{LIMIT}": OrderType.LIMIT,
+                f"{MARKET}": OrderType.MARKET,
+                f"{STOP_LIMIT}": OrderType.STOP_LIMIT,
+                f"{TAKE_PROFIT_LIMIT}": OrderType.TAKE_PROFIT_LIMIT,
+            }
+        )
 
 
 class TimeInForceConverter(StrNumConverter):
@@ -410,11 +423,14 @@ class TimeInForceConverter(StrNumConverter):
     """
 
     def __init__(self, GTC: str, FOK: str, POST_ONLY: str) -> None:
-        super().__init__(str_to_int={
-            f"{GTC}": TimeInForce.GTC,
-            f"{FOK}": TimeInForce.FOK,
-            f"{POST_ONLY}": TimeInForce.POST_ONLY,
-        })
+        super().__init__(
+            str_to_int={
+                f"{GTC}": TimeInForce.GTC,
+                f"{FOK}": TimeInForce.FOK,
+                f"{POST_ONLY}": TimeInForce.POST_ONLY,
+            }
+        )
+
 
 class PositionDirectionConverter(StrNumConverter):
     """
@@ -438,7 +454,9 @@ class PositionDirectionConverter(StrNumConverter):
     """
 
     def __init__(self, LONG: str, SHORT: str) -> None:
-        super().__init__(str_to_int={
-            f"{LONG}": PositionDirection.LONG, 
-            f"{SHORT}": PositionDirection.SHORT
-        })
+        super().__init__(
+            str_to_int={
+                f"{LONG}": PositionDirection.LONG,
+                f"{SHORT}": PositionDirection.SHORT,
+            }
+        )

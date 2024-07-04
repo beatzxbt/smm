@@ -185,11 +185,14 @@ class WebsocketStream(ABC):
             If there is an issue sending the payload.
         """
         try:
-            await self.logging.debug(f"Sending {stream_str} ws payload: {payload}")
+            await self.logging.debug(
+                topic="WS", msg=f"Sending {stream_str} ws payload: {payload}"
+            )
             await ws.send_json(payload)
         except Exception as e:
             await self.logging.error(
-                f"Failed to send {stream_str.lower()} ws payload: {payload} | Error: {e}"
+                topic="WS",
+                msg=f"Failed to send {stream_str.lower()} ws payload: {payload} - Error: {e}",
             )
 
     async def _single_conn_(
@@ -231,7 +234,9 @@ class WebsocketStream(ABC):
         stream_str = "private" if private else "public"
 
         try:
-            await self.logging.info(f"Attempting to start {stream_str} ws stream...")
+            await self.logging.info(
+                topic="WS", msg=f"Attempting to start {stream_str} ws stream..."
+            )
 
             async with session.ws_connect(url) as ws:
                 for payload in on_connect:
@@ -243,18 +248,20 @@ class WebsocketStream(ABC):
 
                     elif msg.type in self._failure_:
                         await self.logging.warning(
-                            f"{stream_str} ws closed/error, reconnecting..."
+                            topic="WS",
+                            msg=f"{stream_str} ws closed/error, reconnecting...",
                         )
-
-                    else:
-                        raise Exception(f"Unknown ws aioHTTP message type: {msg.type}")
 
         except asyncio.CancelledError:
             return False
 
+        except orjson.JSONDecodeError:
+            await self.logging.warning(
+                topic="WS", msg=f"Failed to load payload: {msg.data}"
+            )
+
         except Exception as e:
-            await self.logging.error(f"{stream_str} ws: {e}")
-            await self.logging.debug(f"Faulty {stream_str.lower()} payload: {e}")
+            await self.logging.error(topic="WS", msg=f"{stream_str} stream: {e}")
             return True
 
     async def _create_reconnect_task_(
@@ -281,7 +288,8 @@ class WebsocketStream(ABC):
         while True:
             reconnect = await self._single_conn_(url, handler_map, on_connect, private)
             await self.logging.debug(
-                f"Attempting to reconnect ws task, status: [{reconnect}]"
+                topic="WS",
+                msg=f"Attempting to reconnect ws task, status: [{reconnect}]",
             )
             if not reconnect:
                 break
@@ -331,8 +339,12 @@ class WebsocketStream(ABC):
         on_connect : list of dict, optional
             The messages to send upon connection.
         """
-        on_connect = [] if on_connect is None else on_connect
-        await self._manage_connections_(url, handler_map, on_connect, private=False)
+        await self._manage_connections_(
+            url=url,
+            handler_map=handler_map,
+            on_connect=[] if on_connect is None else on_connect,
+            private=False,
+        )
 
     async def start_private_ws(
         self, url: str, handler_map: Callable, on_connect: Optional[List[Dict]] = None
@@ -351,8 +363,12 @@ class WebsocketStream(ABC):
         on_connect : list of dict, optional
             The messages to send upon connection.
         """
-        on_connect = [] if on_connect is None else on_connect
-        await self._manage_connections_(url, handler_map, on_connect, private=True)
+        await self._manage_connections_(
+            url=url,
+            handler_map=handler_map,
+            on_connect=[] if on_connect is None else on_connect,
+            private=False,
+        )
 
     @abstractmethod
     async def start(self) -> None:

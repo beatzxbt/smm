@@ -199,7 +199,7 @@ class Bybit(Exchange):
                 return None
 
         except Exception as e:
-            await self.logging.error(f"Bybit exchange warmup: {e}")
+            await self.logging.error(topic="EXCH", msg=f"Bybit exchange warmup: {e}")
 
         finally:
-            await self.logging.info(f"Bybit exchange warmup sequence complete.")
+            await self.logging.info(topic="EXCH", msg=f"Bybit exchange warmup sequence complete.")

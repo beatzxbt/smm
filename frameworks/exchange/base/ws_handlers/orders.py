@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
+
 class OrdersHandler(ABC):
     """
     A base class for handling orders data.
@@ -70,7 +71,7 @@ class OrdersHandler(ABC):
             - size
 
         2. For each order:
-           a. Create an Order() instance with the respective values. 
+           a. Create an Order() instance with the respective values.
            b. self.orders[orderId or clientOrderId] = Order()
 
         3. If any orders need to be deleted:

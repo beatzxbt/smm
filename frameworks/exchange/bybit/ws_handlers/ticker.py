@@ -26,7 +26,7 @@ class BybitTickerHandler(TickerHandler):
                 self.ticker.update(self.format)
 
         except Exception as e:
-            raise Exception(f"[Ticker refresh] {e}")
+            raise Exception(f"Ticker refresh - {e}")
 
     def process(self, recv: Dict) -> None:
         try:
@@ -45,4 +45,4 @@ class BybitTickerHandler(TickerHandler):
             self.ticker.update(self.format)
 
         except Exception as e:
-            raise Exception(f"[Ticker process] {e}")
+            raise Exception(f"Ticker process - {e}")

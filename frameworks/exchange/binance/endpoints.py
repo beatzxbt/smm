@@ -25,9 +25,13 @@ class BinanceEndpoints(Endpoints):
         )
 
         self.load_additional(
+            ping={"method": "GET", "url": "/fapi/v1/ping"},
+            batchCreateOrders={"method": "POST", "url": "/fapi/v1/batchOrders"},
+            batchAmendOrders={"method": "PUT", "url": "/fapi/v1/batchOrders"},
+            batchCancelOrders={"method": "DELETE", "url": "/fapi/v1/batchOrders"},
+            exchangeInfo={"method": "GET", "url": "/fapi/v1/exchangeInfo"},
             accountInfo={"method": "GET", "url": "/fapi/v2/account"},
-            feeRate={"method": "GET", "url": "/fapi/v1/commissionRate"},
             listenKey={"method": "POST", "url": "/fapi/v1/listenKey"},
             pingListenKey={"method": "PUT", "url": "/fapi/v1/listenKey"},
-            setLeverage={"method": "POST", "url": "/fapi/v1/leverage"},
+            setLeverage={"method": "POST", "url": "/fapi/v1/leverage"}
         )

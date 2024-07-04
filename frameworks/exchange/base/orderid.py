@@ -62,6 +62,10 @@ class OrderIdGenerator(ABC):
         """
         start_len = len(start)
         end_len = len(end)
-        return (
-            start + self.generate_random_str(self.max_len - (start_len + end_len)) + end
-        )
+
+        if not start_len + end_len >= self.max_len:
+            return (
+                start + self.generate_random_str(self.max_len - (start_len + end_len)) + end
+            )
+        else:
+            raise ValueError(f"Start/End chars longer than maximum orderId length.")

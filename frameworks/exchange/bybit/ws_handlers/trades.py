@@ -9,7 +9,7 @@ class BybitTradesHandler(TradesHandler):
         self.data = data
         super().__init__(self.data["trades"])
 
-        self.side_converter = BybitSideConverter
+        self.side_converter = BybitSideConverter()
 
     def refresh(self, recv: List[Dict]) -> None:
         try:
@@ -21,7 +21,7 @@ class BybitTradesHandler(TradesHandler):
                 self.trades.append(self.format.copy())
 
         except Exception as e:
-            raise Exception(f"[Trades refresh] {e}")
+            raise Exception(f"Trades refresh - {e}")
 
     def process(self, recv: Dict) -> None:
         try:
@@ -33,4 +33,4 @@ class BybitTradesHandler(TradesHandler):
                 self.trades.append(self.format.copy())
 
         except Exception as e:
-            raise Exception(f"[Trades process] {e}")
+            raise Exception(f"Trades process - {e}")

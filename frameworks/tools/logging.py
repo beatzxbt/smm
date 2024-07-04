@@ -20,14 +20,14 @@ def time_ms() -> int:
 
 def time_now() -> str:
     """
-    Get the current time in the format 'YYYY-MM-DD HH:MM:SS.microseconds'.
+    Get the current time in the format 'YYYY-MM-DD HH:MM:SS.mmm'.
 
     Returns
     -------
     str
         The current time string.
     """
-    return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1000) % 1000000:04d}"
+    return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1_000_000) % 1000}"
 
 
 class Logger:
@@ -43,7 +43,9 @@ class Logger:
         self.send_to_discord = bool(os.getenv("DISCORD_WEBHOOK"))
         if self.send_to_discord:
             self.discord_client = DiscordClient()
-            self.discord_client.start(os.getenv("DISCORD_WEBHOOK"))
+            self.discord_client.start(
+                webhook=os.getenv("DISCORD_WEBHOOK")
+            )
 
         self.send_to_telegram = bool(
             os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID")
@@ -51,8 +53,17 @@ class Logger:
         if self.send_to_telegram:
             self.telegram_client = TelegramClient()
             self.telegram_client.start(
-                os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+                bot_token=os.getenv("TELEGRAM_BOT_TOKEN"), 
+                chat_id=os.getenv("TELEGRAM_CHAT_ID")
             )
+
+        # self.msg = {
+        #     "timestamp": "",
+        #     "level": "",
+        #     "dir": "",
+        #     "name": "",
+        #     "msg": "",
+        # }
 
         self.tasks = []
         self.msgs = []
@@ -73,7 +84,7 @@ class Logger:
         finally:
             self.msgs.clear()
 
-    async def _message_(self, level: str, msg: str) -> None:
+    async def _message_(self, level: str, topic: str, msg: str) -> None:
         """
         Log a message with a specified logging level.
 
@@ -82,6 +93,9 @@ class Logger:
         level : str
             The logging level of the message.
 
+        topic : str
+            The topic of the message to log.
+
         msg : str
             The message to log.
 
@@ -89,7 +103,7 @@ class Logger:
         -------
         None
         """
-        formatted_msg = f"{time_now()} | {level} | {msg}"
+        formatted_msg = f"{time_now()} | {level} | {topic} | {msg}"
 
         if self.send_to_discord:
             task = asyncio.create_task(self.discord_client.send(formatted_msg))
@@ -106,24 +120,24 @@ class Logger:
         if len(self.msgs) >= 1000:
             await self._write_logs_to_file_()
 
-    async def success(self, msg: str) -> None:
-        await self._message_("SUCCESS", msg)
+    async def success(self, topic: str, msg: str) -> None:
+        await self._message_("SUCCESS", topic.upper(), msg)
 
-    async def info(self, msg: str) -> None:
-        await self._message_("INFO", msg)
+    async def info(self, topic: str, msg: str) -> None:
+        await self._message_("INFO", topic.upper(), msg)
 
-    async def debug(self, msg: str) -> None:
+    async def debug(self, topic: str, msg: str) -> None:
         if self.debug_mode:
-            await self._message_("DEBUG", msg)
+            await self._message_("DEBUG", topic.upper(), msg)
 
-    async def warning(self, msg: str) -> None:
-        await self._message_("WARNING", msg)
+    async def warning(self, topic: str, msg: str) -> None:
+        await self._message_("WARNING", topic.upper(), msg)
 
-    async def error(self, msg: str) -> None:
-        await self._message_("ERROR", msg)
+    async def error(self, topic: str, msg: str) -> None:
+        await self._message_("ERROR", topic.upper(), msg)
 
-    async def critical(self, msg: str) -> None:
-        await self._message_("CRITICAL", msg)
+    async def critical(self, topic: str, msg: str) -> None:
+        await self._message_("CRITICAL", topic.upper(), msg)
 
     async def shutdown(self) -> None:
         """

@@ -44,7 +44,7 @@ class BybitClient(Client):
                 param_str += orjson.dumps(headers).decode()
 
             case _:
-                raise ValueError("Invalid method for signing")
+                raise ValueError(f"Invalid signing method: {method}")
 
         hash_signature = hmac.new(
             key=self.api_secret.encode(),
@@ -57,7 +57,8 @@ class BybitClient(Client):
         return self.headers_template.copy()
 
     def error_handler(self, recv):
+        error_code = int(recv.get("retCode", 0))
         return self.errors.get(
-            int(recv.get("retCode", 0)),
-            (False, "Unknown error code...")
+            error_code,
+            (False, f"Unknown error code: {error_code}")
         )

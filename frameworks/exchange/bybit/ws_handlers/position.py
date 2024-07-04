@@ -11,7 +11,7 @@ class BybitPositionHandler(PositionHandler):
         self.symbol = symbol
         super().__init__(self.data["position"])
 
-        self.position_side_converter = BybitPositionDirectionConverter
+        self.position_side_converter = BybitPositionDirectionConverter()
 
     def refresh(self, recv: Dict) -> None:
         try:
@@ -30,7 +30,7 @@ class BybitPositionHandler(PositionHandler):
                 self.position = new_position
 
         except Exception as e:
-            raise Exception(f"[Position refresh] {e}")
+            raise Exception(f"Position refresh - {e}")
 
     def process(self, recv):
         try:
@@ -48,4 +48,4 @@ class BybitPositionHandler(PositionHandler):
                 break
 
         except Exception as e:
-            raise Exception(f"[Position process] {e}")
+            raise Exception(f"Position process - {e}")

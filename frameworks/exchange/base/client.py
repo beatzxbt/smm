@@ -17,7 +17,6 @@ class Client(ABC):
     """
 
     max_retries = 3
-    unknown_error = (False, "Unknown error!")
 
     # [https://github.com/ccxt/ccxt/blob/9ab59963f780c4ded7cd76ffa9e58b7f3fdd6e79/python/ccxt/base/exchange.py#L229]
     http_exceptions = {
@@ -120,10 +119,10 @@ class Client(ABC):
 
             case code if code in self.http_exceptions:
                 reason = self.http_exceptions[code]
-                raise Exception(f"Known status code [{code}] | {reason}")
+                raise Exception(f"Known status code - {code} - {reason}")
 
             case _:
-                raise Exception(f"Unknown status code [{code}]")
+                raise Exception(f"Unknown status code - {code}")
 
     @abstractmethod
     def sign_headers(self, method: str, header: Dict) -> Dict[str, Any]:
@@ -218,7 +217,8 @@ class Client(ABC):
                     headers = self.sign_headers(method, headers)
 
                 await self.logging.debug(
-                    f"{method} :: {url} | P: {params} | H: {headers} | D: {orjson.dumps(data).decode()}"
+                    topic="CLIENT",
+                    msg=f"M: {method} - U: {url} - P: {params} - H: {headers} - D: {orjson.dumps(data).decode()}",
                 )
 
                 response = await self.session.request(
@@ -238,23 +238,27 @@ class Client(ABC):
 
                         if retry:
                             await self.logging.warning(
-                                f"Retry attempt {attempt}: {msg}"
+                                topic="CLIENT", msg=f"Retry attempt {attempt}: {msg}"
                             )
                             await asyncio.sleep(attempt / 10)  # Exponential backoff
                             continue
 
                         elif msg:
-                            await self.logging.warning(f"Failed request: {msg}")
+                            await self.logging.warning(
+                                topic="CLIENT", msg=f"Failed request: {msg}"
+                            )
 
                     return response_json
 
             except orjson.JSONDecodeError as e:
-                await self.logging.error(f"Client JSON Decode: {e}")
+                await self.logging.error(
+                    topic="CLIENT", msg=f"Failed to decode JSON: {e}"
+                )
                 if attempt >= self.max_retries:
                     raise e
 
             except Exception as e:
-                await self.logging.error(f"Client: {e}")
+                await self.logging.error(topic="CLIENT", msg=e)
                 if attempt >= self.max_retries:
                     raise e
 
@@ -269,7 +273,7 @@ class Client(ABC):
         None
         """
         if self.session:
-            await self.logging.info("Shutting down client...")
+            await self.logging.info(topic="CLIENT", msg="Shutting down...")
             await self.session.connector.cleanup()
             await self.session.__aexit__(None, None, None)
             del self.session

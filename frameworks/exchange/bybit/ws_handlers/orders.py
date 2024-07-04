@@ -18,9 +18,9 @@ class BybitOrdersHandler(OrdersHandler):
         self.symbol = symbol
         super().__init__(self.data["orders"])
 
-        self.side_converter = BybitSideConverter
-        self.order_type_converter = BybitOrderTypeConverter
-        self.tif_converter = BybitTimeInForceConverter
+        self.side_converter = BybitSideConverter()
+        self.order_type_converter = BybitOrderTypeConverter()
+        self.tif_converter = BybitTimeInForceConverter()
 
     def refresh(self, recv: Dict) -> None:
         try:
@@ -42,7 +42,7 @@ class BybitOrdersHandler(OrdersHandler):
                 self.orders[new_order.orderId] = new_order
 
         except Exception as e:
-            raise Exception(f"[Orders refresh] {e}")
+            raise Exception(f"Orders refresh - {e}")
 
     def process(self, recv: Dict) -> None:
         try:
@@ -68,4 +68,4 @@ class BybitOrdersHandler(OrdersHandler):
                     del self.orders[order["orderId"]]
 
         except Exception as e:
-            raise Exception(f"[Orders process] {e}")
+            raise Exception(f"Orders process - {e}")

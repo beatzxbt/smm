@@ -24,9 +24,9 @@ class BybitOhlcvHandler(OhlcvHandler):
                     ]
                 )
                 self.ohlcv.append(self.format.copy())
-
+    
         except Exception as e:
-            raise Exception(f"[OHLCV refresh] {e}")
+            raise Exception(f"OHLCV refresh - {e}")
 
     def process(self, recv: Dict) -> None:
         try:
@@ -51,4 +51,4 @@ class BybitOhlcvHandler(OhlcvHandler):
                 self.ohlcv.append(self.format.copy())
 
         except Exception as e:
-            raise Exception(f"[OHLCV process] {e}")
+            raise Exception(f"OHLCV process - {e}")

@@ -128,7 +128,7 @@ class BybitWebsocket(WebsocketStream):
             url, requests = self.public_stream_sub()
             await self.start_public_ws(url, self.public_stream_handler, requests)
         except Exception as e:
-            await self.logging.error(f"Bybit public ws: {e}")
+            await self.logging.error(topic="WS", msg=f"Public stream: {e}")
 
     async def start_private_stream(self):
         """
@@ -138,7 +138,7 @@ class BybitWebsocket(WebsocketStream):
             url, requests = self.private_stream_sub()
             await self.start_private_ws(url, self.private_stream_handler, requests)
         except Exception as e:
-            await self.logging.error(f"Bybit private ws: {e}")
+            await self.logging.error(topic="WS", msg=f"Private stream: {e}")
 
     async def start(self) -> None:
         self.create_handlers()

@@ -1,5 +1,5 @@
 import numpy as np
-from numba.types import int64, float64, Array
+from numba.types import uint32, float64, Array
 from numba.experimental import jitclass
 
 from frameworks.tools.numba import nbisin, nb_float_to_str
@@ -27,7 +27,7 @@ class Orderbook:
         Array to store best bid and ask, each with price and quantity.
     """
 
-    size: int64
+    size: uint32
     asks: float64[:, :]
     bids: float64[:, :]
     bba: float64[:, :]

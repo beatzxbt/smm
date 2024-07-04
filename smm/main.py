@@ -18,7 +18,7 @@ from smm.sharedstate import SmmSharedState
 
 async def main():
     try:
-        ss = SmmSharedState(debug=False)
+        ss = SmmSharedState(debug=True)
         trading_logic = TradingLogic(ss)
 
         await asyncio.gather(
@@ -37,8 +37,8 @@ async def main():
 
     finally:
         await ss.logging.critical("Starting shutdown sequence...")
-        await ss.exchange.shutdown()
         await ss.websocket.shutdown()
+        await ss.exchange.shutdown()
         await ss.logging.info("Goodnight...")
         await ss.logging.shutdown()
 

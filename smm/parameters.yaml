@@ -6,18 +6,18 @@ symbol: "SOLUSDT"
 # "plain", "stinky" ,...
 quote_generator: "plain"
 
-# The keys ("total_orders", "max_position") must be present in any
+# The params "total_orders" and "max_position" must be present in any
 # new strategies created! Max position is auto converted to quote
 # units so always keep this value in $ (USD).
 parameters:
   plain:
     total_orders: 10            # Consider your rate limits!
     max_position: 100           # Value in $ (USD)
-    minimum_spread: 5           # Value in BPS (Basis Points)
-    aggressiveness: 0.3         # Must be 0.0 <-> 1.0
+    minimum_spread: 10          # Value in BPS (Basis Points)
+    aggressiveness: 0.75        # Must be 0.0 <-> 1.0
 
   stinky:
     total_orders: 10            # Consider your rate limits!
     max_position: 100           # Value in $ (USD)
-    minimum_spread: 40          # Value in BPS (Basis Points)
+    minimum_spread: 50          # Value in BPS (Basis Points)
     maximum_spread: 250         # Value in BPS (Basis Points)

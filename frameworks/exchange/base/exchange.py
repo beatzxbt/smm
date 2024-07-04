@@ -1,13 +1,13 @@
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Union
+from typing import Dict, Union
 
 from frameworks.tools.logging import Logger
 from frameworks.exchange.base.client import Client
 from frameworks.exchange.base.formats import Formats
 from frameworks.exchange.base.endpoints import Endpoints
 from frameworks.exchange.base.orderid import OrderIdGenerator
-from frameworks.exchange.base.types import Order
+from frameworks.exchange.base.types import Side, OrderType, TimeInForce, Order
 
 
 class Exchange(ABC):
@@ -69,10 +69,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def create_order(
-        self,
-        order: Order
-    ) -> Dict:
+    async def create_order(self, order: Order) -> Dict:
         """
         Abstract method to create an order.
 
@@ -89,10 +86,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def amend_order(
-        self,
-        order: Order
-    ) -> Dict:
+    async def amend_order(self, order: Order) -> Dict:
         """
         Abstract method to amend an existing order.
 
@@ -109,10 +103,7 @@ class Exchange(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(
-        self,
-        order: Order
-    ) -> Dict:
+    async def cancel_order(self, order: Order) -> Dict:
         """
         Abstract method to cancel an existing order.
 
@@ -275,35 +266,44 @@ class Exchange(ABC):
             tasks = []
 
             for attempt in range(3):
-                await self.logging.debug(f"Cancel all, attempt {attempt}")
+                await self.logging.debug(
+                    topic="EXCH", msg=f"Cancel all, attempt {attempt}"
+                )
                 tasks.append(self.cancel_all_orders(self.symbol))
 
-            delta_neutralizer_orderid = self.orderid.generate_order_id()
+            if self.data["position"].size:
+                delta_neutralizer_orderid = self.orderid.generate_order_id()
 
-            for attempt in range(3):
-                await self.logging.debug(f"Delta neutralizer, attempt {attempt}")
-                tasks.append(
-                    self.create_order(
-                        symbol=self.symbol,
-                        side=(
-                            Side.BUY if self.data["position"].size < 0.0 else Side.SELL
-                        ),
-                        orderType=OrderType.MARKET,
-                        timeInForce=TimeInForce.GTC,
-                        size=self.data["position"].size,
-                        clientOrderId=delta_neutralizer_orderid,
+                for attempt in range(3):
+                    await self.logging.debug(
+                        topic="EXCH", msg=f"Delta neutralizer, attempt {attempt}"
                     )
-                )
+                    tasks.append(
+                        self.create_order(
+                            Order(
+                                symbol=self.symbol,
+                                side=(
+                                    Side.BUY
+                                    if self.data["position"].size < 0.0
+                                    else Side.SELL
+                                ),
+                                orderType=OrderType.MARKET,
+                                timeInForce=TimeInForce.GTC,
+                                size=self.data["position"].size,
+                                clientOrderId=delta_neutralizer_orderid,
+                            )
+                        )
+                    )
 
             await asyncio.gather(*tasks)
 
         except KeyError:
-            await self.logging.info("No position found, skipping...")
+            await self.logging.info(topic="EXCH", msg="No position found, skipping...")
 
         except Exception as e:
-            await self.logging.error(f"Shutdown sequence: {e}")
+            await self.logging.error(topic="EXCH", msg=f"Shutdown sequence: {e}")
             raise e
 
         finally:
-            await self.logging.info(f"Exchange shutdown sequence complete.")
+            await self.logging.info(topic="EXCH", msg=f"Shutdown sequence complete.")
             await self.client.shutdown()

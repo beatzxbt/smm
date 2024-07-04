@@ -234,12 +234,10 @@ class SharedState(ABC):
         """
         Starts the internal processes such as warming up the exchange and starting the websocket.
         """
-        tasks = [
-            self.exchange.warmup(),
+        await asyncio.gather(
+            self.exchange.warmup(), 
             self.websocket.start()
-        ]
-
-        await asyncio.gather(*tasks)
+        )
 
     async def refresh_parameters(self, interval: float=10.0) -> None:
         """

@@ -37,8 +37,10 @@ class BinanceFormats(Formats):
 
             case OrderType.LIMIT:
                 format["price"] = str(order.price)
-
-        return format
+                return format
+            
+            case _:
+                raise NotImplementedError(f"OrderType not implemented: {order.orderType}")
     
     def batch_create_orders(
         self,

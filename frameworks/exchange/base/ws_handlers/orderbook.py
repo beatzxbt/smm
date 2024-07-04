@@ -26,8 +26,6 @@ class OrderbookHandler(ABC):
         """
         self.orderbook = orderbook
         self.timestamp = time_ms()
-        self.bids = np.array([[0.0, 0.0]], dtype=np.float64)
-        self.asks = np.array([[0.0, 0.0]], dtype=np.float64)
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:

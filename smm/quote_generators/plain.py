@@ -1,9 +1,9 @@
 from typing import List
 from numba.types import Array
 
-from frameworks.exchange.base.types import Side, TimeInForce, OrderType, Order
 from frameworks.tools.numba import nbclip, nbgeomspace, nbsqrt
 from frameworks.tools.trading.weights import generate_geometric_weights
+from frameworks.exchange.base.types import Side, TimeInForce, OrderType, Order
 from smm.quote_generators.base import QuoteGenerator
 from smm.sharedstate import SmmSharedState
 
@@ -117,6 +117,8 @@ class PlainQuoteGenerator(QuoteGenerator):
                     clientOrderId=self.orderid.generate_order_id(end=str_level)
                 )
             )
+
+            level += 1
 
         return orders
 

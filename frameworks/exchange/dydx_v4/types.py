@@ -34,4 +34,7 @@ class DydxTimeInForceConverter(TimeInForceConverter):
 
 class DydxPositionDirectionConverter(PositionDirectionConverter):
     def __init__(self) -> None:
-        super().__init__(LONG="LONG", SHORT="SHORT")
+        super().__init__(
+            LONG="LONG", 
+            SHORT="SHORT"
+        )

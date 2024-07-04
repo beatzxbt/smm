@@ -61,8 +61,9 @@ class BinanceClient(Client):
         return headers
 
     def error_handler(self, recv):
+        error_code = int(recv.get("code", 0))
         return self.errors.get(
-            key=int(recv.get("code", 0)), 
-            default=self.unknown_error
+            error_code,
+            (False, f"Unknown error code: {error_code}")
         )
         

@@ -1,9 +1,9 @@
-from typing import Dict, List, Union
+from typing import List, Union
 
 from frameworks.tools.logging import time_ms
 from frameworks.tools.numba import nbgeomspace
 from frameworks.tools.trading.weights import generate_geometric_weights
-from frameworks.exchange.base.types import Side, TimeInForce, OrderType, Order
+from frameworks.exchange.base.types import Side, TimeInForce, OrderType, Order, Position
 from smm.quote_generators.base import QuoteGenerator
 from smm.sharedstate import SmmSharedState
 
@@ -15,7 +15,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
     def __init__(self, ss: SmmSharedState) -> None:
         super().__init__(ss)
         
-        self.local_position = {}
+        self.local_position: Position = Position()
         self.local_position_time = 0.0
 
     def generate_stinky_orders(self) -> List[Order]:
@@ -112,7 +112,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
         """
         order = []
 
-        if self.data["position"].get(["size"], 0.0) != 0.0:
+        if self.data["position"].size != 0.0:
             if not self.local_position:
                 self.local_position.update(self.data["position"])
                 self.local_position_time = time_ms()
@@ -122,11 +122,10 @@ class StinkyQuoteGenerator(QuoteGenerator):
             
                 if max_duration_ms < time_ms():
                     order.append(self.generate_single_quote(
-                        side=Side.SELL if self.data["position"]["size"] > 0.0 else Side.BUY,    
+                        side=Side.SELL if self.data["position"].size > 0.0 else Side.BUY,    
                         orderType=OrderType.MARKET,
                         timeInForce=TimeInForce.GTC,
-                        price=self.mid_price, # NOTE: Ignored value for takers
-                        size=self.data["position"]["size"],
+                        size=self.data["position"].size,
                         clientOrderId=self.orderid.generate_order_id(end="99")
                     ))
 

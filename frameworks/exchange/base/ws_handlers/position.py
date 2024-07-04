@@ -3,6 +3,7 @@ from typing import Dict, List, Union
 
 from frameworks.exchange.base.types import Position
 
+
 class PositionHandler(ABC):
     """
     A base class for handling position data.

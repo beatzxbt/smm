@@ -15,7 +15,7 @@ class TradingLogic:
 
     async def load_quote_generator(self) -> QuoteGenerator:
         quote_gen_name = self.ss.quote_generator.lower()
-        await self.ss.logging.info(f"Attempting to load quote generator: {quote_gen_name}")
+        await self.ss.logging.info(topic="MM", msg=f"Attempting to load quote generator: {quote_gen_name}")
         
         match quote_gen_name:
             case "plain":
@@ -52,7 +52,7 @@ class TradingLogic:
             if (self.ss.data["tick_size"], self.ss.data["lot_size"]) == (0.0, 0.0):
                 continue
             
-            await self.ss.logging.success("Feeds successfully warmed up.")
+            await self.ss.logging.success(topic="MM", msg="Feeds successfully warmed up.")
             
             return None
 
@@ -62,7 +62,8 @@ class TradingLogic:
             await self.wait_for_ws_warmup()
             self.quote_generator = await self.load_quote_generator()
             await self.ss.logging.info(
-                f"Starting '{self.ss.quote_generator.lower()}' strategy on {self.ss.symbol}..."
+                topic="MM",
+                msg=f"Starting '{self.ss.quote_generator.lower()}' strategy on {self.ss.symbol}..."
             )
 
             while True:
@@ -70,8 +71,10 @@ class TradingLogic:
                 fp_skew = self.feature_engine.generate_skew()
                 vol = self.feature_engine.generate_vol()
                 new_orders = self.quote_generator.generate_orders(fp_skew, vol)
-                await self.oms.update_simple(new_orders)
+                await self.oms.update(new_orders)
+
+                await self.ss.logging.debug(topic="MM", msg=f"FP Skew: {fp_skew} - Vol: {vol} - NewOrders: {new_orders}")
 
         except Exception as e:
-            await self.ss.logging.error(f"Main loop: {e}")
+            await self.ss.logging.error(topic="MM", msg=f"Main loop: {e}")
             raise e

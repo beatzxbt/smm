@@ -23,7 +23,7 @@ class TradesHandler(ABC):
             A RingBuffer instance to store trades data.
         """
         self.trades = trades
-        self.format = np.array([0.0, 0.0, 0.0, 0.0])  # Time  # Side  # Price  # Size
+        self.format = np.array([0.0, 0.0, 0.0, 0.0])  # [Time, Side, Price, Size]
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
