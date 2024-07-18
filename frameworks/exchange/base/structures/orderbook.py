@@ -96,10 +96,9 @@ class Orderbook:
         bids : Array
             Initial bid orders data, formatted as [[price, size], ...].
         """
-        # Completely reset all arrays
-        self.asks = np.zeros_like(self.asks)
-        self.bids = np.zeros_like(self.bids)
-        self.bba = np.zeros_like(self.bba)
+        self.asks.fill(0)
+        self.bids.fill(0)
+        self.bba.fill(0)
 
         max_asks_idx = min(asks.shape[0], self.size)
         max_bids_idx = min(bids.shape[0], self.size)
@@ -169,7 +168,7 @@ class Orderbook:
         float
             The mid price, which is the average of the best bid and best ask prices.
         """
-        return (self.bba[0, 0] + self.bba[1, 0]) / 2
+        return (self.bba[0, 0] + self.bba[1, 0]) / 2.0
 
     def get_wmid(self) -> float:
         """
@@ -182,7 +181,7 @@ class Orderbook:
             The weighted mid price, which accounts for the volume imbalance at the top of the book.
         """
         imb = self.bba[0, 1] / (self.bba[0, 1] + self.bba[1, 1])
-        return self.bba[0, 0] * imb + self.bba[1, 0] * (1 - imb)
+        return self.bba[0, 0] * imb + self.bba[1, 0] * (1.0 - imb)
 
     def get_vamp(self, depth: float) -> float:
         """
