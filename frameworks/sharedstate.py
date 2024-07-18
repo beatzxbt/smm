@@ -10,7 +10,7 @@ from frameworks.tools.logging import Logger
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.base.structures.orderbook import Orderbook
-from frameworks.exchange.base.types import Side, Position, Order
+from frameworks.exchange.base.types import Position
 
 
 class SharedState(ABC):
