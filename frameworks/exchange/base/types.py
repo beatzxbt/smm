@@ -27,11 +27,11 @@ class PositionDirection:
 class Order:
     def __init__(
         self,
-        symbol: str,
-        side: Side,
-        orderType: OrderType,
-        timeInForce: TimeInForce,
-        size: float,
+        symbol: str = None,
+        side: Side = None,
+        orderType: OrderType = None,
+        timeInForce: TimeInForce = None,
+        size: float = None,
         price: Optional[float] = None,
         orderId: Optional[str] = None,
         clientOrderId: Optional[str] = None,
