@@ -210,11 +210,11 @@ class OrderManagementSystem:
         try:
             tasks = []
             
-            # Step 2
+            # Step 1
             if len(self.prev_intended_orders) == 0:
                 for order in new_orders:
                     tasks.append(self.create_order(order))
-                    await self.ss.logging.debug(f"Sending order: {order}")
+                    await self.ss.logging.debug(topic="OMS", msg=f"Sending order: {order}")
 
                 return None
             
@@ -229,31 +229,33 @@ class OrderManagementSystem:
                         active_tags.add(tag)
                     else:
                         tasks.append(self.cancel_order(order))
-                        await self.ss.logging.debug(f"Cancelling duplicate order: {order}")
+                        await self.ss.logging.debug(topic="OMS", msg=f"Cancelling duplicate order: {order}")
             
             # Step 3
             for order in new_orders:
                 match order.orderType:
                     case OrderType.MARKET: 
                         tasks.append(self.create_order(order))
-                        await self.ss.logging.debug(f"Sending order: {order}")
+                        await self.ss.logging.debug(topic="OMS", msg=f"Sending order: {order}")
 
                     case OrderType.LIMIT:
-                        matching_old_order = self.find_matched_order(order)
+                        matched_old_order = self.find_matched_order(order)
 
-                        if matching_old_order and self.is_out_of_bounds(matching_old_order, order):
-                            tasks.append(self.cancel_order(matching_old_order))
+                        if matched_old_order and self.is_out_of_bounds(matched_old_order, order):
+                            tasks.append(self.cancel_order(matched_old_order))
                             tasks.append(self.create_order(order))
-                            await self.ss.logging.debug(f"Replacing order: {order}")
+                            await self.ss.logging.debug(topic="OMS", msg=f"Replacing order: {order}")
                         else:
                             tasks.append(self.create_order(order))
-                            await self.ss.logging.debug(f"Sending order: {order}")
+                            await self.ss.logging.debug(topic="OMS", msg=f"Sending order: {order}")
 
                     case _:
                         raise ValueError(f"Invalid order type: {order.orderType}")
             
+            results = await asyncio.gather(*tasks)
+
         except Exception as e:
-            await self.ss.logging.error(f"OMS: {e}")
+            await self.ss.logging.error(topic="OMS", msg=e)
 
     async def update_simple(self, new_orders: List[Order]) -> None:
         """
@@ -271,4 +273,4 @@ class OrderManagementSystem:
             ])
 
         except Exception as e:
-            await self.ss.logging.error(f"OMS: {e}")
+            await self.ss.logging.error(topic="OMS", msg=e)
