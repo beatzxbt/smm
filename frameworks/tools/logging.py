@@ -57,14 +57,6 @@ class Logger:
                 chat_id=os.getenv("TELEGRAM_CHAT_ID")
             )
 
-        # self.msg = {
-        #     "timestamp": "",
-        #     "level": "",
-        #     "dir": "",
-        #     "name": "",
-        #     "msg": "",
-        # }
-
         self.tasks = []
         self.msgs = []
 
@@ -84,7 +76,7 @@ class Logger:
         finally:
             self.msgs.clear()
 
-    async def _message_(self, level: str, topic: str, msg: str) -> None:
+    async def _message_(self, level: str, topic: str, msg: str, flush_buffer: bool=False) -> None:
         """
         Log a message with a specified logging level.
 
@@ -106,18 +98,18 @@ class Logger:
         formatted_msg = f"{time_now()} | {level} | {topic} | {msg}"
 
         if self.send_to_discord:
-            task = asyncio.create_task(self.discord_client.send(formatted_msg))
+            task = asyncio.create_task(self.discord_client.send(formatted_msg, flush_buffer))
             self.tasks.append(task)
 
         if self.send_to_telegram:
-            task = asyncio.create_task(self.telegram_client.send(formatted_msg))
+            task = asyncio.create_task(self.telegram_client.send(formatted_msg, flush_buffer))
             self.tasks.append(task)
 
         print(formatted_msg)
 
         self.msgs.append(formatted_msg)
 
-        if len(self.msgs) >= 1000:
+        if len(self.msgs) >= 1000 or flush_buffer:
             await self._write_logs_to_file_()
 
     async def success(self, topic: str, msg: str) -> None:
@@ -137,7 +129,7 @@ class Logger:
         await self._message_("ERROR", topic.upper(), msg)
 
     async def critical(self, topic: str, msg: str) -> None:
-        await self._message_("CRITICAL", topic.upper(), msg)
+        await self._message_("CRITICAL", topic.upper(), msg, flush_buffer=True)
 
     async def shutdown(self) -> None:
         """
