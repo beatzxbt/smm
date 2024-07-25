@@ -3,6 +3,7 @@ import orjson
 import aiofiles
 import aiosonic
 import asyncio
+import ciso8601
 from time import time_ns, strftime
 
 
@@ -29,6 +30,30 @@ def time_now() -> str:
     """
     return strftime("%Y-%m-%d %H:%M:%S") + f".{(time_ns()//1_000_000) % 1000}"
 
+def iso8601_to_unix(timestamp: str) -> int:
+    """
+    Converts an ISO 8601 formatted timestamp to a Unix timestamp.
+
+    This function parses an ISO 8601 date-time string and converts it 
+    into a Unix timestamp, which represents the number of seconds 
+    that have elapsed since January 1, 1970 (midnight UTC/GMT).
+
+    Parameters
+    ----------
+    timestamp : str
+        An ISO 8601 formatted date-time string (e.g., "2023-04-04T00:28:50.516Z").
+
+    Returns
+    -------
+    int
+        The Unix timestamp corresponding to the provided ISO 8601 date-time.
+    
+    Example
+    -------
+    >>> iso8601_to_unix("2023-04-04T00:28:50.516Z")
+    1680569330
+    """
+    return int(ciso8601.parse_datetime(timestamp).timestamp())
 
 class Logger:
     def __init__(

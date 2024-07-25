@@ -11,6 +11,9 @@ numpy
 numpy_ringbuffer
 numba
 
+# Misc
+ciso8601
+
 # DEX signing
 msgpack
 eth_account
@@ -18,3 +21,5 @@ eth_utils
 
 # Official SDKs 
 dydx-v4-client # DYDX V4
+
+
