@@ -1,8 +1,9 @@
 import numpy as np
-from numba.types import uint32, float64, Array
 from numba.experimental import jitclass
+from numba.types import uint32, int32, float64, Array
+from typing import Dict, Union
 
-from frameworks.tools.numba import nbisin, nb_float_to_str
+from frameworks.tools.numba import nbisin
 
 
 @jitclass
@@ -31,6 +32,7 @@ class Orderbook:
     asks: float64[:, :]
     bids: float64[:, :]
     bba: float64[:, :]
+    seq_id: int32
 
     def __init__(self, size: int) -> None:
         """
@@ -41,34 +43,36 @@ class Orderbook:
         size : int
             Size of the order book (number of orders to store).
         """
-        self.size = size
-        self.asks = np.zeros((self.size, 2), dtype=float64)
-        self.bids = np.zeros((self.size, 2), dtype=float64)
-        self.bba = np.zeros((2, 2), dtype=float64)
-
-    def display(self, levels: int) -> None:
+        self.size: int = size
+        self.asks: np.ndarray = np.zeros((self.size, 2), dtype=float64)
+        self.bids: np.ndarray = np.zeros((self.size, 2), dtype=float64)
+        self.bba: np.ndarray = np.zeros((2, 2), dtype=float64)
+        self.seq_id: int = 0
+    
+    def reset(self) -> None:
         """
-        Displays the top X bid/ask levels of the order book.
+        Sets all attribute values back to 0 
         """
-        levels = self.size if self.size < levels else levels
-        first_asks = self.asks[::-1][:levels]
-        first_bids = self.bids[:levels]
+        self.asks.fill(0)
+        self.bids.fill(0)
+        self.bba.fill(0)
+        self.seq_id = 0
 
-        ask_str = "Asks: |" + "\n      |".join(
-            [
-                f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
-                for price, size in zip(first_asks[:, 0], first_asks[:, 1])
-            ]
-        )
+    def recordable(self) -> Dict[str, Union[float, np.ndarray]]:
+        """
+        Unwraps the internal structures into widely-used Python structures
+        for easy recordability (databases, logging, debugging etc). 
 
-        bid_str = "Bids: |" + "\n      |".join(
-            [
-                f"Price: {nb_float_to_str(price)}, Size: {nb_float_to_str(size)}"
-                for price, size in zip(first_bids[:, 0], first_bids[:, 1])
-            ]
-        )
-
-        return print(f"{ask_str}\n{'-' * 40}\n{bid_str}")
+        Returns
+        -------
+        Dict
+            A dict containing the current state of the orderbook.
+        """
+        return {
+            "seq_id": np.float64(self.seq_id),
+            "asks": self.asks.astype(np.float64),
+            "bids": self.bids.astype(np.float64)
+        }
 
     def sort_bids(self) -> None:
         """
@@ -84,7 +88,7 @@ class Orderbook:
         self.asks = self.asks[self.asks[:, 0].argsort()][: self.size]
         self.bba[1, :] = self.asks[0]
 
-    def refresh(self, asks: Array, bids: Array) -> None:
+    def refresh(self, asks: Array, bids: Array, new_seq_id: int) -> None:
         """
         Refreshes the order book with given *complete* ask and bid data and sorts the book.
 
@@ -96,10 +100,10 @@ class Orderbook:
         bids : Array
             Initial bid orders data, formatted as [[price, size], ...].
         """
-        self.asks.fill(0)
-        self.bids.fill(0)
-        self.bba.fill(0)
+        self.reset()
 
+        self.seq_id = new_seq_id
+        
         max_asks_idx = min(asks.shape[0], self.size)
         max_bids_idx = min(bids.shape[0], self.size)
 
@@ -108,7 +112,7 @@ class Orderbook:
         self.sort_bids()
         self.sort_asks()
 
-    def update_bids(self, bids: Array) -> None:
+    def update_bids(self, bids: Array, new_seq_id: int) -> None:
         """
         Updates the current bids with new data. Removes entries with matching
         prices in update, regardless of size, and then adds non-zero quantity
@@ -119,14 +123,15 @@ class Orderbook:
         bids : Array
             New bid orders data, formatted as [[price, size], ...].
         """
-        if bids.size == 0:
+        if bids.size == 0 or new_seq_id < self.seq_id:
             return None
 
+        self.seq_id = new_seq_id
         self.bids = self.bids[~nbisin(self.bids[:, 0], bids[:, 0])]
         self.bids = np.vstack((self.bids, bids[bids[:, 1] != 0]))
         self.sort_bids()
 
-    def update_asks(self, asks: Array) -> None:
+    def update_asks(self, asks: Array, new_seq_id: int) -> None:
         """
         Updates the current asks with new data. Removes entries with matching
         prices in update, regardless of size, and then adds non-zero quantity
@@ -137,14 +142,15 @@ class Orderbook:
         asks : Array
             New ask orders data, formatted as [[price, size], ...].
         """
-        if asks.size == 0:
+        if asks.size == 0 or new_seq_id < self.seq_id:
             return None
 
+        self.seq_id = new_seq_id
         self.asks = self.asks[~nbisin(self.asks[:, 0], asks[:, 0])]
         self.asks = np.vstack((self.asks, asks[asks[:, 1] != 0]))
         self.sort_asks()
 
-    def update_full(self, asks: Array, bids: Array) -> None:
+    def update_full(self, asks: Array, bids: Array, new_seq_id: int) -> None:
         """
         Updates the order book with new ask and bid data.
 
@@ -156,8 +162,8 @@ class Orderbook:
         bids : Array
             New bid orders data, formatted as [[price, size], ...].
         """
-        self.update_asks(asks)
-        self.update_bids(bids)
+        self.update_asks(asks, new_seq_id)
+        self.update_bids(bids, new_seq_id)
 
     def get_mid(self) -> float:
         """

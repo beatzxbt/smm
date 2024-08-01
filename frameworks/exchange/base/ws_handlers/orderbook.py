@@ -1,4 +1,3 @@
-import numpy as np
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
@@ -44,8 +43,8 @@ class OrderbookHandler(ABC):
         -----
         1. Separate the recv payload into bids and asks.
            -> They should be in the format [Price, Size] per level.
-        2. Wrap the lists into numpy arrays (overwrite self.bids & self.asks).
-        3. Call self.orderbook.refresh(self.asks, self.bids).
+        2. Wrap the lists into numpy arrays (dtype must be np.float64).
+        3. Call self.orderbook.refresh(asks, bids).
         """
         pass
 
@@ -66,8 +65,8 @@ class OrderbookHandler(ABC):
         -----
         1. Separate the recv payload into bids and asks.
            -> They should be in the format [Price, Size] per level.
-        2. Wrap the lists into numpy arrays (overwrite self.bids & self.asks).
-        3. Get the timestamp of the update and update self.timestamp.
-        4. Call self.orderbook.update_book(self.asks, self.bids, timestamp).
+        2. Wrap the lists into numpy arrays (dtype must be np.float64).
+        3. Call self.orderbook.update_full(asks, bids) if timestamp > self.timestamp.
+        4. Update self.timestamp with the new timestamp.
         """
         pass

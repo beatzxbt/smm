@@ -1,8 +1,9 @@
 import asyncio
 from typing import List
 
-from frameworks.exchange.base.types import OrderType, Order
 from smm.sharedstate import SmmSharedState
+from frameworks.exchange.base.constants import OrderType
+from frameworks.exchange.base.structures.order import Order
 
 class OrderManagementSystem:
     """

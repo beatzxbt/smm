@@ -23,10 +23,10 @@ class DydxWebsocket(WebsocketStream):
 
     def create_handlers(self) -> None:
         self.public_handler_map = {
-            "v4_orderbook": DydxOrderbookHandler(self.data),
-            "v4_trades": DydxTradesHandler(self.data),
-            "v4_candles": DydxOhlcvHandler(self.data),
-            "v4_markets": DydxTickerHandler(self.data),
+            "v4_orderbook": DydxOrderbookHandler(self.data["orderbook"]),
+            "v4_trades": DydxTradesHandler(self.data["trades"]),
+            "v4_candles": DydxOhlcvHandler(self.data["ohlcv"]),
+            "v4_markets": DydxTickerHandler(self.data["ticker"]),
             "v4_subaccounts": DydxSubaccountsHandler(self.data),
         }
 
@@ -48,9 +48,6 @@ class DydxWebsocket(WebsocketStream):
         # Due to missing candlestick websocket feeds, this sync is 
         # set to 1s updates rather than the normal 10min updates
         # to compensate for the missing realtime data feeds.
-        #
-        # TODO: Follow up with dev team to add this (& document it).
-
         while True:
             ohlcv_data = await self.exch.get_ohlcv(self.symbol)
             self.public_handler_map["v4_candles"].refresh(ohlcv_data)
@@ -82,12 +79,6 @@ class DydxWebsocket(WebsocketStream):
             "channel": "v4_trades",
             "id": f"{self.symbol}"
         })
-
-        # requests.append({
-        #     "type": "subscribe",
-        #     "channel": "v4_candles",
-        #     "id": f"{self.symbol}"
-        # })
 
         requests.append({
             "type": "subscribe",

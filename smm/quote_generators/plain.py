@@ -3,14 +3,19 @@ from numba.types import Array
 
 from frameworks.tools.numba import nbclip, nbgeomspace, nbsqrt
 from frameworks.tools.trading.weights import generate_geometric_weights
-from frameworks.exchange.base.types import Side, TimeInForce, OrderType, Order
-from smm.quote_generators.base import QuoteGenerator
 from smm.sharedstate import SmmSharedState
+from smm.quote_generators.base import (
+    QuoteGenerator, 
+    Side, 
+    TimeInForce, 
+    OrderType, 
+    Order
+)
 
 
 class PlainQuoteGenerator(QuoteGenerator):
     """
-    This strategy's breakdown can be found in quote_generators.md
+    This strategy's breakdown can be found in [smm/quote_generators/README.md]
     """
     def __init__(self, ss: SmmSharedState) -> None:
         self.ss = ss

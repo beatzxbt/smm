@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Dict, List, Union
+
+from frameworks.exchange.base.structures.ticker import Ticker
 
 
 class TickerHandler(ABC):
@@ -11,45 +13,49 @@ class TickerHandler(ABC):
     ticker data, which should be implemented by subclasses.
     """
 
-    def __init__(self, ticker: Dict) -> None:
+    def __init__(self, ticker: Ticker) -> None:
         """
-        Initializes the TickerHandler class with a ticker dictionary.
+        Initializes the TickerHandler class with a Ticker instance.
 
         Parameters
         ----------
-        ticker : dict
-            A dictionary to store ticker data.
+        ticker : Ticker
+            An instance to store ticker data.
         """
         self.ticker = ticker
-        self.format = {
-            "markPrice": 0.0,
-            "indexPrice": 0.0,
-            "fundingTime": 0.0,
-            "fundingRate": 0.0,
-        }
 
     @abstractmethod
-    def refresh(self, recv: Dict) -> None:
+    def refresh(self, recv: Union[Dict, List]) -> None:
         """
         Refreshes the ticker data with new data.
 
         This method should be implemented by subclasses to process
-        new ticker data and update the ticker dictionary.
+        new ticker data and update the ticker instance.
 
         Parameters
         ----------
         recv : Dict
             The received payload containing the ticker data.
+
+        Steps
+        -----
+        1. Extract the ticker data from the recv payload. Ensure *at least* the following data points are present:
+            - Next funding timestamp
+            - Funding rate
+            - Mark price
+            - Index price (if not available, use mark/oracle price)
+
+        2. Update the relevant self.ticker attributes using self.ticker.update()
         """
         pass
 
     @abstractmethod
     def process(self, recv: Dict) -> None:
         """
-        Processes incoming ticker data to update the ticker dictionary.
+        Processes incoming ticker data to update the ticker instance.
 
         This method should be implemented by subclasses to process
-        incoming ticker data and update the ticker dictionary.
+        incoming ticker data and update the ticker instance.
 
         Parameters
         ----------
@@ -59,12 +65,6 @@ class TickerHandler(ABC):
         Steps
         -----
         1. Extract the ticker data from the recv payload.
-           -> Ensure the following data points are present:
-                - Mark price
-                - Index price (if not available, use mark/oracle price)
-                - Next funding timestamp
-                - Funding rate
-        2. Overwrite the self.format dict with the respective values.
-        3. Call self.ticker.update(self.format).
+        2. Update the relevant self.position attributes using self.position.update()
         """
         pass

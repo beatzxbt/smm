@@ -12,40 +12,40 @@ class DydxOrderbookHandler(OrderbookHandler):
 
     def refresh(self, recv: Dict) -> None:
         try:
-            data = recv["result"]
+            bids = np.array(recv["bids"], dtype=np.float64)
+            asks = np.array(recv["asks"], dtype=np.float64)
 
-            self.update_id = int(data["u"])
-            self.bids = np.array(data["b"], dtype=np.float64)
-            self.asks = np.array(data["a"], dtype=np.float64)
-
-            if self.bids.shape[0] != 0 and self.asks.shape[0] != 0:
-                self.orderbook.refresh(self.asks, self.bids)
-
+            if bids.shape[0] != 0 and asks.shape[0] != 0:
+                self.orderbook.refresh(asks, bids)
+ 
         except Exception as e:
-            raise Exception(f"Orderbook Refresh :: {e}")
+            raise Exception(f"Orderbook refresh - {e}")
 
     def process(self, recv: Dict) -> None:
         try:
-            data = recv["data"]
-            new_update_id = int(data["u"])
-            update_type = recv["type"]
+            data = recv["contents"]
+            new_update_id = int(data["message_id"])
 
-            if new_update_id == 1 or update_type == "snapshot":
+            if new_update_id == 1:
                 self.update_id = new_update_id
-                self.bids = np.array(data["b"], dtype=np.float64)
-                self.asks = np.array(data["a"], dtype=np.float64)
-                self.orderbook.refresh(self.asks, self.bids)
+
+                bids = np.array(recv["bids"], dtype=np.float64)
+                asks = np.array(recv["asks"], dtype=np.float64)
+
+                if bids.shape[0] != 0 and asks.shape[0] != 0:
+                    self.orderbook.refresh(asks, bids)
 
             elif new_update_id > self.update_id:
                 self.update_id = new_update_id
 
-                if len(data.get("b", [])) > 0:
-                    self.bids = np.array(data["b"], dtype=np.float64)
-                    self.orderbook.update_bids(self.bids)
+                bids = np.array(recv["bids"], dtype=np.float64)
+                asks = np.array(recv["asks"], dtype=np.float64)
 
-                if len(data.get("a", [])) > 0:
-                    self.asks = np.array(data["a"], dtype=np.float64)
-                    self.orderbook.update_asks(self.asks)
+                if bids.shape[0] != 0:
+                    self.orderbook.update_bids(bids=bids)
+
+                if asks.shape[0] != 0:
+                    self.orderbook.update_asks(asks=asks)
 
         except Exception as e:
-            raise Exception(f"Orderbook Process :: {e}")
+            raise Exception(f"Orderbook process - {e}")

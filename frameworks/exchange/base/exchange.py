@@ -7,7 +7,8 @@ from frameworks.exchange.base.client import Client
 from frameworks.exchange.base.formats import Formats
 from frameworks.exchange.base.endpoints import Endpoints
 from frameworks.exchange.base.orderid import OrderIdGenerator
-from frameworks.exchange.base.types import Side, OrderType, TimeInForce, Order
+from frameworks.exchange.base.constants import Side, OrderType, TimeInForce
+from frameworks.exchange.base.structures.order import Order
 
 
 class Exchange(ABC):
@@ -38,7 +39,7 @@ class Exchange(ABC):
         self.client = client
         self.formats = formats
         self.endpoints = endpoints
-        self.base_endpoint = self.endpoints.main
+        self.base_endpoint = self.endpoints.rest
         self.orderid = orderIdGenerator
 
     def load_required_refs(self, logging: Logger, symbol: str, data: Dict) -> None:
@@ -275,6 +276,9 @@ class Exchange(ABC):
                 delta_neutralizer_orderid = self.orderid.generate_order_id()
 
                 for attempt in range(3):
+                    if self.data["position"].is_empty:
+                        break
+
                     await self.logging.debug(
                         topic="EXCH", msg=f"Delta neutralizer, attempt {attempt}"
                     )

@@ -1,7 +1,7 @@
 from typing import List, Dict
 
 from frameworks.tools.logging import time_ms
-from frameworks.exchange.base.types import Order, OrderType
+from frameworks.exchange.base.constants import Order, OrderType
 from frameworks.exchange.base.formats import Formats
 from frameworks.exchange.binance.types import BinanceSideConverter, BinanceOrderTypeConverter, BinanceTimeInForceConverter, BinancePositionDirectionConverter
 

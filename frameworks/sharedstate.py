@@ -1,63 +1,73 @@
 import asyncio
 import os
 import yaml
-import numpy as np
+import orjson
+import aiofiles
 from abc import ABC, abstractmethod
-from typing import Dict
-from numpy_ringbuffer import RingBuffer
+from typing import Dict, Any
 
 from frameworks.tools.logging import Logger
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.base.websocket import WebsocketStream
 from frameworks.exchange.base.structures.orderbook import Orderbook
-from frameworks.exchange.base.types import Position
+from frameworks.exchange.base.structures.position import Position
+from frameworks.exchange.base.structures.order import Orders
+from frameworks.exchange.base.structures.trades import Trades
+from frameworks.exchange.base.structures.ticker import Ticker
+from frameworks.exchange.base.structures.ohlcv import Candles
 
 
 class SharedState(ABC):
-    def __init__(self, debug) -> None:
+    """
+    A base class for managing sharedstate data and configurations in a trading system.
+
+    Attributes
+    ----------
+    data : Dict[str, Any]
+        A dictionary holding various sharedstate data like tick size, lot size, OHLCV data, trades, orderbook, etc.
+
+    logging : Logger
+        A Logger instance for logging events and messages.
+
+    param_path : str
+        The file path to the parameters YAML file.
+
+    client : None
+        Placeholder for the client object, to be defined in subclasses.
+
+    symbol : str
+        The trading symbol, to be set in subclasses.
+
+    parameters : Dict[str, Any]
+        A dictionary to hold parameters loaded from the YAML file.
+
+    debug : bool
+        A flag indicating whether to run in debug mode.
+
+    """
+
+    def __init__(self, debug: bool) -> None:
         """
         Initializes the SharedState class with default values.
 
-        Attributes
+        Parameters
         ----------
-        data : Dict
-            A dictionary holding various shared state data like tick size, lot size, OHLCV data, trades, orderbook, etc.
-
-        logging : Logger
-            A Logger instance for logging events and messages.
-
-        param_path : str
-            The file path to the parameters YAML file.
-
-        client : None
-            Placeholder for the client object, to be defined in subclasses.
-
-        symbol : str
-            The trading symbol, to be set in subclasses.
-
-        parameters : Dict
-            A dictionary to hold parameters loaded from the YAML file.
-
+        debug : bool
+            A flag indicating whether to run in debug mode.
         """
         self.debug = debug
 
-        # All values ignored/filler only, overwritten by websocket.
-        self.data = {
+        self.data: Dict[str, Any] = {
             "tick_size": 0.0,
             "lot_size": 0.0,
 
-            "ohlcv": RingBuffer(1000, dtype=(np.float64, 6)),
-            "trades": RingBuffer(1000, dtype=(np.float64, 4)),
-            "orderbook": Orderbook(50), # NOTE: Modify OB size if required!
-            "ticker": {
-                "markPrice": 0.0,
-                "indexPrice": 0.0,
-                "fundingTime": 0.0,
-                "fundingRate": 0.0,
-            },
+            "ohlcv": Candles(length=1000),
+            "trades": Trades(length=1000),
+            "orderbook": Orderbook(size=50), # NOTE: Modify size if required!
+            "ticker": Ticker(),
             
             "position": Position(),
-            "orders": {},
+            "orders": Orders(),
             "account_balance": 0.0,
         }
 
@@ -69,7 +79,7 @@ class SharedState(ABC):
         self.websocket: WebsocketStream = None
 
         self.symbol = ""
-        self.parameters = {}
+        self.parameters: Dict[str, Any] = {}
         self.load_parameters()
 
     @abstractmethod
@@ -230,6 +240,32 @@ class SharedState(ABC):
         except Exception as e:
             raise Exception(f"Error loading parameters: {e}")
     
+    async def record_state(self, interval: float=1.0) -> None:
+        """
+        Periodically saves all market/private data to a text file.
+        """
+        main_folder_path = os.path.dirname(os.path.realpath(__file__)) + "../snapshots.txt"
+
+        while True:
+            snapshot = {
+                "tick_size": self.data["tick_size"],
+                "lot_size": self.data["lot_size"],
+
+                "ohlcv": self.data["ohlcv"].recordable(),
+                "trades": self.data["trades"].recordable(),
+                "orderbook": self.data["orderbook"].recordable(),
+                "ticker": self.data["ticker"].recordable(),
+                
+                "position": self.data["position"].recordable(),
+                "orders": self.data["orders"].recordable(),
+                "account_balance": self.data["account_balance"],
+            }
+
+            async with aiofiles.open(main_folder_path, "x") as f:
+                await f.write(orjson.dumps(snapshot).decode())
+
+            await asyncio.sleep(interval)
+
     async def start_internal_processes(self) -> None:
         """
         Starts the internal processes such as warming up the exchange and starting the websocket.

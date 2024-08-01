@@ -1,7 +1,7 @@
-import numpy as np
-from numpy_ringbuffer import RingBuffer
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
+
+from frameworks.exchange.base.structures.ohlcv import OHLCV, Candles
 
 
 class OhlcvHandler(ABC):
@@ -13,43 +13,24 @@ class OhlcvHandler(ABC):
     should be implemented by subclasses.
     """
 
-    def __init__(self, ohlcv: RingBuffer) -> None:
+    def __init__(self, ohlcv: Candles) -> None:
         """
-        Initializes the OhlcvHandler class with an OHLCV RingBuffer.
+        Initializes the OhlcvHandler class with an OHLCV Candles instance.
 
         Parameters
         ----------
-        ohlcv : RingBuffer
-            A RingBuffer instance to store OHLCV data.
+        ohlcv : Candles
+            A Candles instance to store OHLCV data.
         """
-        self.ohlcv = ohlcv
-        self.format = np.array(
-            [
-                0.0,  # Open Timestamp
-                0.0,  # Open
-                0.0,  # High
-                0.0,  # Low
-                0.0,  # Close
-                0.0,  # Volume
-            ]
-        )
-
-    def clear_ohlcv_ringbuffer(self) -> None:
-        """
-        Clears the OHLCV RingBuffer.
-
-        This method removes all elements from the OHLCV RingBuffer.
-        """
-        for _ in range(self.ohlcv.shape[0]):
-            self.ohlcv.pop()
+        self.ohlcv: Candles = ohlcv
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
         """
-        Refreshes the OHLCV data with new data.
+        Refreshes the Candles structure with new data.
 
         This method should be implemented by subclasses to process
-        new OHLCV data and update the OHLCV RingBuffer.
+        new OHLCV data and update the Candles instance.
 
         Parameters
         ----------
@@ -66,19 +47,18 @@ class OhlcvHandler(ABC):
                 - Low
                 - Close
                 - Volume
-        2. Overwrite the self.format array with the correct values
-           and call 'self.ohlcv.append(self.format.copy())'.
-           -> Remember to call this for each candle in the OHLCV list.
+        2. Create OHLCV objects for each candle in the list.
+        3. Add each OHLCV object to the self.ohlcv using either add_single/add_many methods.
         """
         pass
 
     @abstractmethod
     def process(self, recv: Dict) -> None:
         """
-        Processes incoming OHLCV data to update the RingBuffer.
+        Processes incoming OHLCV data to update the Candles instance.
 
         This method should be implemented by subclasses to process
-        incoming OHLCV data and update the OHLCV RingBuffer.
+        incoming OHLCV data and update the Candles instance.
 
         Parameters
         ----------
@@ -87,7 +67,7 @@ class OhlcvHandler(ABC):
 
         Steps
         -----
-        1. Extract the OHLCV list from the recv payload.
+        1. Extract the OHLCV data from the recv payload.
            -> Ensure the following data points are present:
                 - Timestamp
                 - Open
@@ -95,8 +75,7 @@ class OhlcvHandler(ABC):
                 - Low
                 - Close
                 - Volume
-        2. Overwrite the self.format array with the correct values.
-        3. If the candle is new (not an update), call 'self.ohlcv.append(self.format.copy())'.
-           -> Remember to check that the candle is not new before appending!
+        2. Create an OHLCV object with the extracted data.
+        3. Add the OHLCV object to the self.ohlcv using the add_single method.
         """
         pass

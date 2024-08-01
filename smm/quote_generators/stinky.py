@@ -3,19 +3,25 @@ from typing import List, Union
 from frameworks.tools.logging import time_ms
 from frameworks.tools.numba import nbgeomspace
 from frameworks.tools.trading.weights import generate_geometric_weights
-from frameworks.exchange.base.types import Side, TimeInForce, OrderType, Order, Position
-from smm.quote_generators.base import QuoteGenerator
 from smm.sharedstate import SmmSharedState
+from smm.quote_generators.base import (
+    QuoteGenerator, 
+    Side, 
+    TimeInForce, 
+    OrderType, 
+    Order,
+    Position
+)
 
 
 class StinkyQuoteGenerator(QuoteGenerator):
     """
-    This strategy's breakdown can be found in quote_generators.md
+    This strategy's breakdown can be found in [smm/quote_generators/README.md]
     """
     def __init__(self, ss: SmmSharedState) -> None:
         super().__init__(ss)
         
-        self.local_position: Position = Position()
+        self.local_position = Position()
         self.local_position_time = 0.0
 
     def generate_stinky_orders(self) -> List[Order]:
@@ -47,7 +53,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
         List[Order]
             A list of orders.
         """
-        orders = []
+        orders: List[Order] = []
         level = 0
 
         spreads = nbgeomspace(
@@ -86,6 +92,8 @@ class StinkyQuoteGenerator(QuoteGenerator):
                 )
             )
 
+        return orders
+
     def position_executor(self, max_duration: float=10.0) -> List[Union[Order, None]]:
         """
         Purge a position if its duration exceeds a value.
@@ -110,9 +118,9 @@ class StinkyQuoteGenerator(QuoteGenerator):
         List[Union[Order, None]]
             A list containing either a single taker order, or an empty list if no order is generated.
         """
-        order = []
+        order: List[Union[Order, None]] = []
 
-        if self.data["position"].size != 0.0:
+        if not self.data["position"].is_empty:
             if not self.local_position:
                 self.local_position.update(self.data["position"])
                 self.local_position_time = time_ms()
@@ -129,7 +137,7 @@ class StinkyQuoteGenerator(QuoteGenerator):
                         clientOrderId=self.orderid.generate_order_id(end="99")
                     ))
 
-                self.local_position.clear()
+                self.local_position.reset()
                 self.local_position_time = 0.0
             
         return order

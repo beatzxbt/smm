@@ -27,15 +27,15 @@ class BybitWebsocket(WebsocketStream):
 
     def create_handlers(self) -> None:
         self.public_handler_map = {
-            "orderbook": BybitOrderbookHandler(self.data),
-            "publicTrade": BybitTradesHandler(self.data),
-            "kline": BybitOhlcvHandler(self.data),
-            "tickers": BybitTickerHandler(self.data),
+            "orderbook": BybitOrderbookHandler(self.data["orderbook"]),
+            "publicTrade": BybitTradesHandler(self.data["trades"]),
+            "kline": BybitOhlcvHandler(self.data["ohlcv"]),
+            "tickers": BybitTickerHandler(self.data["ticker"]),
         }
 
         self.private_handler_map = {
-            "order": BybitOrdersHandler(self.data, self.symbol),
-            "position": BybitPositionHandler(self.data, self.symbol),
+            "order": BybitOrdersHandler(self.data["orders"], self.symbol),
+            "position": BybitPositionHandler(self.data["position"], self.symbol),
         }
 
     async def refresh_orderbook_data(self, timer: int = 600) -> None:

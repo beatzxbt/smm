@@ -1,7 +1,7 @@
-import numpy as np
-from numpy_ringbuffer import RingBuffer
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
+
+from frameworks.exchange.base.structures.trades import Trade, Trades
 
 
 class TradesHandler(ABC):
@@ -13,17 +13,16 @@ class TradesHandler(ABC):
     trades data, which should be implemented by subclasses.
     """
 
-    def __init__(self, trades: RingBuffer) -> None:
+    def __init__(self, trades: Trades) -> None:
         """
-        Initializes the TradesHandler class with a RingBuffer for trades.
+        Initializes the TradesHandler class with a Trades instance.
 
         Parameters
         ----------
-        trades : RingBuffer
-            A RingBuffer instance to store trades data.
+        trades : Trades
+            A Trades instance to store trades data.
         """
         self.trades = trades
-        self.format = np.array([0.0, 0.0, 0.0, 0.0])  # [Time, Side, Price, Size]
 
     @abstractmethod
     def refresh(self, recv: Union[Dict, List]) -> None:
@@ -46,8 +45,8 @@ class TradesHandler(ABC):
                 - Side
                 - Price
                 - Size
-        2. Overwrite the self.format array with the correct values and call 'self.trades.append(self.format.copy())'.
-           -> Remember to call this for each trade in your list.
+        2. Create Trade instances with the respective values.
+        3. Call 'self.trades.add_many(trades)' to add the trades to the RingBuffer.
         """
         pass
 
@@ -72,7 +71,7 @@ class TradesHandler(ABC):
                 - Side
                 - Price
                 - Size
-        2. Overwrite the self.format array with the correct values.
-        3. Call 'self.trades.append(self.format.copy())'.
+        2. Create a Trade instance with the respective values.
+        3. Call 'self.trades.add_single(trade)' to add the trade to the RingBuffer.
         """
         pass

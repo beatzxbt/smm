@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Union
 
-from frameworks.exchange.base.types import (
-    Order,
+from frameworks.exchange.base.structures.order import Order
+from frameworks.exchange.base.constants import (
     SideConverter,
     OrderTypeConverter,
     TimeInForceConverter,

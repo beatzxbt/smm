@@ -1,4 +1,4 @@
-from frameworks.exchange.base.types import PositionDirectionConverter, SideConverter, TimeInForceConverter, OrderTypeConverter
+from frameworks.exchange.base.constants import PositionDirectionConverter, SideConverter, TimeInForceConverter, OrderTypeConverter
 
 
 class BinanceSideConverter(SideConverter):

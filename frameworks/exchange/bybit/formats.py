@@ -1,7 +1,8 @@
 from typing import Dict, List
 
-from frameworks.exchange.base.types import Order, OrderType
 from frameworks.exchange.base.formats import Formats
+from frameworks.exchange.base.constants import OrderType
+from frameworks.exchange.base.structures.order import Order
 from frameworks.exchange.bybit.types import (
     BybitSideConverter,
     BybitOrderTypeConverter,

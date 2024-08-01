@@ -7,6 +7,17 @@ import ciso8601
 from time import time_ns, strftime
 
 
+def time_s() -> int:
+    """
+    Get the current time in seconds since the epoch.
+
+    Returns
+    -------
+    int
+        The current time in seconds.
+    """
+    return time_ns() // 1_000_000_000
+
 def time_ms() -> int:
     """
     Get the current time in milliseconds since the epoch.
@@ -17,7 +28,6 @@ def time_ms() -> int:
         The current time in milliseconds.
     """
     return time_ns() // 1_000_000
-
 
 def time_now() -> str:
     """

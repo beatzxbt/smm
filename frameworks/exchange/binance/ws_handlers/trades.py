@@ -1,33 +1,38 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 
-from frameworks.exchange.base.types import Side
-from frameworks.exchange.base.ws_handlers.trades import TradesHandler
+from frameworks.exchange.base.constants import Side
+from frameworks.exchange.base.ws_handlers.trades import Trade, Trades, TradesHandler
 
 
 class BinanceTradesHandler(TradesHandler):
-    def __init__(self, data: Dict) -> None:
-        self.data = data
-        super().__init__(self.data["trades"])
+    def __init__(self, trades: Trades) -> None:
+        super().__init__(trades)
 
     def refresh(self, recv: List[Dict]) -> None:
         try:
+            new_trades: List[Trade] = []
+ 
             for trade in recv:
-                self.format[0] = float(trade["time"])
-                self.format[1] = Side.SELL if trade["isBuyerMaker"] else Side.BUY
-                self.format[2] = float(trade["price"])
-                self.format[3] = float(trade["qty"])
-                self.trades.append(self.format.copy())
+                new_trades.append(Trade(
+                    timestamp=float(trade.get("time")),
+                    side=Side.SELL if trade.get("isBuyerMaker") else Side.BUY,
+                    price=float(trade.get("price")),
+                    size=float(trade.get("qty"))
+                ))
+            
+            self.trades.add_many(new_trades)
 
         except Exception as e:
-            raise Exception(f"[Trades refresh] {e}")
+            raise Exception(f"Trades refresh - {e}")
 
-    def process(self, recv: Dict) -> None:
+    def process(self, recv: Dict[str, Any]) -> None:
         try:
-            self.format[0] = float(recv["T"])
-            self.format[1] = Side.SELL if recv["m"] else Side.BUY
-            self.format[2] = float(recv["p"])
-            self.format[3] = float(recv["q"])
-            self.trades.append(self.format.copy())
+            self.trades.add_single(Trade(
+                timestamp=float(recv.get("T")),
+                side=Side.SELL if recv.get("m") else Side.BUY,
+                price=float(recv.get("p")),
+                size=float(recv.get("q"))
+            ))
 
         except Exception as e:
-            raise Exception(f"[Trades process] {e}")
+            raise Exception(f"Trades process - {e}")

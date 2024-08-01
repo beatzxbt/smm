@@ -24,41 +24,57 @@ class BinanceWebsocket(WebsocketStream):
 
     def create_handlers(self) -> None:
         self.public_handler_map = {
-            "depthUpdate": BinanceOrderbookHandler(self.data),
-            "trade": BinanceTradesHandler(self.data),
-            "kline": BinanceOhlcvHandler(self.data),
-            "markPriceUpdate": BinanceTickerHandler(self.data),
+            "depthUpdate": BinanceOrderbookHandler(self.data["orderbook"]),
+            "trade": BinanceTradesHandler(self.data["trades"]),
+            "kline": BinanceOhlcvHandler(self.data["ohlcv"]),
+            "markPriceUpdate": BinanceTickerHandler(self.data["ticker"]),
         }
         self.public_handler_map["bookTicker"] = self.public_handler_map["depthUpdate"]
 
         self.private_handler_map = {
-            "ORDER_TRADE_UPDATE": BinanceOrdersHandler(self.data, self.symbol),
-            "ACCOUNT_UPDATE": BinancePositionHandler(self.data, self.symbol),
+            "ORDER_TRADE_UPDATE": BinanceOrdersHandler(self.data["orders"], self.symbol),
+            "ACCOUNT_UPDATE": BinancePositionHandler(self.data["position"], self.symbol),
         }
 
     async def refresh_orderbook_data(self, timer: int = 600) -> None:
         while True:
-            orderbook_data = await self.exch.get_orderbook(self.symbol)
-            self.public_handler_map["depthUpdate"].refresh(orderbook_data)
-            await asyncio.sleep(timer)
+            try:
+                orderbook_data = await self.exch.get_orderbook(self.symbol)
+                self.public_handler_map["depthUpdate"].refresh(orderbook_data)
+                await asyncio.sleep(timer)
+
+            except Exception as e:
+                await self.logging.warning(topic="WS", msg=e)
 
     async def refresh_trades_data(self, timer: int = 600) -> None:
         while True:
-            trades_data = await self.exch.get_trades(self.symbol)
-            self.public_handler_map["trade"].refresh(trades_data)
-            await asyncio.sleep(timer)
+            try:
+                trades_data = await self.exch.get_trades(self.symbol)
+                self.public_handler_map["trade"].refresh(trades_data)
+                await asyncio.sleep(timer)
+
+            except Exception as e:
+                await self.logging.warning(topic="WS", msg=e)
 
     async def refresh_ohlcv_data(self, timer: int = 600) -> None:
         while True:
-            ohlcv_data = await self.exch.get_ohlcv(self.symbol, "1m")
-            self.public_handler_map["kline"].refresh(ohlcv_data)
-            await asyncio.sleep(timer)
+            try:
+                ohlcv_data = await self.exch.get_ohlcv(self.symbol, "1m")
+                self.public_handler_map["kline"].refresh(ohlcv_data)
+                await asyncio.sleep(timer)
+
+            except Exception as e:
+                await self.logging.warning(topic="WS", msg=e)
 
     async def refresh_ticker_data(self, timer: int = 600) -> None:
         while True:
-            ticker_data = await self.exch.get_ticker(self.symbol)
-            self.public_handler_map["markPriceUpdate"].refresh(ticker_data)
-            await asyncio.sleep(timer)
+            try:
+                ticker_data = await self.exch.get_ticker(self.symbol)
+                self.public_handler_map["markPriceUpdate"].refresh(ticker_data)
+                await asyncio.sleep(timer)
+
+            except Exception as e:
+                await self.logging.warning(topic="WS", msg=e)
 
     def public_stream_sub(self) -> Tuple[str, List[Dict[str, Any]]]:
         request = [
@@ -84,7 +100,7 @@ class BinanceWebsocket(WebsocketStream):
                 raise ke
 
         except Exception as e:
-            await self.logging.error(f"Binance public ws handler: {e}")
+            raise e
 
     async def private_stream_sub(self) -> Tuple[str, List[Dict[str, Any]]]:
         listen_key_data = await self.exch.get_listen_key()
@@ -101,7 +117,7 @@ class BinanceWebsocket(WebsocketStream):
                 raise ke
 
         except Exception as e:
-            await self.logging.error(f"Binance private ws handler: {e}")
+            raise e
 
     async def ping_listen_key(self, timer: int = 1800) -> None:
         while True:
@@ -110,8 +126,7 @@ class BinanceWebsocket(WebsocketStream):
                 await self.exch.ping_listen_key()
 
             except Exception as e:
-                await self.logging.error(f"Binance listen key ping: {e}")
-                raise e
+                await self.logging.error(topic="WS", msg=f"Pinging listen key: {e}")
 
     async def start_public_stream(self) -> None:
         """
@@ -121,7 +136,7 @@ class BinanceWebsocket(WebsocketStream):
             url, requests = self.public_stream_sub()
             await self.start_public_ws(url, self.public_stream_handler, requests)
         except Exception as e:
-            await self.logging.error(f"Binance Public Ws: {e}")
+            await self.logging.warning(topic="WS", msg=f"Public stream: {e}")
 
     async def start_private_stream(self) -> None:
         """
@@ -131,12 +146,9 @@ class BinanceWebsocket(WebsocketStream):
             url, requests = await self.private_stream_sub()
             await self.start_private_ws(url, self.private_stream_handler, requests)
         except Exception as e:
-            await self.logging.error(f"Binance Private Ws: {e}")
+            await self.logging.warning(topic="WS", msg=f"Private stream: {e}")
 
     async def start(self) -> None:
-        """
-        Starts all necessary asynchronous tasks for Websocket stream management and data refreshing.
-        """
         self.create_handlers()
         await asyncio.gather(
             self.refresh_orderbook_data(),

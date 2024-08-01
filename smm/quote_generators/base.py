@@ -1,11 +1,12 @@
+import numpy as np
 from abc import ABC, abstractmethod
 from typing import List
-from numpy.typing import NDArray
 
 from smm.sharedstate import SmmSharedState
 from frameworks.tools.trading.rounding import round_ceil, round_floor
-from frameworks.exchange.base.types import Side, OrderType, TimeInForce, Order
-
+from frameworks.exchange.base.constants import Side, OrderType, TimeInForce
+from frameworks.exchange.base.structures.position import Position
+from frameworks.exchange.base.structures.order import Order
 
 class QuoteGenerator(ABC):
     """
@@ -55,25 +56,25 @@ class QuoteGenerator(ABC):
         return self.data["orderbook"].get_wmid()
 
     @property
-    def live_best_bid(self) -> NDArray:
+    def live_best_bid(self) -> np.ndarray:
         """
         Returns the live best bid from the order book.
 
         Returns
         -------
-        NDArray
+        np.ndarray
             The live best bid from the order book.
         """
         return self.data["orderbook"].bba[0]
 
     @property
-    def live_best_ask(self) -> NDArray:
+    def live_best_ask(self) -> np.ndarray:
         """
         Returns the live best ask from the order book.
 
         Returns
         -------
-        NDArray
+        np.ndarray
             The live best ask from the order book.
         """
         return self.data["orderbook"].bba[1]
@@ -131,11 +132,11 @@ class QuoteGenerator(ABC):
         float
             The equivalent decimal value.
         """
-        return bps / 10000
+        return bps / 10000.0
 
-    def bps_offset_to_decimal(self, bps: float) -> float:
+    def bps_offset_from_mid(self, bps: float) -> float:
         """
-        Converts basis points offset from midprice to decimal.
+        Converts basis points offset from midprice to decimal price.
 
         Parameters
         ----------
@@ -232,20 +233,20 @@ class QuoteGenerator(ABC):
         return round_ceil(num=size, step_size=self.data["lot_size"])
   
     def generate_single_quote(
-        self, side: Side, orderType: OrderType, timeInForce: TimeInForce, price: float, size: float, clientOrderId: str
+        self, side: int, orderType: int, timeInForce: int, price: float, size: float, clientOrderId: str
     ) -> Order:
         """
         Generates a single quote order.
 
         Parameters
         ----------
-        side : Side
+        side : int
             The side of the order, either buy or sell.
 
-        orderType : OrderType
+        orderType : int
             The type of the order, such as limit or market.
 
-        timeInForce : TimeInForce
+        timeInForce : int
             The time in force for the order.
 
         price : float

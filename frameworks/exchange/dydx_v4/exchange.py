@@ -1,9 +1,10 @@
 from dydx_v4_client import NodeClient, Wallet
 from dydx_v4_client.indexer.rest.indexer_client import IndexerClient
 from dydx_v4_client.node.market import Market
-from typing import List, Dict, Optional
+from typing import Dict
 
 from frameworks.exchange.base.exchange import Exchange
+from frameworks.exchange.base.structures.order import Order
 from frameworks.exchange.dydx_v4.endpoints import DydxEndpoints
 from frameworks.exchange.dydx_v4.formats import DydxFormats
 from frameworks.exchange.dydx_v4.client import DydxClient
@@ -24,102 +25,42 @@ class Dydx(Exchange):
 
     async def create_order(
         self,
-        symbol: str,
-        side: float,
-        orderType: float,
-        size: float,
-        price: Optional[float]=None,
-        clientOrderId: Optional[str]=None
+        order
     ) -> Dict:
         return await self.client.node.place_order(
             wallet=self.client.wallet,
             order=self.client.market.order(
-                order_id=clientOrderId,
-                side=self.formats.convert_side.num_to_str(side),
-                size=size,
-                price=price,
-                time_in_force=self.formats.convert_tif(),
+                order_id=order.clientOrderId,
+                side=self.formats.convert_side.num_to_str(order.side),
+                size=order.size,
+                price=order.price,
+                time_in_force=self.formats.convert_tif(order.timeInForce),
                 reduce_only=False
             )
         )
-    
-    async def batch_create_orders(
-        self,
-        symbol: str,
-        sides: List[int],
-        orderTypes: List[int],
-        sizes: List[float],
-        prices: Optional[List[float]]=None,
-        clientOrderIds: Optional[List[str]]=None
-    ) -> Dict:
-        endpoint = self.endpoints.batchCreateOrders
-        headers = self.formats.batch_create_orders(symbol, sides, orderTypes, sizes, prices, clientOrderIds)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            headers=headers,
-            data=headers,
-            signed=False,
-        )
 
     async def amend_order(
-        self, symbol: str, orderId: str, clientOrderId: str, side: float, size: float, price: float
+        self, order
     ) -> Dict:
         endpoint = self.endpoints.amendOrder
-        headers = self.formats.amend_order(symbol, orderId, clientOrderId, side, size, price)
+        headers = self.formats.amend_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            headers=headers,
-            data=headers,
-            signed=False,
-        )
-    
-    async def batch_amend_orders(
-        self,
-        symbol: str,
-        sides: List[int],
-        orderTypes: List[int],
-        sizes: List[float],
-        prices: Optional[List[float]]=None,
-        orderIds: Optional[List[str]]=None,
-        clientOrderIds: Optional[List[str]]=None
-    ) -> Dict:
-        endpoint = self.endpoints.batchAmendOrders
-        headers = self.formats.batch_amend_orders(symbol, sides, orderTypes, sizes, prices, orderIds, clientOrderIds)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            headers=headers,
-            data=headers,
-            signed=False,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
         )
 
-    async def cancel_order(self, symbol: str, orderId: str, clientOrderId: str) -> Dict:
+    async def cancel_order(self, order) -> Dict:
         endpoint = self.endpoints.cancelOrder
-        headers = self.formats.cancel_order(symbol, orderId, clientOrderId)
+        headers = self.formats.cancel_order(order)
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            headers=headers,
-            data=headers,
-            signed=False,
-        )
-    
-    async def batch_cancel_orders(
-        self,
-        symbol: str, 
-        orderIds: List[Optional[str]],
-        clientOrderIds: List[Optional[str]]
-    ) -> Dict:
-        endpoint = self.endpoints.batchCancelOrders
-        headers = self.formats.batch_cancel_orders(symbol, orderIds, clientOrderIds)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            headers=headers,
-            data=headers,
-            signed=False,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
         )
     
     async def cancel_all_orders(self, symbol: str) -> Dict:
@@ -128,49 +69,30 @@ class Dydx(Exchange):
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            headers=headers,
-            data=headers,
-            signed=False,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
         )
 
     async def get_orderbook(self, symbol: str) -> Dict:
-        endpoint = self.endpoints.getOrderbook
-        params = self.formats.get_orderbook(symbol)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            params=params,
-            signed=False,
+        return await self.client.indexer.markets.get_perpetual_market_orderbook(
+            market=symbol
         )
 
     async def get_trades(self, symbol: str) -> Dict:
-        endpoint = self.endpoints.getTrades
-        params = self.formats.get_trades(symbol)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            params=params,
-            signed=False,
+        return await self.client.indexer.markets.get_perpetual_market_trades(
+            market=symbol
         )
 
-    async def get_ohlcv(self, symbol: str, interval: int = 1) -> Dict:
-        endpoint = self.endpoints.getOhlcv
-        params = self.formats.get_ohlcv(symbol, interval)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            params=params,
-            signed=False,
+    async def get_ohlcv(self, symbol: str, interval: str = "1MIN") -> Dict:
+        return await self.client.indexer.markets.get_perpetual_market_candles(
+            market=symbol,
+            resolution=interval
         )
 
     async def get_ticker(self, symbol: str) -> Dict:
-        endpoint = self.endpoints.getTicker
-        params = self.formats.get_ticker(symbol)
-        return await self.client.request(
-            url=self.base_endpoint.url + endpoint.url,
-            method=endpoint.method,
-            params=params,
-            signed=False,
+        return await self.client.indexer.markets.get_perpetual_markets(
+            market=symbol
         )
 
     async def get_open_orders(self, symbol: str) -> Dict:
@@ -179,7 +101,6 @@ class Dydx(Exchange):
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            headers=params,
             params=params,
             signed=False,
         )
@@ -190,48 +111,42 @@ class Dydx(Exchange):
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            headers=params,
             params=params,
             signed=False,
         )
 
-    async def get_instrument_info(self, symbol: str) -> Dict:
-        endpoint = self.endpoints.getInstrumentInfo
-        params = self.formats.get_instrument_info(symbol)
+    async def get_account_info(self) -> Dict:
+        endpoint = self.endpoints.accountInfo
+        params = self.formats.get_account_info()
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
             params=params,
+            signed=False,
         )
-    
-    async def set_leverage(self, symbol: str, leverage: int) -> Dict:
-        endpoint = self.endpoints.setLeverage
-        headers = self.formats.set_leverage(symbol, leverage)
+
+    async def get_exchange_info(self) -> Dict:
+        endpoint = self.endpoints.exchangeInfo
+        params = self.formats.get_exchange_info()
         return await self.client.request(
             url=self.base_endpoint.url + endpoint.url,
             method=endpoint.method,
-            headers=headers,
-            data=headers,
+            params=params,
             signed=False,
         )
 
     async def warmup(self) -> None:
         try:
+            self.client.indexer = IndexerClient(host=self.endpoints["rest"].url)
             self.client.node = NodeClient()
-            self.client.indexer = IndexerClient()
             self.client.market = Market(
-                market=(await self.client.indexer.markets.get_perpetual_markets(market=self.symbol))["markets"][self.symbol]
+                market=(await self.client.indexer.markets.get_perpetual_markets(self.symbol))["markets"][self.symbol]
             )
+
+            self.data["tick_size"] = float(self.client.market.market["tickSize"])
+            self.data["lot_size"] = float(self.client.market.market["stepSize"])
+            
             self.client.wallet = await Wallet.from_mnemonic(self.node, DYDX_TEST_MNEMONIC, self.api_key)
-
-            for instrument in instrument_data["result"]["list"]:
-                if instrument["symbol"] != self.symbol:
-                    continue
-
-                self.data["tick_size"] = float(instrument["priceFilter"]["tickSize"])
-                self.data["lot_size"] = float(instrument["lotSizeFilter"]["qtyStep"])
-                
-                return None
 
         except Exception as e:
             await self.logging.error(f"Dydx exchange warmup: {e}")

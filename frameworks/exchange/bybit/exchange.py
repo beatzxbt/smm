@@ -1,6 +1,6 @@
 from typing import List, Dict
 
-from frameworks.exchange.base.types import Order
+from frameworks.exchange.base.structures.order import Order
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.bybit.endpoints import BybitEndpoints
 from frameworks.exchange.bybit.formats import BybitFormats

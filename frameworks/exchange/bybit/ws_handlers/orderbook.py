@@ -1,51 +1,44 @@
 import numpy as np
-from typing import Dict
+from typing import Dict, Any
 
-from frameworks.exchange.base.ws_handlers.orderbook import OrderbookHandler
+from frameworks.exchange.base.ws_handlers.orderbook import Orderbook, OrderbookHandler
 
 
 class BybitOrderbookHandler(OrderbookHandler):
-    def __init__(self, data: Dict) -> None:
-        self.data = data
-        super().__init__(self.data["orderbook"])
-        self.update_id = 0
+    def __init__(self, orderbook: Orderbook) -> None:
+        super().__init__(orderbook)
 
-    def refresh(self, recv: Dict) -> None:
+    def refresh(self, recv: Dict[str, Any]) -> None:
         try:
-            data = recv["result"]
+            data: Dict[str, Any] = recv["result"]
 
-            self.update_id = int(data["u"])
-            self.bids = np.array(data["b"], dtype=np.float64)
-            self.asks = np.array(data["a"], dtype=np.float64)
+            seq_id = int(data.get("u"))
+            bids = np.array(data.get("b"), dtype=np.float64)
+            asks = np.array(data.get("a"), dtype=np.float64)
 
-            if self.bids.shape[0] != 0 and self.asks.shape[0] != 0:
-                self.orderbook.refresh(self.asks, self.bids)
+            self.orderbook.refresh(asks, bids, seq_id)
 
         except Exception as e:
             raise Exception(f"Orderbook refresh - {e}")
 
-    def process(self, recv: Dict) -> None:
+    def process(self, recv: Dict[str, Any]) -> None:
         try:
-            data = recv["data"]
-            new_update_id = int(data["u"])
+            data: Dict[str, Any] = recv["data"]
+            seq_id = int(recv.get("u"))
             update_type = recv["type"]
 
-            if new_update_id == 1 or update_type == "snapshot":
-                self.update_id = new_update_id
-                self.bids = np.array(data["b"], dtype=np.float64)
-                self.asks = np.array(data["a"], dtype=np.float64)
-                self.orderbook.refresh(self.asks, self.bids)
+            bids = np.array(data.get("b"), dtype=np.float64)
+            asks = np.array(data.get("a"), dtype=np.float64)
+            
+            if seq_id == 1 or update_type == "snapshot":
+                self.orderbook.refresh(asks, bids, seq_id)
 
-            elif new_update_id > self.update_id:
-                self.update_id = new_update_id
+            elif update_type == "delta":
+                if bids.size != 0:
+                    self.orderbook.update_bids(bids, seq_id)
 
-                if len(data.get("b", [])) > 0:
-                    self.bids = np.array(data["b"], dtype=np.float64)
-                    self.orderbook.update_bids(self.bids)
-
-                if len(data.get("a", [])) > 0:
-                    self.asks = np.array(data["a"], dtype=np.float64)
-                    self.orderbook.update_asks(self.asks)
+                if asks.size != 0:
+                    self.orderbook.update_asks(asks, seq_id)
 
         except Exception as e:
             raise Exception(f"Orderbook process - {e}")
