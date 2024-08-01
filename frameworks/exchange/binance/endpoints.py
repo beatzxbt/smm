@@ -1,4 +1,4 @@
-from frameworks.exchange.base.endpoints import Endpoints
+from frameworks.exchange.base.endpoints import Endpoint, Endpoints
 
 
 class BinanceEndpoints(Endpoints):
@@ -6,32 +6,32 @@ class BinanceEndpoints(Endpoints):
         super().__init__()
 
         self.load_base(
-            main="https://fapi.binance.com",
-            public_ws="wss://fstream.binance.com/ws",
-            private_ws="wss://fstream.binance.com/ws",
+            rest=Endpoint(url="https://fapi.binance.com", method="NONE"),
+            public_ws=Endpoint(url="wss://fstream.binance.com/ws", method="NONE"),
+            private_ws=Endpoint(url="wss://fstream.binance.com/ws", method="NONE"),
         )
 
         self.load_required(
-            createOrder={"method": "POST", "url": "/fapi/v1/order"},
-            amendOrder={"method": "PUT", "url": "/fapi/v1/order"},
-            cancelOrder={"method": "DELETE", "url": "/fapi/v1/order"},
-            cancelAllOrders={"method": "DELETE", "url": "/fapi/v1/allOpenOrders"},
-            getOrderbook={"method": "GET", "url": "/fapi/v1/depth"},
-            getTrades={"method": "GET", "url": "/fapi/v1/trades"},
-            getOhlcv={"method": "GET", "url": "/fapi/v1/klines"},
-            getTicker={"method": "GET", "url": "/fapi/v1/premiumIndex"},
-            getOpenOrders={"method": "GET", "url": "/fapi/v1/openOrders"},
-            getPosition={"method": "GET", "url": "/fapi/v2/positionRisk"},
+            createOrder=Endpoint(url="/fapi/v1/order", method="POST"),
+            amendOrder=Endpoint(url="/fapi/v1/order", method="PUT"),
+            cancelOrder=Endpoint(url="/fapi/v1/order", method="DELETE"),
+            cancelAllOrders=Endpoint(url="/fapi/v1/allOpenOrders", method="DELETE"),
+            getOrderbook=Endpoint(url="/fapi/v1/depth", method="GET"),
+            getTrades=Endpoint(url="/fapi/v1/trades", method="GET"),
+            getOhlcv=Endpoint(url="/fapi/v1/klines", method="GET"),
+            getTicker=Endpoint(url="/fapi/v1/premiumIndex", method="GET"),
+            getOpenOrders=Endpoint(url="/fapi/v1/openOrders", method="GET"),
+            getPosition=Endpoint(url="/fapi/v2/positionRisk", method="GET"),
         )
 
         self.load_additional(
-            ping={"method": "GET", "url": "/fapi/v1/ping"},
-            batchCreateOrders={"method": "POST", "url": "/fapi/v1/batchOrders"},
-            batchAmendOrders={"method": "PUT", "url": "/fapi/v1/batchOrders"},
-            batchCancelOrders={"method": "DELETE", "url": "/fapi/v1/batchOrders"},
-            exchangeInfo={"method": "GET", "url": "/fapi/v1/exchangeInfo"},
-            accountInfo={"method": "GET", "url": "/fapi/v2/account"},
-            listenKey={"method": "POST", "url": "/fapi/v1/listenKey"},
-            pingListenKey={"method": "PUT", "url": "/fapi/v1/listenKey"},
-            setLeverage={"method": "POST", "url": "/fapi/v1/leverage"}
+            ping=Endpoint(url="/fapi/v1/ping", method="GET"),
+            batchCreateOrders=Endpoint(url="/fapi/v1/batchOrders", method="POST"),
+            batchAmendOrders=Endpoint(url="/fapi/v1/batchOrders", method="PUT"),
+            batchCancelOrders=Endpoint(url="/fapi/v1/batchOrders", method="DELETE"),
+            exchangeInfo=Endpoint(url="/fapi/v1/exchangeInfo", method="GET"),
+            accountInfo=Endpoint(url="/fapi/v2/account", method="GET"),
+            listenKey=Endpoint(url="/fapi/v1/listenKey", method="POST"),
+            pingListenKey=Endpoint(url="/fapi/v1/listenKey", method="PUT"),
+            setLeverage=Endpoint(url="/fapi/v1/leverage", method="POST")
         )
