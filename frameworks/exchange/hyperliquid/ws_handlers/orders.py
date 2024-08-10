@@ -1,42 +1,72 @@
-from typing import List, Dict
-from frameworks.exchange.base.ws_handlers.orders import OrdersHandler
+from typing import List, Dict, Any
 
-from frameworks.exchange.hyperliquid.types import HyperliquidOrderSides, HyperliquidOrderTypes
-from frameworks.sharedstate import SharedState
+from frameworks.exchange.base.ws_handlers.orders import Order, Orders, OrdersHandler
+from frameworks.exchange.base.constants import OrderType, TimeInForce
+from frameworks.exchange.hyperliquid.types import (
+    HyperliquidSideConverter,
+    HyperliquidOrderTypeConverter,
+    HyperliquidTimeInForceConverter,
+)
 
 class HyperliquidOrdersHandler(OrdersHandler):
-    _overwrite_ = set(("open"))
-    _remove_ = set(("filled", "canceled", "triggered", "rejected", "marginCanceled"))
+    _overwrite_ = {"open"}
+    _remove_ = {"filled", "canceled", "triggered", "rejected", "marginCanceled"}
 
-    def __init__(self, ss: SharedState) -> None:
-        self.ss = ss
-        super().__init__(self.ss.current_orders)
+    def __init__(self, orders: Orders, symbol: str) -> None:
+        super().__init__(orders)
+        self.symbol = symbol
 
-        self.asset_idx = 0
-        self.asset_found = False
+        self.side_converter = HyperliquidSideConverter()
+        self.order_type_converter = HyperliquidOrderTypeConverter()
+        self.tif_converter = HyperliquidTimeInForceConverter()
     
-    def refresh(self, recv: List) -> None:
-        for order in recv:
-            if order["coin"] != self.ss.symbol:
-                continue
+    def refresh(self, recv: Dict[str, Any]) -> None:
+        try:
+            for order in recv["list"]:
+                if order["symbol"] != self.symbol:
+                    continue
 
-            self.single_order["createTime"] = float(recv["order"]["timestamp"])
-            self.single_order["side"] = HyperliquidOrderSides.to_int(recv["order"]["side"])
-            self.single_order["price"] = float(recv["order"]["limitPx"])
-            self.single_order["size"] = float(["sz"])
-            self.current_orders[recv["order"]["oid"]] = self.single_order.copy()
+                new_order = Order(
+                    symbol=self.symbol,
+                    side=self.side_converter.to_num(order.get("side")),
+                    orderType=self.order_type_converter.to_num(order.get("origType")),
+                    timeInForce=self.tif_converter.to_num(order.get("timeInForce")),
+                    price=float(order.get("price")),
+                    size=float(order.get("qty")) - float(order.get("leavesQty")),
+                    orderId=order.get("orderId"),
+                    clientOrderId=order.get("orderLinkId"),
+                )
 
+                self.orders[new_order.orderId] = new_order
+
+        except Exception as e:
+            raise Exception(f"Orders refresh - {e}")
+        
     def process(self, recv: Dict) -> None:
-        for order in recv["orderHistory"]:
-            if order["coin"] != self.ss.symbol:
-                continue
+        try:
+            data: Dict[str, Any] = recv["order"]
+            order_status: str = recv["status"]
 
-            if recv["status"] in self._overwrite_:
-                self.single_order["createTime"] = float(order["timestamp"])
-                self.single_order["side"] = HyperliquidOrderSides.to_int(order["side"])
-                self.single_order["price"] = float(order["limitPx"])
-                self.single_order["size"] = float(["sz"])
-                self.current_orders[order["oid"]] = self.single_order.copy()
+            if data["coin"] != self.symbol:
+                return None
 
-            elif recv["status"] in self._remove_:
-                del self.current_orders[order["oid"]]
+            if order_status in self._overwrite_:
+                new_order = Order(
+                    symbol=self.symbol,
+                    side=self.side_converter.to_num(data.get("side")),
+                    orderType=OrderType.LIMIT, # Not provided, assumed LIMIT order
+                    timeInForce=None, # Not provided
+                    price=float(data.get("limitPx")),
+                    size=float(data.get("origSz")) - float(data.get("sz")),
+                    orderId=data.get("oid"),
+                    clientOrderId=data.get("cloid"),
+                )
+
+                self.orders[new_order.orderId] = new_order
+
+            elif order_status in self._remove_:
+                del self.orders[data["oid"]]
+
+        except Exception as e:
+            raise Exception(f"Orders refresh - {e}")
+        

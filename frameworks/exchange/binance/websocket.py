@@ -35,7 +35,7 @@ class BinanceWebsocket(WebsocketStream):
             "ORDER_TRADE_UPDATE": BinanceOrdersHandler(self.data["orders"], self.symbol),
             "ACCOUNT_UPDATE": BinancePositionHandler(self.data["position"], self.symbol),
         }
-
+    
     async def refresh_orderbook_data(self, timer: int = 600) -> None:
         while True:
             try:

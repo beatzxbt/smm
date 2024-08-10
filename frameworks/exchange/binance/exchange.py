@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 
-from frameworks.exchange.base.types import Order
+from frameworks.exchange.base.structures.order import Order
 from frameworks.exchange.base.exchange import Exchange
 from frameworks.exchange.binance.endpoints import BinanceEndpoints
 from frameworks.exchange.binance.formats import BinanceFormats

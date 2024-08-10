@@ -1,18 +1,16 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 
-from frameworks.sharedstate import SharedState
 from frameworks.exchange.hyperliquid.ws_handlers.ticker import HyperliquidTickerHandler
 from frameworks.exchange.hyperliquid.ws_handlers.position import HyperliquidPositionHandler
 
 class HyperliquidWeb2DataHandler:
-    def __init__(self, ss: SharedState) -> None:
-        self.ss = ss
-
-        self.ticker = HyperliquidTickerHandler(self.ss)
-        self.position = HyperliquidPositionHandler(self.ss)
+    def __init__(self, data: Dict[str, Any]) -> None:
+        self.ticker = HyperliquidTickerHandler(data["ticker"])
+        self.position = HyperliquidPositionHandler(data["position"])
     
-    def refresh(self, recv: List[Dict]) -> None:
-        pass
+    def refresh(self, recv: Dict) -> None:
+        self.ticker.refresh(recv)
+        self.position.refresh(recv)
     
     def process(self, recv: Dict) -> None:
         self.ticker.process(recv)

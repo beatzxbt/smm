@@ -1,9 +1,12 @@
 import numpy as np
 
+from frameworks.exchange.base.structures.orderbook import Orderbook
+from frameworks.exchange.base.structures.trades import Trades
+from smm.sharedstate import SmmSharedState
+
 from smm.features.trades_diff import trades_diffs
 from smm.features.trades_imbalance import trades_imbalance
 from smm.features.orderbook_imbalance import orderbook_imbalance
-from smm.sharedstate import SmmSharedState
 
 
 class FeatureEngine:
@@ -21,6 +24,14 @@ class FeatureEngine:
 
         self.volatility_weights = {"trades_diffs": 1.0}
 
+    @property
+    def orderbook(self) -> Orderbook:
+        return self.data["orderbook"]
+    
+    @property
+    def trades(self) -> Trades:
+        return self.data["trades"]
+    
     def wmid_imbalance(self) -> float:
         """
         Calculate the weighted mid-price imbalance.
@@ -30,15 +41,15 @@ class FeatureEngine:
         float
             The logarithm of the ratio between the weighted mid-price and the mid-price.
         """
-        return np.log(self.data["orderbook"].get_wmid() / self.data["orderbook"].get_mid())
+        return np.log(self.orderbook.get_wmid() / self.orderbook.get_mid())
 
-    def vamp_imbalance(self, depth: int) -> float:
+    def vamp_imbalance(self, depth: float) -> float:
         """
         Calculate the volume adjusted mid-price imbalance.
 
         Parameters
         ----------
-        depth : int
+        depth : float
             The depth in dollars used to calculate the volume adjusted mid-price.
 
         Returns
@@ -46,8 +57,8 @@ class FeatureEngine:
         float
             The logarithm of the ratio between the volume adjusted mid-price and the mid-price.
         """
-        dollars_to_size = depth / self.data["orderbook"].get_mid()
-        return np.log(self.data["orderbook"].get_vamp(dollars_to_size) / self.data["orderbook"].get_mid())
+        dollars_to_size = depth / self.orderbook.get_mid()
+        return np.log(self.orderbook.get_vamp(dollars_to_size) / self.orderbook.get_mid())
 
     def orderbook_imbalance(self) -> float:
         """
@@ -61,8 +72,8 @@ class FeatureEngine:
 
         """
         return orderbook_imbalance(
-            bids=self.data["orderbook"].bids,
-            asks=self.data["orderbook"].asks,
+            bids=self.orderbook.bids,
+            asks=self.orderbook.asks,
             depths=np.array([10.0, 25.0, 50.0, 100.0, 250.0]),
         )
 
@@ -76,7 +87,7 @@ class FeatureEngine:
         float
             The trades imbalance over a predefined window.
         """
-        return trades_imbalance(trades=self.data["trades"]._unwrap(), window=100)
+        return trades_imbalance(trades=self.trades.unwrap(), window=100)
 
     def trades_differences(self) -> float:
         """
@@ -88,7 +99,7 @@ class FeatureEngine:
         float
             The trades differences over a predefined lookback period.
         """
-        return trades_diffs(trades=self.data["trades"]._unwrap(), lookback=100)
+        return trades_diffs(trades=self.trades.unwrap(), lookback=100)
 
     def generate_skew(self) -> float:
         """
@@ -102,9 +113,9 @@ class FeatureEngine:
         """
         skew = 0.0
         skew += self.wmid_imbalance() * self.fair_price_weights["wmid"]
-        skew += self.vamp_imbalance(depth=25000) * self.fair_price_weights["tight_vamp"]
-        skew += self.vamp_imbalance(depth=75000) * self.fair_price_weights["mid_vamp"]
-        skew += self.vamp_imbalance(depth=200000) * self.fair_price_weights["deep_vamp"]
+        skew += self.vamp_imbalance(depth=25000.0) * self.fair_price_weights["tight_vamp"]
+        skew += self.vamp_imbalance(depth=75000.0) * self.fair_price_weights["mid_vamp"]
+        skew += self.vamp_imbalance(depth=200000.0) * self.fair_price_weights["deep_vamp"]
         skew += self.orderbook_imbalance() * self.fair_price_weights["book_imb"]
         skew += self.trades_imbalance() * self.fair_price_weights["trades_imb"]
         return skew

@@ -58,7 +58,7 @@ class TradingLogic:
 
     async def start_loop(self) -> None:
         try:
-            await self.ss.logging.info("Warming up data feeds...")
+            await self.ss.logging.info(topic="MM", msg="Warming up data feeds...")
             await self.wait_for_ws_warmup()
             self.quote_generator = await self.load_quote_generator()
             await self.ss.logging.info(

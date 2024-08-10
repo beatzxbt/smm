@@ -1,4 +1,4 @@
-from frameworks.exchange.base.types import (
+from frameworks.exchange.base.constants import (
     SideConverter,
     TimeInForceConverter,
     OrderTypeConverter,

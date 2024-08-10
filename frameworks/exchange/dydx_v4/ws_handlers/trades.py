@@ -14,8 +14,9 @@ class DydxTradesHandler(TradesHandler):
     def refresh(self, recv: Dict[str, Any]) -> None:
         try:
             new_trades: List[Trade] = []
- 
-            for trade in recv["contents"]["trades"]:
+
+            # Trades are presented from new -> old order in the list
+            for trade in reversed(recv["contents"]["trades"]):
                 new_trades.append(Trade(
                     timestamp=iso8601_to_unix(trade["createdAt"]),
                     side=self.side_converter.to_num(trade["side"]),

@@ -1,29 +1,37 @@
 import numpy as np
-from typing import List, Dict, Union
+from typing import List, Dict, Any
 
-from frameworks.sharedstate import SharedState
-from frameworks.exchange.base.ws_handlers.orderbook import OrderbookHandler
-
+from frameworks.exchange.base.ws_handlers.orderbook import Orderbook, OrderbookHandler
 
 class HyperliquidOrderbookHandler(OrderbookHandler):
-    def __init__(self, ss: SharedState) -> None:
-        self.ss = ss
-        super().__init__(self.ss.orderbook)
-        self.update_time = 0
+    def __init__(self, orderbook: Orderbook) -> None:
+        super().__init__(orderbook)
     
-    def full_orderbook_update(self, recv: Dict) -> None:
-        self.bids = np.array(recv["levels"][0], dtype=np.float64)[:, 0:2]
-        self.asks = np.array(recv["levels"][1], dtype=np.float64)[:, 0:2]
+    def refresh(self, recv: List[List[Dict]]) -> None:
+        try:
+            seq_id = 0
+            bids = np.array([[float(level["px"]), float(level["sz"])] for level in recv[0]])
+            asks = np.array([[float(level["px"]), float(level["sz"])] for level in recv[1]])
 
-    def refresh(self, recv: Dict) -> None:
-        self.update_time = int(recv["time"])
-        self.full_orderbook_update(recv)
-        self.orderbook.initialize(self.asks, self.bids)
+            if bids.size != 0 and asks.size != 0:
+                self.orderbook.refresh(asks, bids, seq_id)
 
-    def process(self, recv: Dict) -> None:
-        new_update_time = int(recv["time"])
-        
-        if new_update_time > self.update_time:
-            self.update_time = new_update_time
-            self.full_orderbook_update(recv)
-            self.orderbook.update_book(self.asks, self.bids)
+        except Exception as e:
+            raise Exception(f"Orderbook refresh - {e}")
+
+    def process(self, recv: Dict[str, Any]) -> None:
+        try:
+            data: Dict[str, Any] = recv["data"]
+
+            seq_id = int(data.get("time")) # Use timestamp as a sequence ID
+            bids = np.array([[float(level["px"]), float(level["sz"])] for level in data["levels"][0]])
+            asks = np.array([[float(level["px"]), float(level["sz"])] for level in data["levels"][1]])
+
+            if bids.size != 0:
+                self.orderbook.update_bids(bids, seq_id)
+                
+            if asks.size != 0:
+                self.orderbook.update_asks(asks, seq_id)
+
+        except Exception as e:
+            raise Exception(f"Orderbook process - {e}")

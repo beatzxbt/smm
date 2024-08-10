@@ -178,7 +178,6 @@ class WebsocketStream(ABC):
         payload : Dict
             The payload to be sent.
 
-
         Raises
         ------
         Exception

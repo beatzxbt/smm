@@ -1,18 +1,17 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 
-from frameworks.exchange.base.ws_handlers.position import PositionHandler
+from frameworks.exchange.base.ws_handlers.position import Position, PositionHandler
 from frameworks.exchange.dydx_v4.types import DydxPositionDirectionConverter
 
 
 class DydxPositionHandler(PositionHandler):
-    def __init__(self, data: Dict, symbol: str) -> None:
-        self.data = data
+    def __init__(self, position: Position, symbol: str) -> None:
+        super().__init__(position)
         self.symbol = symbol
-        super().__init__(self.data["position"])
 
         self.position_side_converter = DydxPositionDirectionConverter()
 
-    def refresh(self, recv: Dict) -> None:
+    def refresh(self, recv: Dict[str, Any]) -> None:
         try:
             for position in recv["positions"]:
                 if position["symbol"] != self.symbol:
@@ -29,7 +28,7 @@ class DydxPositionHandler(PositionHandler):
         except Exception as e:
             raise Exception(f"Position refresh - {e}")
 
-    def process(self, recv):
+    def process(self, recv: Dict[str, Any]):
         try:
             for position in recv["contents"]:
                 if position["market"] != self.symbol:

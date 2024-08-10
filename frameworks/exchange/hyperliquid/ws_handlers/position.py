@@ -1,39 +1,44 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 
-from frameworks.exchange.base.ws_handlers.position import PositionHandler
-from frameworks.sharedstate import SharedState
+from frameworks.exchange.base.constants import PositionDirection
+from frameworks.exchange.base.ws_handlers.position import Position, PositionHandler
+
 
 class HyperliquidPositionHandler(PositionHandler):
-    def __init__(self, ss: SharedState) -> None:
-        self.ss = ss
-        super().__init__(self.ss.current_position)
-
-        self.asset_idx = 0
-        self.asset_found = False
+    def __init__(self, position: Position, symbol: str) -> None:
+        super().__init__(position)
+        self.symbol = symbol
     
     def refresh(self, recv: List[Dict]) -> None:
-        for position in recv["assetPositions"]:
-            if position["coin"] != self.ss.symbol:
-                continue
+        try:
+            for position in recv["assetPositions"]:
+                if position["coin"] != self.symbol:
+                    continue
 
-            self.position["price"] = float(position["entryPx"])
-            self.position["size"] = float(position["szi"])
-            self.position["uPnL"] = float(position["unrealizedPnl"])
-            self.current_position.update(self.position)
+                self.position = Position(
+                    symbol=self.symbol,
+                    side=PositionDirection.LONG if float(position.get("szi")) >= 0 else PositionDirection.SHORT,
+                    price=float(position.get("entryPx")),
+                    size=float(position.get("szi")),
+                    uPnl=float(position.get("unrealizedPnl"))
+                )
+
+        except Exception as e:
+            raise Exception(f"Position refresh - {e}")
 
     def process(self, recv: Dict) -> None:
-        self.ss.account_balance = float(recv["clearinghouseState"]["marginSummary"]["accountValue"])
+        try:
+            for position in recv["assetPositions"]:
+                if position["coin"] != self.symbol:
+                    continue
 
-        if not self.asset_found:
-            for asset in recv["meta"]["universe"]:
-                if asset["name"] == self.ss.symbol:
-                    self.asset_found = True
-                    break
-                
-                self.asset_idx += 1
-        
-        position = recv["clearinghouseState"]["assetPositions"][self.asset_idx]["position"]
-        self.position["price"] = float(position["entryPx"])
-        self.position["size"] = float(position["szi"])
-        self.position["uPnL"] = float(position["unrealizedPnl"])
-        self.current_position.update(self.position)
+                self.position = Position(
+                    symbol=self.symbol,
+                    side=PositionDirection.LONG if float(position.get("szi")) >= 0 else PositionDirection.SHORT,
+                    price=float(position.get("entryPx")),
+                    size=float(position.get("szi")),
+                    uPnl=float(position.get("unrealizedPnl"))
+                )
+
+        except Exception as e:
+            raise Exception(f"Position refresh - {e}")

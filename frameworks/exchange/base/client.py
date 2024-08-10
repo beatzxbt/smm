@@ -216,9 +216,12 @@ class Client(ABC):
                 if headers and not signed:
                     headers = self.sign_headers(method, headers)
 
+                if data:
+                    data = orjson.dumps(data).decode()
+
                 await self.logging.debug(
                     topic="CLIENT",
-                    msg=f"M: {method} - U: {url} - P: {params} - H: {headers} - D: {orjson.dumps(data).decode()}",
+                    msg=f"M: {method} - U: {url} - P: {params} - H: {headers} - D: {data}",
                 )
 
                 response = await self.session.request(
@@ -226,7 +229,7 @@ class Client(ABC):
                     method=method,
                     headers=headers,
                     params=params,
-                    data=orjson.dumps(data).decode() if data else None,
+                    data=data,
                 )
 
                 # Successful usually within: 200 <= Code <= 299

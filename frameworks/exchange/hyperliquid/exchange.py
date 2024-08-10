@@ -1,76 +1,201 @@
-from frameworks.exchange.base.rest.exchange import Exchange
-from frameworks.exchange.brrr.hyperliquid.endpoints import HyperliquidEndpoints
-from frameworks.exchange.brrr.hyperliquid.formats import HyperliquidFormats
-from frameworks.exchange.brrr.hyperliquid.client import HyperliquidClient
-from typing import Dict, Optional, Union
+from typing import List, Dict, Optional
 
+from frameworks.exchange.base.constants import Order
+from frameworks.exchange.base.exchange import Exchange
+from frameworks.exchange.hyperliquid.endpoints import HyperliquidEndpoints
+from frameworks.exchange.hyperliquid.formats import HyperliquidFormats
+from frameworks.exchange.hyperliquid.client import HyperliquidClient
+from frameworks.exchange.hyperliquid.orderid import HyperliquidOrderIdGenerator
 
 class Hyperliquid(Exchange):
-    """
-    Abnormal exchange, overwrite all required exchange funcs
-    """
+    def __init__(self, api_key: str, api_secret: str) -> None:
+        self.api_key = api_key
+        self.api_secret = api_secret
+        
+        super().__init__(
+            client=HyperliquidClient(self.api_key, self.api_secret),
+            formats=HyperliquidFormats(),
+            endpoints=HyperliquidEndpoints(),
+            orderIdGenerator=HyperliquidOrderIdGenerator()
+        )
 
-    def __init__(self, market: Dict, private: Dict) -> None:
-        self.market, self.private = market, private
-        self.endpoints = HyperliquidEndpoints
-        self.formats = HyperliquidFormats()
-        self.client = HyperliquidClient(self.__private__["API"])
-        super().__init__(self.client, self.endpoints, self.formats)
-        self.set_base_endpoint(self.endpoints["main1"])
-
-        self._exchange_info_cached_ = False
-
-    @property
-    def __market__(self) -> Dict:
-        return self.market["hyperliquid"]
-
-    @property
-    def __private__(self) -> Dict:
-        return self.private["hyperliquid"]
-
-    async def initialize(self, symbol: str) -> None:
-        """
-        Called only from sharedstate._cache_info_(), full docstring found there
-
-        Parameters
-        ----------
-        symbol : str
-            
-
-        Returns
-        -------
-        None
-        """
-
-        if not self._exchange_info_cached_:
-            await self.ping()
-            for rl_type in (await self.exchange_info())["rateLimits"]:
-                if rl_type != "ORDERS":
-                    continue
-
-                self.__private__["API"]
-                
-            self._exchange_info_cached_ = True
-
-        for symbols in (await self.exchange_info())["universe"]:
-            if symbol != symbols["symbol"]:
-                continue
-            
-            for filter in symbols["filters"]:
-                if filter["filterType"] == "PRICE_FILTER":
-                    self.__market__[symbol]["tickSize"] = filter["tickSize"]
-                elif filter["filterType"] == "LOT_SIZE":
-                    self.__market__[symbol]["lotSize"] = filter["stepSize"]
-    
     async def create_order(
         self,
-        symbol: str,
-        side: str,
-        type: str,
-        amount: float,
-        price: Optional[float] = None,
-        tp: Optional[float] = None,
-    ) -> Union[Dict, None]:
-        endpoint, method = self.endpoints["exchange"]
-        payload = self.formats.create_order(symbol, side, type, amount, price, tp)
-        return await self._send_(method, endpoint, payload)
+        order
+    ) -> Dict:
+        endpoint = self.endpoints.createOrder
+        headers = self.formats.create_order(order)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+    
+    async def batch_create_orders(
+        self,
+        orders: List[Order]
+    ) -> Dict:
+        endpoint = self.endpoints.batchCreateOrders
+        headers = self.formats.batch_create_orders(orders)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+
+    async def amend_order(
+        self, order
+    ) -> Dict:
+        endpoint = self.endpoints.amendOrder
+        headers = self.formats.amend_order(order)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+    
+    async def batch_amend_orders(
+        self,
+        orders: List[Order]
+    ) -> Dict:
+        endpoint = self.endpoints.batchAmendOrders
+        headers = self.formats.batch_amend_orders(orders)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+
+    async def cancel_order(self, order) -> Dict:
+        endpoint = self.endpoints.cancelOrder
+        headers = self.formats.cancel_order(order)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+    
+    async def batch_cancel_orders(
+        self,
+        orders: List[Order]
+    ) -> Dict:
+        endpoint = self.endpoints.batchCancelOrders
+        headers = self.formats.batch_cancel_orders(orders)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+    
+    async def cancel_all_orders(self, symbol: str) -> Dict:
+        endpoint = self.endpoints.cancelAllOrders
+        headers = self.formats.cancel_all_orders(symbol)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            headers=self.client.base_headers,
+            data=self.client.sign_headers(endpoint.method, headers),
+            signed=True,
+        )
+
+    async def get_orderbook(self, symbol: str) -> Dict:
+        endpoint = self.endpoints.getOrderbook
+        params = self.formats.get_orderbook(symbol)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+
+    async def get_trades(self, symbol: str) -> Dict:
+        endpoint = self.endpoints.getTrades
+        params = self.formats.get_trades(symbol)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+
+    async def get_ohlcv(self, symbol: str, interval: str = "1m") -> Dict:
+        endpoint = self.endpoints.getOhlcv
+        params = self.formats.get_ohlcv(symbol, interval)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+
+    async def get_ticker(self, symbol: str) -> Dict:
+        endpoint = self.endpoints.getTicker
+        params = self.formats.get_ticker(symbol)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+
+    async def get_open_orders(self, symbol: str) -> Dict:
+        endpoint = self.endpoints.getOpenOrders
+        params = self.formats.get_open_orders(symbol)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+
+    async def get_position(self, symbol: str) -> Dict:
+        endpoint = self.endpoints.getPosition
+        params = self.formats.get_position(symbol)
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+
+    async def get_exchange_info(self) -> Dict:
+        endpoint = self.endpoints.exchangeInfo
+        params = self.formats.get_exchange_info()
+        return await self.client.request(
+            url=self.base_endpoint.url + endpoint.url,
+            method=endpoint.method,
+            params=params,
+            signed=False,
+        )
+ 
+    async def warmup(self) -> None:
+        try:
+            for symbol in (await self.get_exchange_info())["symbols"]:
+                if self.symbol != symbol["symbol"]:
+                    continue
+
+                for filter in symbol["filters"]:
+                    match filter["filterType"]:
+                        case "PRICE_FILTER":
+                            self.data["tick_size"] = float(filter["tickSize"])
+
+                        case "LOT_SIZE":
+                            self.data["lot_size"] = float(filter["stepSize"])
+
+        except Exception as e:
+            await self.logging.error(f"Exchange warmup: {e}")
+
+        finally:
+            await self.logging.info(f"Exchange warmup sequence complete.")

@@ -1,44 +1,46 @@
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Any
 
-from frameworks.sharedstate import SharedState
-from frameworks.exchange.base.ws_handlers.ohlcv import OhlcvHandler
+from frameworks.exchange.base.ws_handlers.ohlcv import OHLCV, Candles, OhlcvHandler
 
 
 class HyperliquidOhlcvHandler(OhlcvHandler):
-    def __init__(self, ss: SharedState) -> None:
-        self.ss = ss
-        super().__init__(self.ss.ohlcv)
+    def __init__(self, ohlcv: Candles) -> None:
+        super().__init__(ohlcv)
+
+    def refresh(self, recv: List[Dict]) -> None:
+        try:
+            self.ohlcv.reset()
+
+            new_candles: List[OHLCV] = []
+
+            for candle in recv:
+                new_candles.append(OHLCV(
+                    timestamp=float(candle["t"]),
+                    open=float(candle["o"]),
+                    high=float(candle["h"]),
+                    low=float(candle["l"]),
+                    close=float(candle["c"]),
+                    volume=float(candle["v"]),
+                ))
+
+            self.ohlcv.add_many(new_candles)
+
+        except Exception as e:
+            raise Exception(f"OHLCV refresh - {e}")
         
-        self.current_open_time = 0
+    def process(self, recv: Dict[str, Any]) -> None:
+        try:
+            new_candle = OHLCV(
+                timestamp=float(recv.get("t")),
+                open=float(recv.get("o")),
+                high=float(recv.get("h")),
+                low=float(recv.get("l")),
+                close=float(recv.get("c")),
+                volume=float(recv.get("v")),
+            )
 
-    def refresh(self, recv: List) -> None:
-        for candle in recv:
-            self.format[:] = np.array([
-                float(candle["t"]),
-                float(candle["o"]),
-                float(candle["h"]),
-                float(candle["l"]),
-                float(candle["c"]),
-                float(candle["v"])
-            ])
-            self.current_open_time = self.format[0]
-            self.ohlcv.append(self.format.copy())
-    
-    def process(self, recv: Dict) -> None:
-        time = float(recv["t"])
-        new = True if time > self.current_open_time else False
+            self.ohlcv.add_single(new_candle)
 
-        self.format[:] = np.array([
-            time,
-            float(recv["o"]),
-            float(recv["h"]),
-            float(recv["l"]),
-            float(recv["c"]),
-            float(recv["v"])
-        ])
-
-        if not new:
-            self.ohlcv.pop()
-
-        self.ohlcv.append(self.format.copy())
+        except Exception as e:
+            raise Exception(f"OHLCV process - {e}")

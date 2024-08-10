@@ -57,15 +57,15 @@ class Order:
         return self._symbol
 
     @property
-    def side(self) -> int:
+    def side(self) -> float:
         return self._side
 
     @property
-    def orderType(self) -> int:
+    def orderType(self) -> float:
         return self._orderType
 
     @property
-    def timeInForce(self) -> int:
+    def timeInForce(self) -> float:
         return self._timeInForce
 
     @property

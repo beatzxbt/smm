@@ -1,6 +1,6 @@
 from typing import Dict
 
-from frameworks.exchange.base.types import Order
+from frameworks.exchange.base.constants import Order
 from frameworks.exchange.base.ws_handlers.orders import OrdersHandler
 from frameworks.exchange.okx.types import (
     OkxSideConverter,
