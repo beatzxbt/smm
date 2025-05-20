@@ -1,68 +1,128 @@
-import numpy as np
-from numba import njit
-from numba.types import Array
+from collections import deque
 
-from frameworks.tools.trading.weights import generate_geometric_weights
+from smm.features.base_feature import BaseFeature
 
-
-@njit(["float64(float64[:, :], int64)"], error_model="numpy", fastmath=True)
-def trades_imbalance(trades: Array, window: int) -> float:
+class TradesTickImbalance(BaseFeature):
+    """Measures the imbalance between buy and sell trade volume over a fixed number of trades.
+    
+    This feature calculates the ratio of buy volume to sell volume over a specified number
+    of recent trades. It provides insight into the directional pressure in the market by
+    comparing the monetary value (price * size) of buy trades versus sell trades.
+    
+    A value greater than 1.0 indicates more buying pressure (buy volume exceeds sell volume),
+    while a value less than 1.0 indicates more selling pressure (sell volume exceeds buy volume).
+    A value of exactly 1.0 represents a perfectly balanced market.
+    
+    This feature can be used to:
+    1. Identify potential short-term price trends
+    2. Detect accumulation or distribution patterns
+    3. Gauge market sentiment and order flow imbalances
+    4. Identify potential reversal points when combined with price action
+    
+    The feature uses a tick-based window approach, tracking a fixed number of recent trades.
+    
+    Args:
+        window (int): Number of recent trades to consider for the imbalance calculation.
+                     Default is 100 trades.
     """
-    Calculates the normalized imbalance between buy and sell trades within a specified window,
-    using geometrically weighted quantities. The imbalance reflects the dominance of buy or sell trades,
-    weighted by the recency of trades in the window.
+    def __init__(self, window: int = 100):
+        super().__init__()
+        self._window = window
+        self._trades = deque(maxlen=window)
 
-    Steps
-    -----
-    1. Determine the effective window size, the lesser of the specified window or the total trades count.
+        self._buy_value = 0.0
+        self._sell_value = 0.0
 
-    2. Generate geometric weights for the effective window size, with recent trades given higher significance.
-
-    3. Iterate through the trades within the window, applying the weights to the log of (1 + trade quantity)
-       to calculate weighted trade quantities. Separate cumulative totals are maintained for buys and sells based
-       on the trade side.
-
-    4. Compute the normalized imbalance as the difference between cumulative buy and sell quantities divided
-       by their sum, yielding a measure from -1 (sell dominance) to 1 (buy dominance).
-
-    Parameters
-    ----------
-    trades : Array
-        A 2D array of trade data, where each row represents a trade in format [time, side, price, size]
-
-    window : int
-        The number of most recent trades to consider for the imbalance calculation.
-
-    Returns
-    -------
-    float
-        The normalized imbalance, ranging from -1 (complete sell dominance) to 1 (complete buy dominance).
-
-    Examples
-    --------
-    >>> trades = np.array([
-    ...     [1e10, 0.0, 100.75728, 0.70708],
-    ...     [1e10, 1.0, 100.29356, 0.15615],
-    ...     [1e10, 0.0, 100.76157, 0.94895],
-    ...     [1e10, 1.0, 100.46078, 0.23170],
-    ...     [1e10, 0.0, 100.18463, 0.87096]
-    ... ])
-    >>> window = 5
-    >>> print(trades_imbalance(trades, window))
-    -0.7421903970691232
-    """
-    max_window = min(window, trades.shape[0])
-    weights = generate_geometric_weights(max_window)
-    delta_buys = 0.0
-    delta_sells = 0.0
-
-    for i in range(max_window):
-        trade_side = trades[i, 1]
-        weighted_qty = np.log(1.0 + trades[i, 3]) * weights[i]
-
-        if trade_side == 0.0:
-            delta_buys += weighted_qty
+    def update(self, time: float, is_buy: bool, px: float, sz: float) -> float:
+        """Process a new trade and update the imbalance ratio.
+        
+        Args:
+            time (float): Timestamp of the trade.
+            is_buy (bool): Whether the trade was a buy (True) or sell (False).
+            px (float): Price of the trade.
+            sz (float): Size/quantity of the trade.
+            
+        Returns:
+            float: The updated imbalance ratio.
+        """
+        if is_buy:
+            self._buy_value += sz * px
         else:
-            delta_sells += weighted_qty
+            self._sell_value += sz * px
 
-    return (delta_buys - delta_sells) / (delta_buys + delta_sells)
+        if len(self._trades) == self._window:
+            _, old_is_buy, old_px, old_sz = self._trades.popleft()
+            if old_is_buy:
+                self._buy_value -= old_sz * old_px
+            else:
+                self._sell_value -= old_sz * old_px
+
+        self._trades.append((time, is_buy, px, sz))
+
+        self._value = self._buy_value / self._sell_value
+        return self._value
+    
+
+class TradesTimeImbalance:
+    """Measures the imbalance between buy and sell trade volume over a time window.
+    
+    Similar to TradesTickImbalance, this feature calculates the ratio of buy volume to sell volume,
+    but uses a time-based window instead of a tick-based window. It compares the monetary value
+    (price * size) of buy trades versus sell trades over a specified time period.
+    
+    A value greater than 1.0 indicates more buying pressure (buy volume exceeds sell volume),
+    while a value less than 1.0 indicates more selling pressure (sell volume exceeds buy volume).
+    A value of exactly 1.0 represents a perfectly balanced market.
+    
+    This feature can be used to:
+    1. Identify potential short-term price trends
+    2. Detect accumulation or distribution patterns
+    3. Gauge market sentiment and order flow imbalances
+    4. Identify potential reversal points when combined with price action
+    
+    The time-based approach can be more responsive to sudden changes in market conditions
+    compared to the tick-based approach, especially in markets with variable trading frequency.
+    
+    Args:
+        window (float): Duration in seconds for the time window. Default is 60.0 seconds.
+    """
+    def __init__(self, window: float = 60.0):
+        self._window = window
+        self._trades = deque()
+        
+        self._buy_value = 0.0
+        self._sell_value = 0.0
+        
+    def update(self, time: float, is_buy: bool, px: float, sz: float) -> float:
+        """Process a new trade and update the imbalance ratio.
+        
+        Args:
+            time (float): Timestamp of the trade.
+            is_buy (bool): Whether the trade was a buy (True) or sell (False).
+            px (float): Price of the trade.
+            sz (float): Size/quantity of the trade.
+            
+        Returns:
+            float: The updated imbalance ratio.
+        """
+        self._trades.append((time, is_buy, px, sz))
+        
+        if is_buy:
+            self._buy_value += sz * px
+        else:
+            self._sell_value += sz * px
+        
+        while self._trades and (time - self._trades[0][0]) > self._window:
+            old_time, old_is_buy, old_px, old_sz = self._trades.popleft()
+            if old_is_buy:
+                self._buy_value -= old_sz * old_px
+            else:
+                self._sell_value -= old_sz * old_px
+        
+        if self._sell_value > 0:
+            self._value = self._buy_value / self._sell_value
+        else:
+            self._value = float('inf') if self._buy_value > 0 else 0.0
+            
+        return self._value
+    
