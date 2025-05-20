@@ -1,83 +1,40 @@
-import numpy as np
-from numba import njit
-from numba.types import float64, Array
-from frameworks.tools.trading.weights import generate_geometric_weights
+from framework.tools import Orderbook
+from smm.features.base_feature import BaseFeature
 
-
-@njit(["float64(float64[:, :], float64[:, :], float64[:])"], error_model="numpy", fastmath=True)
-def orderbook_imbalance(bids: Array, asks: Array, depths: Array) -> float:
+class OrderbookImbalance(BaseFeature):
+    """Calculates the imbalance between bid and ask liquidity within a specified price range.
+    
+    This feature measures the ratio of cumulative bid size to cumulative ask size
+    within a configurable price range around the mid price. The price range is defined
+    as a percentage (in basis points) of the mid price.
+    
+    A value greater than 1.0 indicates more buying pressure (more bid liquidity),
+    while a value less than 1.0 indicates more selling pressure (more ask liquidity).
+    A value of exactly 1.0 represents a perfectly balanced orderbook.
+    
+    The feature can be used to:
+    1. Predict short-term price movements (higher bid liquidity may lead to price increases)
+    2. Identify potential support/resistance levels
+    3. Gauge market sentiment and order flow imbalances
+    
+    Args:
+        depth_bps (float): Depth in basis points (1bp = 0.01%) to consider around the mid price.
+                          Default is 100.0 (1%).
     """
-    Calculates the geometrically weighted order book imbalance across different price depths.
+    def __init__(self, depth_bps: float=100.0):
+        super().__init__()
 
-    This function computes the logarithm of the ratio of total bid size to total ask size within
-    specified depths, applying a geometric weighted scheme for aggregation.
+        self._depth_decimal = depth_bps / 10_000.0
+        
+    def update(self, orderbook: Orderbook) -> float:
+        bids = orderbook.get_bids()
+        asks = orderbook.get_asks()
+        mid_px = orderbook.get_mid_px()
 
-    Depths are expected in basis points and converted internally to decimal form. The function
-    assumes the first entry in both bids and asks arrays represents the best (highest) bid and
-    the best (lowest) ask, respectively.
+        max_bid = mid_px - (mid_px * self._depth_decimal)
+        max_ask = mid_px + (mid_px * self._depth_decimal)
+        bid_cum_size = bids[bids[:, 0] >= max_bid][:, 1].sum()
+        ask_cum_size = asks[asks[:, 0] <= max_ask][:, 1].sum()
 
-    Parameters
-    ----------
-    bids : Array
-        An array of bid prices and quantities.
-
-    asks : Array
-        An array of ask prices and quantities.
-
-    depths : Array
-        An array of price depths (in basis points) at which to calculate imbalance.
-
-    Returns
-    -------
-    float
-        The geometrically weighted imbalance across specified price depths.
-
-    Notes
-    -----
-    - Depths are converted from basis points (BPS) to decimals within the function.
-
-    Examples
-    --------
-    >>> bids = np.array([
-    ...     [100.00, 0.35194],
-    ...     [99.75, 0.16040],
-    ...     [99.50, 0.46248],
-    ...     [99.25, 0.79625],
-    ...     [99.00, 0.19408]
-    ... ])
-    >>> asks = np.array([
-    ...     [101.00, 0.80763],
-    ...     [101.25, 0.30421],
-    ...     [101.50, 0.04038],
-    ...     [101.75, 0.39473],
-    ...     [102.00, 0.97438]
-    ... ])
-    >>> depths = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
-    >>> orderbook_imbalance(bids, asks, depths)
-    -0.24142990048382099
-    """
-    num_depths = depths.size
-    depths = depths / 1e-4  # NOTE: BPS -> Decimals
-    weights = generate_geometric_weights(num_depths)
-    imbalances = np.empty(num_depths, dtype=float64)
-
-    bid_p, bid_q = bids.T
-    ask_p, ask_q = asks.T
-    best_bid_p, best_ask_p = bid_p[0], ask_p[0]
-
-    for i in range(num_depths):
-        min_bid = best_bid_p * (1.0 - depths[i])
-        max_ask = best_ask_p * (1.0 + depths[i])
-
-        num_bids_within_depth = bid_p[bid_p >= min_bid].size
-        num_asks_within_depth = ask_p[ask_p <= max_ask].size
-        total_bid_size_within_depth = np.sum(bid_q[:num_bids_within_depth])
-        total_ask_size_within_depth = np.sum(ask_q[:num_asks_within_depth])
-
-        imbalances[i] = np.log(
-            total_bid_size_within_depth / total_ask_size_within_depth
-        )
-
-    weighted_imbalance = np.sum(imbalances * weights)
-
-    return weighted_imbalance
+        self._value = bid_cum_size / ask_cum_size
+        return self._value

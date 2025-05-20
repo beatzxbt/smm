@@ -1,23 +1,42 @@
 
-# "Binance", "Bybit", "Hyperliquid", ...
-exchange: "Bybit"
+# BINANCE => 0
+# BYBIT => 1
+# OKX => 2
+# HYPERLIQUID => 3
+# PARADEX => 4
+# X10 => 5
+exchange: 1
+
+# Capitalization will be handled automatically.
+# Ending (USDT, USD, USDC) MUST be spelled out.
+# Example: "BTCUSDT", "SOLUSDT", "pepeusdc", "Xmrusd"
 symbol: "SOLUSDT"
 
-# "plain", "stinky" ,...
-quote_generator: "plain"
+# PLAIN => 0
+# A&S => 1
+# STINKY => 2
+strategy: 0
 
-# The params "total_orders" and "max_position" must be present in any
-# new strategies created! Max position is auto converted to quote
-# units so always keep this value in $ (USD).
 parameters:
+  common:
+    total_orders: 3             # Consider your rate limits!
+    max_usd_position: 100       # Value in $ (USD)
+
   plain:
-    total_orders: 10            # Consider your rate limits!
-    max_position: 100           # Value in $ (USD)
+    # Feature params
+    trades_tick_imbalance_window: 100
+    trades_time_imbalance_window: 60.0
+    trades_tick_excitement_window: 100
+    trades_time_excitement_window: 60.0
+    orderbook_imbalance_window: 100
+
+    # Quote generator params
     minimum_spread: 10          # Value in BPS (Basis Points)
     aggressiveness: 0.75        # Must be 0.0 <-> 1.0
+  
+  a&s:
+    vol: 10
 
   stinky:
-    total_orders: 10            # Consider your rate limits!
-    max_position: 100           # Value in $ (USD)
     minimum_spread: 50          # Value in BPS (Basis Points)
     maximum_spread: 250         # Value in BPS (Basis Points)
