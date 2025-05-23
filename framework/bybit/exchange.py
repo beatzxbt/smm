@@ -1,24 +1,25 @@
+from typing import List, Tuple
 from framework.base.exchange import BaseExchange
 from framework.bybit.client import BybitRestTradeClient, BybitWsTradeClient
 from framework.tools.logger import Logger
 from framework.tools.time import time_ms
 
-from framework.base.internal_structs import OrderMsg, OrderbookMsg, TickerMsg, Trade, TradeMsg, PositionMsg, AccountMsg
+from framework.base.internal_structs import ExecutionMsg, OrderMsg, OrderbookMsg, TickerMsg, Trade, TradeMsg, PositionMsg, AccountMsg
 
 RECV_WINDOW = 1000
 
-ENDPOINT_GET_ORDERS = "https://api.bybit.com/v5/order/realtime"
-ENDPOINT_GET_POSITION = "https://api.bybit.com/v5/position/list"
-ENDPOINT_GET_ACCOUNT = "https://api.bybit.com/v5/account/wallet-balance"
-ENDPOINT_GET_INSTRUMENTS_INFO = "https://api.bybit.com/v5/market/instruments-info"
-ENDPOINT_GET_TICKERS = "https://api.bybit.com/v5/market/tickers"
-ENDPOINT_GET_TRADES = "https://api.bybit.com/v5/market/recent-trade"
-ENDPOINT_GET_ORDERBOOK = "https://api.bybit.com/v5/market/orderbook"
 ENDPOINT_POST_CREATE_ORDER = "https://api.bybit.com/v5/order/create"
 ENDPOINT_POST_AMEND_ORDER = "https://api.bybit.com/v5/order/amend"
-ENDPOINT_POST_CANCEL_SINGLE = "https://api.bybit.com/v5/order/cancel"
+ENDPOINT_POST_CANCEL_ORDER = "https://api.bybit.com/v5/order/cancel"
 ENDPOINT_POST_CANCEL_ALL = "https://api.bybit.com/v5/order/cancel-all"
-ENDPOINT_POST_SET_LEVERAGE = "https://api.bybit.com/v5/position/set-leverage"
+ENDPOINT_GET_TRADES = "https://api.bybit.com/v5/market/recent-trade"
+ENDPOINT_GET_ORDERBOOK = "https://api.bybit.com/v5/market/orderbook"
+ENDPOINT_GET_TICKERS = "https://api.bybit.com/v5/market/tickers"
+ENDPOINT_GET_ORDERS = "https://api.bybit.com/v5/order/realtime"
+ENDPOINT_GET_POSITION = "https://api.bybit.com/v5/position/list"
+ENDPOINT_GET_EXECUTIONS = "https://api.bybit.com/v5/execution/list"
+ENDPOINT_GET_ACCOUNT = "https://api.bybit.com/v5/account/wallet-balance"
+ENDPOINT_GET_INSTRUMENTS_INFO = "https://api.bybit.com/v5/market/instruments-info"
 
 # As Bybit supports WS trade quite well, we solely use the WS client for trade operations.
 # Rest clients are primarily used for GET requests, as well as acting as a backup incase 
@@ -68,7 +69,7 @@ class BybitExchange(BaseExchange):
         reduce_only=False, 
         cloid=None
     ):
-        self.is_running(ws_only=True)
+        self.ensure_running(ws_only=True)
         
         if tif not in self._valid_tifs:
             raise ValueError(f"Invalid time-in-force value; expected one of {self._valid_tifs} but got {tif}")
@@ -120,7 +121,7 @@ class BybitExchange(BaseExchange):
         """
         Amends an existing order via Bybit's Trade WS API.
         """
-        self.is_running(ws_only=True)
+        self.ensure_running(ws_only=True)
         
         if not oid and not cloid:
             raise ValueError("Missing oid and/or cloid; either 'oid' or 'cloid' must be provided for an amendment")
@@ -167,7 +168,7 @@ class BybitExchange(BaseExchange):
         """
         Cancels a single open order via Bybit's Trade WS API.
         """
-        self.is_running(ws_only=True)
+        self.ensure_running(ws_only=True)
 
         if not oid and not cloid:
             raise ValueError("Missing oid and/or cloid; either 'oid' or 'cloid' must be provided for cancellation")
@@ -194,14 +195,14 @@ class BybitExchange(BaseExchange):
         response = await self._ws_client.submit(payload)
         return response
 
-    async def cancel_all(self, symbol):
+    async def cancel_all_orders(self, symbol):
         """
         Cancels all open orders for the default symbol via REST API.
 
         Returns:
             dict | None: The API response as a dict if successful, or None if error.
         """
-        self.is_running(rest_only=True)
+        self.ensure_running(rest_only=True)
         
         payload = {
             "category": "linear",
@@ -215,152 +216,284 @@ class BybitExchange(BaseExchange):
         )
         return response
 
-    async def get_orders(self, symbol):
-        self.is_running(rest_only=True)
-
-        payload = {
-            "category": "linear",
-            "symbol": symbol
-        }
-        
-        response = await self._rest_client.submit(
-            endpoint=ENDPOINT_GET_ORDERS, 
-            payload=payload, 
-            method="GET"
-        )
-        return response
-    
-    async def get_position(self, symbol):
-        self.is_running(rest_only=True)
-
-        payload = {
-            "category": "linear",
-            "symbol": symbol
-        }
-        
-        response = await self._rest_client.submit(
-            endpoint=ENDPOINT_GET_POSITION, 
-            payload=payload, 
-            method="GET"
-        )
-        return response
-    
-    async def get_account(self):
-        self.is_running(rest_only=True)
-        
-        payload = {
-            "category": "linear"
-        }
-        
-        response = await self._rest_client.submit(
-            endpoint=ENDPOINT_GET_ACCOUNT, 
-            payload=payload, 
-            method="GET"
-        )
-        return response
-    
-    async def get_instruments_info(self, symbol = None):
-        self.is_running(rest_only=True)
-
-        payload = {
-            "category": "linear"
-        }
-        
-        if symbol:
-            payload["symbol"] = symbol
-        
-        response = await self._unauthenticated_session.get(
-            url=ENDPOINT_GET_INSTRUMENTS_INFO, 
-            params=payload
-        )
-        return response
-
-    async def get_tickers(self, symbol = None):
-        payload = {
-            "category": "linear"
-        }
-        
-        if symbol is not None:
-            payload["symbol"] = symbol
-        
-        try:
-            time_sent = time_ms()
-            async with self.unauth_session.get(
-                url=ENDPOINT_GET_TICKERS, 
-                params=payload
-            ) as response:
-                time_recv = time_ms()
-                resp_text = await response.text()
-                resp_json = orjson.loads(resp_text)
-                
-                if resp_json["retMsg"] in ["OK", "success"]:
-                    latency = round(time_recv - time_sent, 2)
-                    self.logger.debug(f"Trade REST {ENDPOINT_GET_TICKERS} latency; {latency}ms")
-                    return resp_json
-                else:
-                    self.logger.error(f"get_tickers() request failed; {resp_json}")
-                    return None
-                    
-        except Exception as e:
-            self.logger.error(f"get_tickers() request exception; {e}")
-            return None
-
-    async def get_trades(self, symbol, limit: int = 1000):
+    async def get_trades(self, symbol):
         payload = {
             "category": "linear",
             "symbol": symbol,
-            "limit": limit
+            "limit": 1000
         }
         
         try:
-            time_sent = time_ms()
             async with self.unauth_session.get(
                 url=ENDPOINT_GET_TRADES, 
                 params=payload
             ) as response:
-                time_recv = time_ms()
                 resp_text = await response.text()
-                resp_json = orjson.loads(resp_text)
+                resp_json = self._json_decoder.decode(resp_text)
                 
-                if resp_json["retMsg"] in ["OK", "success"]:
-                    latency = round(time_recv - time_sent, 2)
-                    self.logger.debug(f"Trade REST [{ENDPOINT_GET_TRADES}] latency; {latency}ms")
-                    return resp_json
+                if resp_json["retCode"] == 0:
+                    trades: list[Trade] = []
+
+                    # The trades are returned in reverse chronological order, so we 
+                    # reverse the list to get the correct order.
+                    for trade in resp_json["result"]["list"][::-1]:
+                        trades.append(Trade(
+                            time=float(trade["time"]),
+                            px=float(trade["price"]),
+                            is_buy=trade["side"] == "Buy",
+                            sz=float(trade["size"])
+                        ))
+
+                    return TradeMsg(
+                        symbol=symbol,
+                        time=float(resp_json["time"]),
+                        trades=trades
+                    )
                 else:
-                    self.logger.error(f"get_trades() request failed; {resp_json}")
+                    self._logger.error(f"BYBIT REST [{ENDPOINT_GET_TRADES}] request failed; {resp_json}")
                     return None
                     
         except Exception as e:
-            self.logger.error(f"get_trades() request exception; {e}")
-            return None
-        
-    async def set_leverage(self, symbol, leverage: float):
-        """
-        Sets the leverage for a symbol via REST API.
-
-        Args:
-            symbol (str): The trading symbol.
-            leverage (float): Leverage to set.
-
-        Returns:
-            dict | None: The API response.
-        """
-        self.is_running(rest_only=True)
-        
-        # If you're 200x and higher, seek god.
-        if leverage < 1.0 or leverage > 200.0:
-            raise ValueError(f"Invalid leverage; expected >1.0 but got {leverage}")
-        
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_TRADES}] request exception; {str(e)}")
+    
+    async def get_orderbook(self, symbol):
         payload = {
             "category": "linear",
             "symbol": symbol,
-            "buyLeverage": leverage,
-            "sellLeverage": leverage
+            "limit": 500
+        }
+
+        try:
+            async with self.unauth_session.get(
+                url=ENDPOINT_GET_ORDERBOOK,
+                params=payload
+            ) as response:
+                resp_text = await response.text()
+                resp_json = self._json_decoder.decode(resp_text)
+                
+                if resp_json["retCode"] == 0:
+                    return OrderbookMsg(
+                        symbol=symbol,
+                        time=float(resp_json["time"]),
+                        bids=[[float(x[0]), float(x[1])] for x in resp_json["result"]["b"]],
+                        asks=[[float(x[0]), float(x[1])] for x in resp_json["result"]["a"]],
+                        is_bbo=False,
+                        is_snapshot=True
+                    )
+                else:
+                    self._logger.error(f"BYBIT REST [{ENDPOINT_GET_ORDERBOOK}] request failed; {str(resp_json['retMsg'])}")
+                    return None
+                    
+        except Exception as e:
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_ORDERBOOK}] request exception; {str(e)}")
+                
+    async def get_ticker(self, symbol):
+        payload = {
+            "category": "linear",
+            "symbol": symbol
         }
         
-        response = await self._rest_client.submit(
-            endpoint=ENDPOINT_POST_SET_LEVERAGE, 
-            payload=payload, 
-            method="POST"
-        )
-        return response
+        try:
+            async with self.unauth_session.get(
+                url=ENDPOINT_GET_TICKERS, 
+                params=payload
+            ) as response:
+                resp_text = await response.text()
+                resp_json = self._json_decoder.decode(resp_text)
+                
+                if resp_json["retCode"] == 0:
+                    return TickerMsg(
+                        symbol=symbol,
+                        time=float(resp_json["time"]),
+                        mark_px=float(resp_json["result"]["list"][0]["markPrice"]),
+                        index_px=float(resp_json["result"]["list"][0]["indexPrice"]),
+                        funding_rate=float(resp_json["result"]["list"][0]["fundingRate"]),
+                        funding_time=float(resp_json["result"]["list"][0]["nextFundingTime"]),
+                        adv=float(resp_json["result"]["list"][0]["volume24h"]),
+                        px_chg_24h=float(resp_json["result"]["list"][0]["price24hPcnt"]),
+                        oi=float(resp_json["result"]["list"][0]["openInterest"]),
+                    )
+                else:
+                    self._logger.error(f"BYBIT REST [{ENDPOINT_GET_TICKERS}] request failed; {resp_json}")
+                    return None
+                    
+        except Exception as e:
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_TICKERS}] request exception; {str(e)}")
+
+    async def get_orders(self, symbol):
+        self.ensure_running(rest_only=True)
+
+        payload = {
+            "category": "linear",
+            "symbol": symbol,
+            "limit": 50
+        }
+        
+        try:
+            resp_json = await self._rest_client.submit(
+                endpoint=ENDPOINT_GET_ORDERS, 
+                payload=payload, 
+                method="GET"
+            )
+
+            if resp_json["retCode"] == 0:
+                orders: list[OrderMsg] = []
+
+                for order in resp_json["result"]["list"]:
+                    orders.append(OrderMsg(
+                        symbol=symbol,
+                        time=float(order["createTime"]),
+                        create_time_ms=float(order["createTime"]),
+                        oid=order["orderId"],
+                        cloid=order["orderLinkId"],
+                        px=float(order["price"]),
+                        is_buy=order["side"] == "Buy",
+                        sz=float(order["qty"]),
+                        sz_rem=float(order["cumExecQty"]),
+                        tif=self._tif_map.get(order["timeInForce"], "GTC"),
+                        is_cancelled=False,
+                        is_reduce_only=order["reduceOnly"],
+                    ))
+
+                return orders
+            else:
+                self._logger.error(f"BYBIT REST [{ENDPOINT_GET_ORDERS}] request failed; {resp_json}")
+                return None
+                
+        except Exception as e:
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_ORDERS}] request exception; {str(e)}")
+    
+    async def get_position(self, symbol):
+        self.ensure_running(rest_only=True)
+
+        payload = {
+            "category": "linear",
+            "symbol": symbol
+        }
+        
+        try:
+            resp_json = await self._rest_client.submit(
+                endpoint=ENDPOINT_GET_POSITION, 
+                payload=payload, 
+                method="GET"
+            )
+
+            if resp_json["retCode"] == 0:
+                position_data = resp_json["result"]["list"][0]
+                
+                return PositionMsg(
+                    symbol=symbol,
+                    time=float(position_data["updatedTime"]),
+                    px=float(position_data["avgPrice"]),
+                    is_long=position_data["side"] == "Buy",
+                    sz=float(position_data["size"]),
+
+                    # This field is difficult to calculate on infrequent updates, so we 
+                    # use the time of the last update as the age. This is inaccurate, and 
+                    # should not be used from this request. For accurate age, the websocket
+                    # feed is sufficient, and ideally you calculate it yourself.
+                    age=0.0,
+                )
+            else:
+                self._logger.error(f"BYBIT REST [{ENDPOINT_GET_POSITION}] request failed; {resp_json}")
+                return None
+                
+        except Exception as e:
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_POSITION}] request exception; {str(e)}")
+    
+    async def get_executions(self, symbol: str) -> List[ExecutionMsg] | None:
+        self.ensure_running(rest_only=True)
+
+        payload = {
+            "category": "linear",
+            "symbol": symbol,
+            "limit": 100
+        }
+
+        try:
+            resp_json = await self._rest_client.submit(
+                endpoint=ENDPOINT_GET_EXECUTIONS,
+                payload=payload,
+                method="GET"
+            )
+
+            if resp_json["retCode"] == 0:
+                executions: list[ExecutionMsg] = []
+
+                for execution in resp_json["result"]["list"]:
+                    executions.append(ExecutionMsg(
+                        symbol=symbol,  
+                        time=float(execution["tradeTime"]),
+                        px=float(execution["execPrice"]),
+                        is_buy=execution["side"] == "Buy",
+                        sz=float(execution["execQty"]),
+                        is_maker=execution["isMaker"],
+                        fee_paid=float(execution["execFee"]),
+                    ))
+
+                return executions
+            else:
+                self._logger.error(f"BYBIT REST [{ENDPOINT_GET_EXECUTIONS}] request failed; {resp_json}")
+                return None
+                
+        except Exception as e:
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_EXECUTIONS}] request exception; {str(e)}")
+    
+    async def get_account(self):
+        self.ensure_running(rest_only=True)
+        
+        payload = {
+            "accountType": "UNIFIED"
+        }
+        
+        try:
+            resp_json = await self._rest_client.submit(
+                endpoint=ENDPOINT_GET_ACCOUNT, 
+                payload=payload, 
+                method="GET"
+            )
+
+            if resp_json["retCode"] == 0:
+                account_data = resp_json["result"]["list"][0]
+                
+                return AccountMsg(
+                    time=float(resp_json["time"]),
+                    bal=float(account_data["totalEquity"]),
+                    im=float(account_data["accountIMRate"]),
+                    mm=float(account_data["accountMMRate"]),
+                    upnl=float(account_data["totalPerpUPL"]),
+                )
+            else:
+                self._logger.error(f"BYBIT REST [{ENDPOINT_GET_ACCOUNT}] request failed; {resp_json}")
+                return None
+                
+        except Exception as e:
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_ACCOUNT}] request exception; {str(e)}")
+    
+    async def get_precision(self, symbol):
+        self.ensure_running(rest_only=True)
+
+        payload = {
+            "category": "linear",
+            "symbol": symbol
+        }
+        
+        try:
+            async with self.unauth_session.get(
+                url=ENDPOINT_GET_INSTRUMENTS_INFO, 
+                params=payload
+            ) as response:
+                resp_text = await response.text()
+                resp_json = self._json_decoder.decode(resp_text)
+
+                if resp_json["retCode"] == 0:
+                    tick_size = float(resp_json["result"]["list"][0]["priceFilter"]["tickSize"])
+                    lot_size = float(resp_json["result"]["list"][0]["lotSizeFilter"]["qtyStep"])
+
+                    return (tick_size, lot_size)
+                else:
+                    self._logger.error(f"BYBIT REST [{ENDPOINT_GET_INSTRUMENTS_INFO}] request failed; {resp_json}")
+                    return None
+                
+        except Exception as e:
+            raise Exception(f"BYBIT REST [{ENDPOINT_GET_INSTRUMENTS_INFO}] request exception; {str(e)}")

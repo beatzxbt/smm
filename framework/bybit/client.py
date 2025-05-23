@@ -69,22 +69,13 @@ class BybitRestTradeClient(BaseRestTradeClient):
                     try:
                         resp_json = self.json_decoder.decode(resp_text)
                         
-                        if resp_json["retMsg"] in ["OK", "success"]:
+                        if resp_json["retCode"] == 0:
                             latency = round(time_recv - time_sent, 2)
                             self.logger.trace(f"Trade REST [{endpoint}] latency; {latency}ms")
                             return resp_json
-                        
-                        elif resp_json["retCode"] in (
-                            10002,  # Timestamp outside recvWindow
-                            110001, # Order does not exist
-                            110017, # Current position is already zero
-                            110090  # Order violates leverage limit.
-                        ):
-                            self.logger.debug(f"Trade REST [{endpoint}] request error; {resp_json["retMsg"]}")
-                            return resp_json
                         else:
-                            self.logger.warning(f"Trade REST [{endpoint}] request failed; {resp_json}")
-                            return resp_json
+                            self.logger.debug(f"Trade REST [{endpoint}] request failed; {resp_json}")
+                            return None
                         
                     except Exception as e:
                         self.logger.error(f"Trade REST [{endpoint}] request exception; {str(e)}")
@@ -102,16 +93,13 @@ class BybitRestTradeClient(BaseRestTradeClient):
                     try:
                         resp_json = self.json_decoder.decode(resp_text)
                         
-                        if resp_json["retMsg"] in ["OK", "success"]:
+                        if resp_json["retCode"] == 0:
                             latency = round(time_recv - time_sent, 2)
                             self.logger.trace(f"Trade REST [{endpoint}] latency; {latency}ms")
                             return resp_json
                         
                         elif resp_json["retCode"] in (
                             10002,  # Timestamp outside recvWindow
-                            110001, # Order does not exist
-                            110017, # Current position is already zero
-                            110090  # Order violates leverage limit.
                         ):
                             self.logger.debug(f"Trade REST [{endpoint}] request error; {resp_json["retMsg"]}")
                             return resp_json
@@ -162,8 +150,8 @@ class BybitWsTradeClient(BaseWsTradeClient):
 
         expire = str(int((time_s() + 60) * 1000))
         signature = hmac.new(
-            key=bytes(self.api_secret),
-            msg=bytes(f"GET/realtime{expire}"),
+            key=bytes(self.api_secret, 'utf-8'),
+            msg=bytes(f"GET/realtime{expire}", 'utf-8'),
             digestmod=hashlib.sha256,
         ).hexdigest()
 
@@ -200,8 +188,10 @@ class BybitWsTradeClient(BaseWsTradeClient):
                 return ws
             else:
                 await ws.close()
+                return None
         except Exception as e:
             self.logger.error(f"Failed to create connection; error: {e}")
+            return None
 
     async def connect(self):
         try:
@@ -238,7 +228,7 @@ class BybitWsTradeClient(BaseWsTradeClient):
 
                 async for msg in self.ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        data = orjson.loads(msg.data)
+                        data = self.json_decoder.decode(msg.data)
                         req_id = data.get("reqId")
 
                         # Detect a Bybit pong response
@@ -282,14 +272,14 @@ class BybitWsTradeClient(BaseWsTradeClient):
         while self.is_running:
             try:
                 await asyncio.sleep(self.heartbeat_interval)
-                await self._send_heartbeat()
+                await self.heartbeat()
             except asyncio.CancelledError:
                 self.logger.debug("Trade WS heartbeat task cancelled.")
                 return
             except Exception as e:
                 self.logger.error(f"Trade WS heartbeat loop error: {e}")
 
-    async def _send_heartbeat(self):
+    async def heartbeat(self):
         """Send ping message to the connection."""
         if self.is_active and self.ws and not self.ws.closed:
             ping_msg = {
@@ -340,14 +330,14 @@ class BybitWsTradeClient(BaseWsTradeClient):
 
         self.logger.error(f"Trade WS failed to reconnect after {max_retries} attempts.")
 
-    async def submit(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def submit(self, payload: dict) -> dict:
         """Send a request payload over the WebSocket connection and wait for the correlated response.
 
         Args:
-            payload (Dict[str, Any]): The request payload (e.g. order create, amend, or cancel).
+            payload (dict): The request payload (e.g. order create, amend, or cancel).
 
         Returns:
-            Dict[str, Any]: The response from the server.
+            dict: The response from the server.
         """
         if not self.is_running:
             self.logger.error("Trade WS client not initialized")
