@@ -73,7 +73,7 @@ class Logger:
         # each batch, here we only debug log it at the start of the programme. 
         # It is highly unlikely that someone using the basic logger requires
         # such information, so if you do, use the other logger!
-        self.trace(str(self._system_info))
+        # self.trace(str(self._system_info))
 
     async def _flush_buffer(self):
         """
@@ -265,8 +265,8 @@ class Logger:
         """
         return self._config
 
-    def get_system_info(self) -> dict:
-        """
-        Get the system information of the master logger.
-        """
-        return self._system_info
+    # def get_system_info(self) -> dict:
+    #     """
+    #     Get the system information of the master logger.
+    #     """
+    #     return self._system_info
