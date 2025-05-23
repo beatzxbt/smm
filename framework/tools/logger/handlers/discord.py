@@ -1,6 +1,6 @@
 import asyncio
 from typing import List, Coroutine
-from mm_toolbox.logging.standard.handlers.base import BaseLogHandler
+from framework.tools.logger.handlers.base import BaseLogHandler
 
 class DiscordLogHandler(BaseLogHandler):
     """

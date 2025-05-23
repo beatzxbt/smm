@@ -3,7 +3,7 @@ import msgspec
 import aiohttp
 from abc import ABC, abstractmethod
 
-from mm_toolbox.logging.standard.config import LoggerConfig
+from framework.tools.logger.config import LoggerConfig
 
 class BaseLogHandler(ABC):
     """
