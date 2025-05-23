@@ -1,12 +1,12 @@
-import asyncio
+import msgspec
 import aiohttp
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Union, Literal
+from typing import Dict, Optional, Union, Literal, Tuple, List
 
 from framework.tools.time import time_ns
 from framework.tools.logger import Logger
 
-from framework.base.internal_structs import OrderMsg, OrderbookMsg, TickerMsg, TradeMsg, PositionMsg, AccountMsg
+from framework.base.internal_structs import OrderMsg, OrderbookMsg, TickerMsg, TradeMsg, PositionMsg, AccountMsg, ExecutionMsg
 from framework.base.client import BaseRestTradeClient, BaseWsTradeClient
 
 
@@ -33,7 +33,11 @@ class BaseExchange(ABC):
 
         self._unauthenticated_session = None
 
-    def get_unauth_session(self) -> aiohttp.ClientSession:
+        self._json_encoder = msgspec.json.Encoder()
+        self._json_decoder = msgspec.json.Decoder()
+    
+    @property
+    def unauth_session(self) -> aiohttp.ClientSession:
         """Gets or creates an unauthenticated HTTP session.
 
         Returns:
@@ -59,6 +63,19 @@ class BaseExchange(ABC):
             return self._rest_client is not None and self._rest_client.is_running
         else:
             return self._rest_client is not None and self._rest_client.is_running and self._ws_client is not None and self._ws_client.is_running
+
+    def ensure_running(self, rest_only: bool = False, ws_only: bool = False) -> None:
+        """Ensures that the exchange clients are running.
+
+        Args:
+            rest_only: If True, only checks if the REST client is running.
+            ws_only: If True, only checks if the WebSocket client is running.
+
+        Raises:
+            RuntimeError: If the specified clients are not running.
+        """
+        if not self.is_running(rest_only, ws_only):
+            raise RuntimeError("Exchange clients are not running.")
 
     async def connect_ws_client(self) -> None:
         """Connects the WebSocket client if it exists.
@@ -203,7 +220,9 @@ class BaseExchange(ABC):
 
     @abstractmethod
     async def get_trades(self, symbol: str) -> Optional[TradeMsg]:
-        """Gets recent trades for a symbol.
+        """Gets recent trades for a symbol. The trades are returned in 
+        re-chronological order, so the first trade in the list is the 
+        oldest and the last trade in the list is the newest.
 
         Args:
             symbol: The trading symbol.
@@ -215,7 +234,10 @@ class BaseExchange(ABC):
 
     @abstractmethod
     async def get_orderbook(self, symbol: str) -> Optional[OrderbookMsg]:
-        """Gets an orderbook snapshot for a symbol.
+        """Gets an orderbook snapshot for a symbol. The orderbook is returned 
+        with the levels sorted in ascending order of price. Bids will have the 
+        lowest price at the front of its list and asks will have the highest 
+        price at the end of its list.
 
         Args:
             symbol: The trading symbol.
@@ -238,14 +260,14 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def get_orders(self, symbol: str) -> Optional[OrderMsg]:
+    async def get_orders(self, symbol: str) -> Optional[List[OrderMsg]]:
         """Gets open orders for a symbol.
 
         Args:
             symbol: The trading symbol.
 
         Returns:
-            An OrderMsg containing open orders or None if the request failed.
+            A List[OrderMsg] containing open orders or None if the request failed.
         """
         pass
 
@@ -260,6 +282,18 @@ class BaseExchange(ABC):
             A PositionMsg containing position data or None if the request failed.
         """
         pass
+    
+    @abstractmethod
+    async def get_executions(self, symbol: str) -> Optional[List[ExecutionMsg]]:
+        """Gets executions for a symbol.
+
+        Args:
+            symbol: The trading symbol.
+
+        Returns:
+            A List[ExecutionMsg] containing executions or None if the request failed.
+        """
+        pass
 
     @abstractmethod
     async def get_account(self) -> Optional[AccountMsg]:
@@ -267,5 +301,14 @@ class BaseExchange(ABC):
 
         Returns:
             An AccountMsg containing account data or None if the request failed.
+        """
+        pass
+
+    @abstractmethod
+    async def get_precision(self, symbol: str) -> Optional[Tuple[float, float]]:
+        """Gets the precision for a symbol.
+
+        Returns:
+            A tuple containing the tick size and lot size for the symbol.
         """
         pass
