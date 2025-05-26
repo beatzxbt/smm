@@ -4,7 +4,7 @@ from framework.bybit.client import BybitRestTradeClient, BybitWsTradeClient
 from framework.tools.logger import Logger
 from framework.tools.time import time_ms
 
-from framework.base.internal_structs import ExecutionMsg, OrderMsg, OrderbookMsg, TickerMsg, Trade, TradeMsg, PositionMsg, AccountMsg
+from framework.base.internal_structs import ExecutionMsg, OrderMsg, OrderbookMsg, TickerMsg, Trade, TradeMsg, PositionMsg, AccountMsg, OrderTimeInForce
 
 RECV_WINDOW = 1000
 
@@ -50,13 +50,13 @@ class BybitExchange(BaseExchange):
             max_cloid_length=36
         )
 
-        self._valid_tifs = ["GTC", "IOC", "FOK", "PO"]
-        self._tif_map = {
-            "GTC": "GTC",
-            "IOC": "IOC",
-            "FOK": "FOK",
-            "PO": "PostOnly",
+        self._tif_enum_to_str = {
+            OrderTimeInForce.GTC: "GTC",
+            OrderTimeInForce.IOC: "IOC",
+            OrderTimeInForce.FOK: "FOK",
+            OrderTimeInForce.PO: "PostOnly",
         }
+        self._tif_str_to_enum = {v: k for k, v in self._tif_enum_to_str.items()}
         
     async def create_order(
         self, 
@@ -65,14 +65,11 @@ class BybitExchange(BaseExchange):
         sz, 
         is_buy, 
         px=None, 
-        tif="GTC", 
+        tif=OrderTimeInForce.GTC, 
         reduce_only=False, 
         cloid=None
     ):
         self.ensure_running(ws_only=True)
-        
-        if tif not in self._valid_tifs:
-            raise ValueError(f"Invalid time-in-force value; expected one of {self._valid_tifs} but got {tif}")
         
         if px is not None and px < 0.0:
             raise ValueError(f"Invalid px; expected >=0.0 but got {px}")
@@ -85,7 +82,7 @@ class BybitExchange(BaseExchange):
             "symbol": symbol,
             "side": "Buy" if is_buy else "Sell",
             "orderType": "Limit" if is_maker else "Market",
-            "timeInForce": self._tif_map.get(tif, "GTC"),
+            "timeInForce": self._tif_enum_to_str[tif],
             "qty": str(sz),
             "reduceOnly": reduce_only,
         }
@@ -350,7 +347,7 @@ class BybitExchange(BaseExchange):
                         is_buy=order["side"] == "Buy",
                         sz=float(order["qty"]),
                         sz_rem=float(order["cumExecQty"]),
-                        tif=self._tif_map.get(order["timeInForce"], "GTC"),
+                        tif=self._tif_str_to_enum[order["timeInForce"]],
                         is_cancelled=False,
                         is_reduce_only=order["reduceOnly"],
                     ))
@@ -452,7 +449,7 @@ class BybitExchange(BaseExchange):
                 payload=payload, 
                 method="GET"
             )
-
+            
             if resp_json["retCode"] == 0:
                 account_data = resp_json["result"]["list"][0]
                 
@@ -461,7 +458,7 @@ class BybitExchange(BaseExchange):
                     bal=float(account_data["totalEquity"]),
                     im=float(account_data["accountIMRate"]),
                     mm=float(account_data["accountMMRate"]),
-                    upnl=float(account_data["totalPerpUPL"]),
+                    uPnl=float(account_data["totalPerpUPL"]),
                 )
             else:
                 self._logger.error(f"BYBIT REST [{ENDPOINT_GET_ACCOUNT}] request failed; {resp_json}")
