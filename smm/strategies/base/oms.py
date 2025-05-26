@@ -55,6 +55,7 @@ class BaseOrderManagementSystem(ABC):
             "px": 0.0,
             "is_long": True,
             "sz": 0.0,
+            "usd_sz": 0.0,
             "age": 0.0
         }
     
