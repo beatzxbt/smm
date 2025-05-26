@@ -1,4 +1,5 @@
 import msgspec
+from enum import Enum
 from typing import Optional, Union, Literal
 
 class Trade(msgspec.Struct):
@@ -101,6 +102,20 @@ class PositionMsg(msgspec.Struct, kw_only=True, tag="Position"):
     sz: float
     age: Optional[float] = None
 
+class OrderTimeInForce(Enum):
+    """Represents the time in force policy of an order.
+    
+    Args:
+        GTC: Good till canceled.
+        IOC: Immediate or cancel.
+        PO: Post only.
+        FOK: Fill or kill.
+    """
+    GTC = "GTC"
+    IOC = "IOC"
+    PO = "PO"
+    FOK = "FOK"
+
 class OrderMsg(msgspec.Struct, kw_only=True, tag="OrderStatus"):
     """Represents the current status of an order.
     
@@ -129,7 +144,7 @@ class OrderMsg(msgspec.Struct, kw_only=True, tag="OrderStatus"):
     is_buy: bool
     sz: float
     sz_rem: Optional[float] = None
-    tif: Union[Literal["GTC"], Literal["IOC"], Literal["PO"], Literal["FOK"]]
+    tif: OrderTimeInForce
     is_cancelled: bool
     is_reduce_only: bool
 
