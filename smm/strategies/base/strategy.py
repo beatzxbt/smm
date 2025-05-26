@@ -1,11 +1,15 @@
 import asyncio
 from abc import ABC, abstractmethod
 
+from framework.tools.round import Round
 from framework.tools.logger import Logger
 from framework.tools.time import time_s
 
 from framework.base.exchange import BaseExchange
 from framework.base.internal_structs import HealthCheckMsg, Event
+
+from smm.strategies.base.oms import BaseOrderManagementSystem
+from smm.strategies.base.engine import BaseFeatureEngine
 
 class BaseStrategy(ABC):
     """
@@ -15,7 +19,15 @@ class BaseStrategy(ABC):
     strategy implementations must follow.
     """
     
-    def __init__(self, exchange: BaseExchange, params: dict, logger: Logger, producer_queues: list[asyncio.Queue]):
+    def __init__(
+            self, 
+            exchange: BaseExchange, 
+            params: dict, 
+            logger: Logger, 
+            producer_queues: list[asyncio.Queue], 
+            oms: BaseOrderManagementSystem, 
+            feature_engine: BaseFeatureEngine
+        ):
         """
         Initialize the base strategy with common components.
         
@@ -24,7 +36,8 @@ class BaseStrategy(ABC):
             params (dict): Strategy configuration parameters.
             logger (Logger): Logger instance for recording activity.
             producer_queues (list[asyncio.Queue]): Queues for receiving market data events.
-            
+            oms (BaseOrderManagementSystem): Order management system for executing trades.
+            feature_engine (BaseFeatureEngine): Feature engine for extracting features from market data.
         Raises:
             ValueError: If required parameters are missing from the configuration.
         """
@@ -32,7 +45,10 @@ class BaseStrategy(ABC):
         self.params = params
         self.symbol = params["symbol"]
         self.logger = logger
-
+        self.round = None
+        
+        self.oms = oms
+        self.feature_engine = feature_engine
         # As mentioned in 'main.py', the first queue is reserved for the strategy solely.
         # Thus, its hardcoded here to make it simpler to pull from the queue.
         self.producer_queue = producer_queues[0]
@@ -46,6 +62,12 @@ class BaseStrategy(ABC):
         # Track health check. Should be cancelled/started on a rolling basis
         # as new health check events are received.
         self._health_check_task = None
+
+    def add_rounder(self, tick_sz: float, lot_sz: float):
+        """
+        Add a rounder to the strategy.
+        """
+        self.round = Round(tick_sz, lot_sz)
 
     async def track_health_check(self, event: HealthCheckMsg, buffer_s: float=1.0):
         """
@@ -95,7 +117,7 @@ class BaseStrategy(ABC):
     @abstractmethod
     async def update_state(self, **kwargs):
         """
-        Update the internal state of the strategy.
+        Update the live state of the strategy.
         
         Args:
             **kwargs: Additional keyword arguments.

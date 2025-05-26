@@ -1,6 +1,6 @@
 from collections import deque
 
-from smm.features.base_feature import BaseFeature
+from smm.features.base import BaseFeature
 
 class TradesTickExcitement(BaseFeature):
     """Measures unusual trading activity by comparing recent volume to historical volume.
@@ -21,8 +21,9 @@ class TradesTickExcitement(BaseFeature):
     4. Increased market volatility
     
     The feature uses a tick-based window approach, tracking a fixed number of recent trades.
-    
+
     Args:
+        base_spread_bps (float): The base spread for the symbol in basis points.
         short_window (int): Number of recent trades to consider for short-term volume.
                            Default is 100 trades.
         long_window (int): Number of recent trades to consider for long-term volume.
@@ -31,9 +32,10 @@ class TradesTickExcitement(BaseFeature):
                        volume fluctuations. Default is 2.0, meaning the short-term volume
                        needs to be at least twice the expected amount to register excitement.
     """
-    def __init__(self, short_window: int = 100, long_window: int = 1000, buffer: float = 2.0):
+    def __init__(self, base_spread_bps: float, short_window: int = 100, long_window: int = 1000, buffer: float = 2.0):
         super().__init__()
 
+        self._base_spread = base_spread_bps / 10000
         self._short_window = short_window
         self._long_window = long_window
         
@@ -118,7 +120,7 @@ class TradesTickExcitement(BaseFeature):
         return self._value
 
 
-class TradesTimeExcitement:
+class TradesTimeExcitement(BaseFeature):
     """Measures unusual trading activity by comparing recent volume to historical volume over time windows.
     
     Similar to TradesTickExcitement, this feature detects periods of heightened market activity,
@@ -149,6 +151,8 @@ class TradesTimeExcitement:
                        needs to be at least twice the expected amount to register excitement.
     """
     def __init__(self, short_window: float = 60.0, long_window: float = 600.0, buffer: float = 2.0):
+        super().__init__()
+
         self._short_window = short_window
         self._long_window = long_window
         

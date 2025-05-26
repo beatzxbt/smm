@@ -18,8 +18,23 @@ class BaseFeatureEngine(ABC):
         """
         self._params = params
 
-        self._fair_px = 0.0
+        self._fair_skew = 0.0
         self._spread = 0.0
+
+        self._last_px = 0.0
+        self._last_mid_px = 0.0
+    
+    def update_last_px(self, px: float):
+        """
+        Update the last price.
+        """
+        self._last_px = px
+
+    def update_last_mid_px(self, mid_px: float):
+        """
+        Update the last mid price.
+        """
+        self._last_mid_px = mid_px
 
     @abstractmethod
     def update_trade(self, event: TradeMsg):
@@ -54,14 +69,14 @@ class BaseFeatureEngine(ABC):
             event: Ticker message containing ticker data.
         """
         pass
-
-    def get_fair_px(self) -> float:
-        """Get the current fair price calculated by the feature engine.
+        
+    def get_fair_skew(self) -> float:
+        """Get the current fair skew calculated by the feature engine.
         
         Returns:
-            The current fair price as a float.
+            The current fair skew as a float.
         """
-        return self._fair_px
+        return (self._fair_skew + 1.0) * self._last_mid_px
     
     def get_spread(self) -> float:
         """Get the current market spread calculated by the feature engine.
