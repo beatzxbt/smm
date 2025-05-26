@@ -38,13 +38,24 @@ class PlainStrategy(BaseStrategy):
         
         # Enfore required parameters for the relevant features and strategy
         # variables. If not present, error should be thrown (better break than silent).
-        if "minimum_spread" not in self.params:
-            raise ValueError("Missing parameter; expected 'minimum_spread'")
-        if "aggressiveness" not in self.params:
-            raise ValueError("Missing parameter; expected 'aggressiveness'")
+        for param in [
+            # Strategy params
+            "minimum_spread", 
+            "aggressiveness", 
+            "taker_skew_threshold", 
+            
+            # Feature params
+            "trades_tick_imbalance_window", 
+            "trades_time_imbalance_window", 
+            "trades_tick_excitement_window", 
+            "trades_time_excitement_window", 
+            "orderbook_imbalance_window"
+        ]:
+            if param not in self.params["plain"]:
+                raise ValueError(f"Missing parameter; expected '{param}'")
 
+        self._orderbook = Orderbook(size=50)
         self._feature_engine = PlainFeatureEngine(params=self.params)
-        self._spread_multiplier = 1.0
 
     async def consume_event(self, event: Event, **kwargs):
         if isinstance(event, TickerMsg):
@@ -60,8 +71,7 @@ class PlainStrategy(BaseStrategy):
             if event.is_snapshot:
                 self._orderbook.reset(
                     bids=event.bids,
-                    asks=event.asks,
-                    seq_id=event.seq_id
+                    asks=event.asks
                 )
             elif event.is_bbo:
                 self._orderbook.update_bbo(
@@ -73,8 +83,7 @@ class PlainStrategy(BaseStrategy):
             else:
                 self._orderbook.update_full(
                     bids=event.bids,
-                    asks=event.asks,
-                    seq_id=event.seq_id
+                    asks=event.asks
                 )     
             self._feature_engine.update_orderbook(event, self._orderbook)
 
