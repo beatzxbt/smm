@@ -1,10 +1,10 @@
-
 # BINANCE => 0
 # BYBIT => 1
 # OKX => 2
 # HYPERLIQUID => 3
 # PARADEX => 4
-# X10 => 5
+# EXTENDED => 5
+# DYDX_V4 => 6
 exchange: 1
 
 # Capitalization will be handled automatically.

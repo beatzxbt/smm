@@ -9,10 +9,8 @@ from framework.tools.logger import Logger
 
 from framework.base.client import BaseRestTradeClient, BaseWsTradeClient
 
-
 RECV_WINDOW = 5000
 ENDPOINT_WS_TRADE = "wss://stream.bybit.com/v5/trade"
-
 
 class BybitRestTradeClient(BaseRestTradeClient):
     def __init__(self, api_key: str, api_secret: str, logger: Logger):
