@@ -3,32 +3,27 @@ import asyncio
 import uvloop
 import ruamel.yaml
 
-from framework import load
+from framework import load_exchange
 
-from framework.tools.logger import Logger, LoggerConfig, FileLogHandler, DiscordLogHandler
+from framework.tools.logger import Logger, LoggerConfig, FileLogHandler
 from framework.base.exchange import BaseExchange
 from framework.base.data import BaseMarketData, BasePrivateData
 
-
-from smm.strategies import (
-    BaseStrategy,
-    PlainStrategy,
-    AAndSStrategy,
-    StinkyStrategy
-)
+from smm.strategies import load_strategy
+from smm.strategies.base.strategy import BaseStrategy
 
 PARAM_FILE = os.path.dirname(os.path.realpath(__file__)) + "/parameters.yaml"
 
 class Smm:
-    def __init__(self, api_key: str, api_secret: str, logger: Logger):
-        self.api_key = api_key
-        self.api_secret = api_secret
+    def __init__(self, logger: Logger):
         self.logger = logger
         
         # No need for value checks after this point when referring to 
         # self.params as self.load_params() guarantees keys are present and 
         # values are within range. Otherwise an error will be thrown and the 
         # program halted.
+        self.api_key = None
+        self.api_secret = None
         self.params = self.load_params(file_path=PARAM_FILE)
 
         # For now, there is only 1 data queue as their will 
@@ -37,7 +32,7 @@ class Smm:
         # consumers, such as a UI or a markout recorder.
         self.queues = [asyncio.Queue()]
         
-        self.core_frameworks = load(self.params["exchange"])
+        self.core_frameworks = load_exchange(self.params["exchange"])
 
         # Split up the core frameworks into their own variables 
         # for cleaner access.
@@ -58,32 +53,22 @@ class Smm:
             logger=self.logger, 
             consumer_queues=self.queues
         )
-        self.strategy: BaseStrategy = None
-
-        match self.params["strategy"]:
-            case 0:
-                self.strategy = PlainStrategy(
-                    exchange=self.exchange,
-                    params=self.params,
-                    logger=self.logger,
-                    producer_queues=self.queues
-                )
-            case 1:
-                self.strategy = AAndSStrategy(
-                    exchange=self.exchange,
-                    params=self.params,
-                    logger=self.logger,
-                    producer_queues=self.queues
-                )
-            case 2:
-                self.strategy = StinkyStrategy(
-                    exchange=self.exchange,
-                    params=self.params,
-                    logger=self.logger,
-                    producer_queues=self.queues
-                )
+        self.strategy: BaseStrategy = load_strategy(self.params["strategy"])(
+            exchange=self.exchange,
+            params=self.params,
+            logger=self.logger,
+            producer_queues=self.queues
+        )
             
     def load_params(self, file_path: str) -> dict:
+        """Loads the parameters from the file and validates them.
+
+        Args:
+            file_path (str): The path to the parameters file.
+
+        Returns:
+            dict: The parameters.
+        """
         with open(file_path, "r") as f:
             yaml_handler = ruamel.yaml.YAML()
             yaml_handler.indent(mapping=4, sequence=4, offset=2)
@@ -91,73 +76,112 @@ class Smm:
             yaml_handler.preserve_quotes = True
             params = yaml_handler.load(f)
             
-            # Validate required keys are present
-            required_keys = ["exchange", "symbol", "strategy", "parameters"]
-            for key in required_keys:
-                if key not in params:
-                    raise ValueError(f"Missing required parameter: {key}")
-            
-            # Validate exchange value
-            if not isinstance(params["exchange"], int) or params["exchange"] < 0 or params["exchange"] > 5:
-                raise ValueError("Exchange must be an integer between 0 and 5")
-            
-            # Validate symbol value
-            if not isinstance(params["symbol"], str) or not params["symbol"]:
-                raise ValueError("Symbol must be a non-empty string")
-            
-            # Check if symbol ends with a valid quote currency
-            valid_quote_currencies = ["USDT", "USD", "USDC"]
-            symbol_valid = False
-            for quote in valid_quote_currencies:
-                if params["symbol"].upper().endswith(quote):
-                    symbol_valid = True
-                    break
-            
-            if not symbol_valid:
-                raise ValueError(f"Symbol must end with one of: {', '.join(valid_quote_currencies)}")
-            
-            # Ensure symbol is properly formatted (uppercase)
-            params["symbol"] = params["symbol"].upper()
-            # Validate strategy value
-            if not isinstance(params["strategy"], int) or params["strategy"] < 0 or params["strategy"] > 2:
-                raise ValueError("Strategy must be an integer between 0 and 2")
-            
-            # Validate parameters based on strategy
-            if "common" not in params["parameters"]:
-                raise ValueError("Missing common parameters")
-            
-            # Validate common parameters
-            common = params["parameters"]["common"]
-            if "total_orders" not in common or "max_usd_position" not in common:
-                raise ValueError("Missing required common parameters")
-            
-            # Validate strategy-specific parameters
-            strategy_type = params["strategy"]
-            if strategy_type == 0 and "plain" not in params["parameters"]:
-                raise ValueError("Missing plain strategy parameters")
-            elif strategy_type == 0:
-                plain = params["parameters"]["plain"]
-                if "minimum_spread" not in plain or "aggressiveness" not in plain:
-                    raise ValueError("Missing required plain strategy parameters")
-                if not 0.0 <= plain["aggressiveness"] <= 1.0:
-                    raise ValueError("Aggressiveness must be between 0.0 and 1.0")
-            
-            elif strategy_type == 1 and "a&s" not in params["parameters"]:
-                raise ValueError("Missing a&s strategy parameters")
-            elif strategy_type == 1:
-                if "vol" not in params["parameters"]["a&s"]:
-                    raise ValueError("Missing required a&s strategy parameters")
-            
-            elif strategy_type == 2 and "stinky" not in params["parameters"]:
-                raise ValueError("Missing stinky strategy parameters")
-            elif strategy_type == 2:
-                stinky = params["parameters"]["stinky"]
-                if "minimum_spread" not in stinky or "maximum_spread" not in stinky:
-                    raise ValueError("Missing required stinky strategy parameters")
+            self._validate_required_keys(params)
+            self._validate_exchange(params)
+            self._validate_symbol(params)
+            self._validate_strategy(params)
+            self._validate_parameters(params)
             
             return params
+    
+    def _validate_required_keys(self, params: dict) -> None:
+        """Validate that all required top-level keys are present."""
+        required_keys = ["exchange", "symbol", "strategy", "parameters"]
+        for key in required_keys:
+            if key not in params:
+                raise ValueError(f"Missing required parameter: {key}")
+    
+    def _validate_exchange(self, params: dict) -> None:
+        """Validate exchange parameter."""
+        exchange = params["exchange"]
+        if not isinstance(exchange, int) or exchange < 0 or exchange > 5:
+            raise ValueError("Exchange must be an integer between 0 and 5")
+    
+    def _validate_symbol(self, params: dict) -> None:
+        """Validate and format symbol parameter."""
+        symbol = params["symbol"]
+        if not isinstance(symbol, str) or not symbol:
+            raise ValueError("Symbol must be a non-empty string")
+        
+        # Check if symbol ends with a valid quote currency
+        valid_quote_currencies = ["USDT", "USD", "USDC"]
+        symbol_valid = any(symbol.upper().endswith(quote) for quote in valid_quote_currencies)
+        
+        if not symbol_valid:
+            raise ValueError(f"Symbol must end with one of: {', '.join(valid_quote_currencies)}")
+        
+        # Ensure symbol is properly formatted (uppercase)
+        params["symbol"] = symbol.upper()
+    
+    def _validate_strategy(self, params: dict) -> None:
+        """Validate strategy parameter."""
+        strategy = params["strategy"]
+        if not isinstance(strategy, int) or strategy < 0 or strategy > 2:
+            raise ValueError("Strategy must be an integer between 0 and 2")
+    
+    def _validate_parameters(self, params: dict) -> None:
+        """Validate strategy parameters section."""
+        if "common" not in params["parameters"]:
+            raise ValueError("Missing common parameters")
+        
+        self._validate_common_parameters(params["parameters"]["common"])
+        self._validate_strategy_specific_parameters(params)
+    
+    def _validate_common_parameters(self, common: dict) -> None:
+        """Validate common parameters."""
+        required_common = ["total_orders", "max_usd_position"]
+        for param in required_common:
+            if param not in common:
+                raise ValueError(f"Missing required common parameter: {param}")
+    
+    def _validate_strategy_specific_parameters(self, params: dict) -> None:
+        """Validate strategy-specific parameters based on strategy type."""
+        strategy_type = params["strategy"]
+        strategy_params = params["parameters"]
+        
+        if strategy_type == 0:
+            self._validate_plain_strategy(strategy_params)
+        elif strategy_type == 1:
+            self._validate_as_strategy(strategy_params)
+        elif strategy_type == 2:
+            self._validate_stinky_strategy(strategy_params)
+    
+    def _validate_plain_strategy(self, strategy_params: dict) -> None:
+        """Validate plain strategy parameters."""
+        if "plain" not in strategy_params:
+            raise ValueError("Missing plain strategy parameters")
+        
+        plain = strategy_params["plain"]
+        required_plain = ["minimum_spread", "aggressiveness"]
+        for param in required_plain:
+            if param not in plain:
+                raise ValueError(f"Missing required plain strategy parameter: {param}")
+        
+        if not 0.0 <= plain["aggressiveness"] <= 1.0:
+            raise ValueError("Aggressiveness must be between 0.0 and 1.0")
+    
+    def _validate_as_strategy(self, strategy_params: dict) -> None:
+        """Validate a&s strategy parameters."""
+        if "a&s" not in strategy_params:
+            raise ValueError("Missing a&s strategy parameters")
+        
+        if "vol" not in strategy_params["a&s"]:
+            raise ValueError("Missing required a&s strategy parameter: vol")
+    
+    def _validate_stinky_strategy(self, strategy_params: dict) -> None:
+        """Validate stinky strategy parameters."""
+        if "stinky" not in strategy_params:
+            raise ValueError("Missing stinky strategy parameters")
+        
+        stinky = strategy_params["stinky"]
+        required_stinky = ["minimum_spread", "maximum_spread"]
+        for param in required_stinky:
+            if param not in stinky:
+                raise ValueError(f"Missing required stinky strategy parameter: {param}")
         
     async def run(self):
+        """Runs the strategy.
+        """
         tasks: list[asyncio.Task] = []
         try:
             await self.exchange.connect_ws_client()
@@ -209,47 +233,7 @@ if __name__ == "__main__":
             ]
         )
     
-        # Load config and parameters
-        try:
-            yaml_handler = ruamel.yaml.YAML()
-            yaml_handler.indent(mapping=4, sequence=4, offset=2)
-            yaml_handler.width = 4096
-            yaml_handler.preserve_quotes = True
-
-            # Load environment variables
-            load_dotenv()
-            API_KEY = os.getenv(f"{EXCHANGE.upper()}_KEY")
-            API_SECRET = os.getenv(f"{EXCHANGE.upper()}_SECRET")
-            if not API_KEY or not API_SECRET:
-                logger.error(f"Missing {EXCHANGE} API credentials in environment variables")
-                raise ValueError(f"Missing {EXCHANGE} API credentials")
-            
-            # Load parameters
-            with open(PARAM_FILE, "r") as f:
-                params = yaml_handler.load(f)
-                spec_params = params[f"stink{STINK_ID}"]
-            if not spec_params or not params:
-                logger.error(f"Missing spec_params or params for 'stink{STINK_ID}'")
-                raise ValueError(f"Missing spec_params or params for 'stink{STINK_ID}'")
-
-            logger.info(f"Loaded config and parameters for 'stink{STINK_ID}'; symbol: {spec_params[0]}")
-
-        except Exception as e:
-            logger.error(f"Error loading config or parameters; {e}")
-            await logger.shutdown()
-            await asyncio.sleep(1.0)
-            raise e
-
-        # Create strategy inside an async function
-        strategy = BybitStrategy(
-            logger=logger, 
-            api_key=API_KEY, 
-            api_secret=API_SECRET, 
-            params=params,
-            spec_params=spec_params
-        )
-        
         # Run the strategy
-        await strategy.run()
+        await Smm(logger=logger).run()
 
     uvloop.run(main())
