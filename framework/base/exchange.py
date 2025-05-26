@@ -6,7 +6,7 @@ from typing import Dict, Optional, Union, Literal, Tuple, List
 from framework.tools.time import time_ns
 from framework.tools.logger import Logger
 
-from framework.base.internal_structs import OrderMsg, OrderbookMsg, TickerMsg, TradeMsg, PositionMsg, AccountMsg, ExecutionMsg
+from framework.base.internal_structs import OrderMsg, OrderbookMsg, TickerMsg, TradeMsg, PositionMsg, AccountMsg, ExecutionMsg, OrderTimeInForce
 from framework.base.client import BaseRestTradeClient, BaseWsTradeClient
 
 
@@ -87,7 +87,7 @@ class BaseExchange(ABC):
             if self._ws_client is not None:
                 await self._ws_client.connect()
         except Exception as e:
-            self._logger.error(f"Failed to connect to trade WS; error:{e}")
+            self._logger.error(f"Failed to connect to trade WS; error: {e}")
 
     async def close_all_clients(self) -> None:
         """Closes all client connections."""
@@ -143,7 +143,7 @@ class BaseExchange(ABC):
         sz: float, 
         is_buy: bool, 
         px: Optional[float]=None, 
-        tif: Optional[Union[Literal["GTC"], Literal["IOC"], Literal["PO"], Literal["FOK"]]]="GTC", 
+        tif: Optional[OrderTimeInForce]=OrderTimeInForce.GTC, 
         reduce_only: Optional[bool]=False, 
         cloid: Optional[str]=None
     ) -> Optional[Dict]:
