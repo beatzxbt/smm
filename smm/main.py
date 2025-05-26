@@ -15,7 +15,18 @@ from smm.strategies.base.strategy import BaseStrategy
 PARAM_FILE = os.path.dirname(os.path.realpath(__file__)) + "/parameters.yaml"
 
 class Smm:
+    """Simple Market Maker (SMM) main class.
+    
+    This class orchestrates the market making strategy by loading parameters,
+    initializing exchange connections, market data feeds, and the trading strategy.
+    """
+    
     def __init__(self, logger: Logger):
+        """Initialize the SMM instance.
+        
+        Args:
+            logger: Logger instance for logging messages.
+        """
         self.logger = logger
         
         # No need for value checks after this point when referring to 
@@ -64,10 +75,13 @@ class Smm:
         """Loads the parameters from the file and validates them.
 
         Args:
-            file_path (str): The path to the parameters file.
+            file_path: The path to the parameters file.
 
         Returns:
-            dict: The parameters.
+            The validated parameters dictionary.
+            
+        Raises:
+            ValueError: If any required parameters are missing or invalid.
         """
         with open(file_path, "r") as f:
             yaml_handler = ruamel.yaml.YAML()
@@ -85,102 +99,107 @@ class Smm:
             return params
     
     def _validate_required_keys(self, params: dict) -> None:
-        """Validate that all required top-level keys are present."""
+        """Validate that all required top-level keys are present.
+        
+        Args:
+            params: The parameters dictionary to validate.
+            
+        Raises:
+            ValueError: If any required keys are missing.
+        """
         required_keys = ["exchange", "symbol", "strategy", "parameters"]
         for key in required_keys:
             if key not in params:
                 raise ValueError(f"Missing required parameter: {key}")
     
     def _validate_exchange(self, params: dict) -> None:
-        """Validate exchange parameter."""
+        """Validate exchange parameter.
+        
+        Args:
+            params: The parameters dictionary containing the exchange value.
+            
+        Raises:
+            ValueError: If exchange value is not an integer between 0-6.
+        """
         exchange = params["exchange"]
-        if not isinstance(exchange, int) or exchange < 0 or exchange > 5:
-            raise ValueError("Exchange must be an integer between 0 and 5")
+        if not isinstance(exchange, int) or exchange < 0 or exchange > 6:
+            raise ValueError(f"Invalid exchange value; expected 0-6 but got {exchange}")
     
     def _validate_symbol(self, params: dict) -> None:
-        """Validate and format symbol parameter."""
+        """Validate and format symbol parameter.
+        
+        Args:
+            params: The parameters dictionary containing the symbol value.
+            
+        Raises:
+            ValueError: If symbol is invalid or has unsupported quote currency.
+        """
         symbol = params["symbol"]
         if not isinstance(symbol, str) or not symbol:
-            raise ValueError("Symbol must be a non-empty string")
+            raise ValueError(f"Invalid symbol; expected a non-empty string but got {symbol}")
         
         # Check if symbol ends with a valid quote currency
         valid_quote_currencies = ["USDT", "USD", "USDC"]
         symbol_valid = any(symbol.upper().endswith(quote) for quote in valid_quote_currencies)
         
         if not symbol_valid:
-            raise ValueError(f"Symbol must end with one of: {', '.join(valid_quote_currencies)}")
+            raise ValueError(f"Invalid quote currency; expected one of: {', '.join(valid_quote_currencies)} but got {symbol}")
         
-        # Ensure symbol is properly formatted (uppercase)
-        params["symbol"] = symbol.upper()
+        # Ensure symbol is properly formatted for each exchange
+        match params["exchange"]:
+            case 0: # Binance
+                params["symbol"] = symbol.lower()
+            case 1: # Bybit
+                params["symbol"] = symbol.upper()
+            case 2: # OKX
+                params["symbol"] = symbol.upper()
     
     def _validate_strategy(self, params: dict) -> None:
-        """Validate strategy parameter."""
+        """Validate strategy parameter.
+        
+        Args:
+            params: The parameters dictionary containing the strategy value.
+            
+        Raises:
+            ValueError: If strategy value is not an integer between 0-2.
+        """
         strategy = params["strategy"]
         if not isinstance(strategy, int) or strategy < 0 or strategy > 2:
-            raise ValueError("Strategy must be an integer between 0 and 2")
+            raise ValueError(f"Invalid strategy; expected 0-2 but got {strategy}")
     
     def _validate_parameters(self, params: dict) -> None:
-        """Validate strategy parameters section."""
+        """Validate strategy parameters section.
+        
+        Args:
+            params: The parameters dictionary containing the parameters section.
+            
+        Raises:
+            ValueError: If common parameters section is missing.
+        """
         if "common" not in params["parameters"]:
-            raise ValueError("Missing common parameters")
+            raise ValueError("Missing common parameters; expected a dictionary with keys: total_orders, max_usd_position")
         
         self._validate_common_parameters(params["parameters"]["common"])
-        self._validate_strategy_specific_parameters(params)
     
     def _validate_common_parameters(self, common: dict) -> None:
-        """Validate common parameters."""
+        """Validate common parameters.
+        
+        Args:
+            common: The common parameters dictionary to validate.
+            
+        Raises:
+            ValueError: If any required common parameters are missing.
+        """
         required_common = ["total_orders", "max_usd_position"]
         for param in required_common:
             if param not in common:
                 raise ValueError(f"Missing required common parameter: {param}")
     
-    def _validate_strategy_specific_parameters(self, params: dict) -> None:
-        """Validate strategy-specific parameters based on strategy type."""
-        strategy_type = params["strategy"]
-        strategy_params = params["parameters"]
-        
-        if strategy_type == 0:
-            self._validate_plain_strategy(strategy_params)
-        elif strategy_type == 1:
-            self._validate_as_strategy(strategy_params)
-        elif strategy_type == 2:
-            self._validate_stinky_strategy(strategy_params)
-    
-    def _validate_plain_strategy(self, strategy_params: dict) -> None:
-        """Validate plain strategy parameters."""
-        if "plain" not in strategy_params:
-            raise ValueError("Missing plain strategy parameters")
-        
-        plain = strategy_params["plain"]
-        required_plain = ["minimum_spread", "aggressiveness"]
-        for param in required_plain:
-            if param not in plain:
-                raise ValueError(f"Missing required plain strategy parameter: {param}")
-        
-        if not 0.0 <= plain["aggressiveness"] <= 1.0:
-            raise ValueError("Aggressiveness must be between 0.0 and 1.0")
-    
-    def _validate_as_strategy(self, strategy_params: dict) -> None:
-        """Validate a&s strategy parameters."""
-        if "a&s" not in strategy_params:
-            raise ValueError("Missing a&s strategy parameters")
-        
-        if "vol" not in strategy_params["a&s"]:
-            raise ValueError("Missing required a&s strategy parameter: vol")
-    
-    def _validate_stinky_strategy(self, strategy_params: dict) -> None:
-        """Validate stinky strategy parameters."""
-        if "stinky" not in strategy_params:
-            raise ValueError("Missing stinky strategy parameters")
-        
-        stinky = strategy_params["stinky"]
-        required_stinky = ["minimum_spread", "maximum_spread"]
-        for param in required_stinky:
-            if param not in stinky:
-                raise ValueError(f"Missing required stinky strategy parameter: {param}")
-        
-    async def run(self):
+    async def run(self) -> None:
         """Runs the strategy.
+        
+        This method starts all necessary components (exchange connection, market data,
+        private data, and strategy) and handles graceful shutdown on cancellation or errors.
         """
         tasks: list[asyncio.Task] = []
         try:
@@ -215,7 +234,11 @@ class Smm:
             return
     
 if __name__ == "__main__":
-    async def main():
+    async def main() -> None:
+        """Main entry point for the SMM application.
+        
+        Sets up logging configuration and runs the SMM strategy.
+        """
         logger = Logger(
             config=LoggerConfig(
                 base_level="INFO", 

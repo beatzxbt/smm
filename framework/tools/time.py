@@ -1,36 +1,36 @@
 # this is a highly modified version of the mm_toolbox v1.0, which isnt out yet
-# so we need to keep it here for now. upon release, this should be 
+# so we need to keep it here for now. upon release, this should be replaced
 # in the files to simply import 'from mm_toolbox.time import *'
 
 import time
 import datetime
 import ciso8601
 
-def time_s():
+def time_s() -> float:
     """
     Returns the current wall-clock time in seconds (float).
     """
     return time.time()
 
-def time_ms():
+def time_ms() -> float:
     """
     Returns the current wall-clock time in milliseconds (float).
     """
     return time.time() * 1e3
 
-def time_us():
+def time_us() -> float:
     """
     Returns the current wall-clock time in microseconds (float).
     """
     return time.time() * 1e6
 
-def time_ns():
+def time_ns() -> int:
     """
     Returns the current wall-clock time in nanoseconds (int).
     """
     return time.time_ns()
 
-def iso8601_to_unix(timestamp):
+def iso8601_to_unix(timestamp) -> float:
     """
     Converts an ISO 8601 formatted timestamp to a Unix timestamp.
 
@@ -42,7 +42,7 @@ def iso8601_to_unix(timestamp):
     """
     return ciso8601.parse_datetime(timestamp).timestamp()
 
-def unix_to_iso8601(timestamp):
+def unix_to_iso8601(timestamp) -> str:
     """
     Converts a Unix timestamp to an ISO 8601 formatted timestamp with high precision.
 
@@ -79,7 +79,7 @@ def unix_to_iso8601(timestamp):
     # Add high precision fractional seconds
     return f"{base_time}.{fractional_str}Z"
 
-def time_iso8601():
+def time_iso8601() -> str:
     """
     Returns the current UTC time as 'YYYY-MM-DDTHH:MM:SS.fffZ'.
 

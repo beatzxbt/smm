@@ -64,8 +64,11 @@ class BaseStrategy(ABC):
         self._health_check_task = None
 
     def add_rounder(self, tick_sz: float, lot_sz: float):
-        """
-        Add a rounder to the strategy.
+        """Add a rounder to the strategy for price and size precision.
+        
+        Args:
+            tick_sz: The minimum price increment for the trading instrument.
+            lot_sz: The minimum size increment for the trading instrument.
         """
         self.round = Round(tick_sz, lot_sz)
 
