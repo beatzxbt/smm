@@ -58,7 +58,7 @@ class PlainStrategy(BaseStrategy):
         elif isinstance(event, OrderbookMsg):
             self.logger.trace(f"OrderbookMsg received; event: {event}")
             if event.is_snapshot:
-                self._orderbook.snapshot(
+                self._orderbook.reset(
                     bids=event.bids,
                     asks=event.asks,
                     seq_id=event.seq_id
@@ -69,7 +69,6 @@ class PlainStrategy(BaseStrategy):
                     bid_sz=event.bid_sz,
                     ask_px=event.ask_px,
                     ask_sz=event.ask_sz, 
-                    seq_id=event.seq_id
                 )
             else:
                 self._orderbook.update_full(
