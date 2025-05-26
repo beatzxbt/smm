@@ -19,7 +19,8 @@ from framework.base.internal_structs import (
     ExecutionMsg, 
     AccountMsg, 
     PositionMsg, 
-    OrderMsg
+    OrderMsg,
+    OrderTimeInForce
 )
 
 WS_PUBLIC_STREAM = "wss://stream.bybit.com/v5/public/linear"
@@ -53,6 +54,7 @@ class BybitMarketData(BaseMarketData):
         
         # Bybit sends partial ticker data sometimes, so we store a snapshot
         # of all ticker data to copy from in the handler.
+        self.latest_ticker_data = {}
         for symbol in self.symbols:
             self.latest_ticker_data[symbol] = TickerMsg(
                 symbol=symbol,
@@ -66,7 +68,7 @@ class BybitMarketData(BaseMarketData):
                 oi=None
             )
 
-    async def process_ticker(self, data):
+    def process_ticker(self, data):
         try:
             symbol = data["topic"].split(".")[1]
             time = data["ts"]
@@ -101,13 +103,13 @@ class BybitMarketData(BaseMarketData):
 
     def process_orderbook(self, data):
         try:
-            symbol = data["topic"].split(".")[1]
+            _, nlevels, symbol = data["topic"].split(".")
             time = data["ts"]
             orderbook_data = data["data"]
             
             bids = [[float(price), float(qty)] for price, qty in orderbook_data.get("b", [])]
             asks = [[float(price), float(qty)] for price, qty in orderbook_data.get("a", [])]
-            is_bbo = data["topic"][12] == "1"
+            is_bbo = nlevels == "1"
             is_snapshot = data["type"] == "snapshot" and not is_bbo
 
             msg = OrderbookMsg(
@@ -226,14 +228,21 @@ class BybitPrivateData(BasePrivateData):
 
         self.position_age_map = {symbol: 0.0 for symbol in self.symbols}
 
-    async def process_order(self, data):
+        self.tif_map = {
+            "GTC": OrderTimeInForce.GTC,
+            "IOC": OrderTimeInForce.IOC,
+            "PostOnly": OrderTimeInForce.PO,
+            "FOK": OrderTimeInForce.FOK
+        }
+
+    def process_order(self, data):
         try:
             for order_data in data["data"]:
                 symbol = order_data["symbol"]
 
                 if symbol not in self.symbols:
                     continue
-
+                
                 msg = OrderMsg(
                     symbol=symbol,
                     time=float(order_data["createdTime"]),
@@ -244,7 +253,7 @@ class BybitPrivateData(BasePrivateData):
                     is_buy=order_data["side"] == "Buy",
                     sz=float(order_data.get("qty", 0)),
                     sz_rem=float(order_data.get("cumExecQty", 0)),
-                    tif=float(order_data.get("timeInForce", 0)),
+                    tif=self.tif_map.get(order_data.get("timeInForce", ""), OrderTimeInForce.GTC),
                     is_cancelled=order_data.get("orderStatus", "") in ["Filled", "Rejected", "Cancelled"],
                     is_reduce_only=order_data.get("reduceOnly", False),
                 )
@@ -256,7 +265,7 @@ class BybitPrivateData(BasePrivateData):
             self.logger.error(f"Error processing order data: {e}")
             self.logger.debug(f"Raw order data; {data}")
 
-    async def process_position(self, data):
+    def process_position(self, data):
         try:
             for position_data in data["data"]:
                 symbol = position_data["symbol"]
@@ -290,7 +299,7 @@ class BybitPrivateData(BasePrivateData):
             self.logger.error(f"Error processing position data: {e}")
             self.logger.debug(f"Raw position data; {data}")
 
-    async def process_execution(self, data):
+    def process_execution(self, data):
         try:
             for execution_data in data["data"]:
                 symbol = execution_data["symbol"]
@@ -315,7 +324,7 @@ class BybitPrivateData(BasePrivateData):
             self.logger.error(f"Error processing execution data: {e}")
             self.logger.debug(f"Raw execution data; {data}")
 
-    async def process_account(self, data):
+    def process_account(self, data):
         try:
             for account_data in data["data"]:
                 msg = AccountMsg(
@@ -336,8 +345,8 @@ class BybitPrivateData(BasePrivateData):
     async def authenticate(self, ws):
         expires = int(time_ms() + 5000)
         signature = hmac.new(
-            self.api_secret.encode(),
-            f"GET/realtime{expires}".encode(),
+            bytes(self.api_secret, "utf-8"),
+            bytes(f"GET/realtime{expires}", "utf-8"),
             hashlib.sha256
         ).hexdigest()
         
@@ -346,7 +355,7 @@ class BybitPrivateData(BasePrivateData):
             "args": [self.api_key, expires, signature]
         }
 
-        await ws.send_json(auth_params)
+        await ws.send_bytes(self.json_encoder.encode(auth_params))
 
         auth_response = await ws.receive()
         resp = self.json_decoder.decode(auth_response.data)
@@ -381,7 +390,7 @@ class BybitPrivateData(BasePrivateData):
 
                             handler = self.topic_handler_map.get(recv["topic"])
                             if handler:
-                                await handler(recv)
+                                handler(recv)
                             else:
                                 self.logger.warning(f"Unknown topic; {recv['topic']}")
                         
