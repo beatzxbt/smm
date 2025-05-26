@@ -33,10 +33,8 @@ parameters:
     # Quote generator params
     minimum_spread: 10          # Value in BPS (Basis Points)
     aggressiveness: 0.75        # Must be 0.0 <-> 1.0
+    taker_skew_threshold: 0.5   # Strategy will take when abs(fair_skew) exceeds this
   
-  a&s:
-    vol: 10
-
   stinky:
     minimum_spread: 50          # Value in BPS (Basis Points)
     maximum_spread: 250         # Value in BPS (Basis Points)
