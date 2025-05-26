@@ -38,6 +38,7 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
             "px": event.px,
             "is_long": event.is_long,
             "sz": event.sz,
+            "usd_sz": event.sz * event.px,
             "age": event.age
         })
     

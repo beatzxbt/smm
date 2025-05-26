@@ -153,6 +153,8 @@ class Smm:
                 params["symbol"] = symbol.upper()
             case 2: # OKX
                 params["symbol"] = symbol.upper()
+            case _:
+                pass
     
     def _validate_strategy(self, params: dict) -> None:
         """Validate strategy parameter.

@@ -4,7 +4,7 @@ import numpy as np
 from framework.tools.logger import Logger
 from framework.tools.round import Round
 from framework.tools.orderbook import Orderbook
-from framework.tools.time import time_ms, time_s
+from framework.tools.time import time_ms, time_s, time_ns
 
 from framework.base.exchange import BaseExchange
 from framework.base.internal_structs import (
@@ -17,15 +17,13 @@ from framework.base.internal_structs import (
     ExecutionMsg,
     AccountMsg,
     HealthCheckMsg,
-    MarketDataEvent,
-    PrivateDataEvent,
     Event,
     OrderTimeInForce,
 )
 
 from smm.strategies.base.strategy import BaseStrategy
 from smm.strategies.plain.engine import PlainFeatureEngine
-
+from smm.strategies.plain.oms import PlainOrderManagementSystem
 
 class PlainStrategy(BaseStrategy):
     def __init__(self, exchange: BaseExchange, params: dict, logger: Logger, producer_queues: list[asyncio.Queue]):
@@ -33,7 +31,9 @@ class PlainStrategy(BaseStrategy):
             exchange=exchange,
             params=params,
             logger=logger,
-            producer_queues=producer_queues
+            producer_queues=producer_queues,
+            oms=PlainOrderManagementSystem(exchange=exchange, logger=logger),
+            feature_engine=PlainFeatureEngine(params=params)
         )
         
         # Enfore required parameters for the relevant features and strategy
@@ -54,41 +54,39 @@ class PlainStrategy(BaseStrategy):
             if param not in self.params["plain"]:
                 raise ValueError(f"Missing parameter; expected '{param}'")
 
-        self._orderbook = Orderbook(size=50)
-        self._feature_engine = PlainFeatureEngine(params=self.params)
-
     async def consume_event(self, event: Event, **kwargs):
         if isinstance(event, TickerMsg):
             self.logger.trace(f"TickerMsg received; event: {event}")
-            self._feature_engine.update_ticker(event)
+            self.feature_engine.update_ticker(event)
             
         elif isinstance(event, TradeMsg):
             self.logger.trace(f"TradeMsg received; event: {event}")
-            self._feature_engine.update_trade(event)
+            self.feature_engine.update_trade(event)
                 
         elif isinstance(event, OrderbookMsg):
             self.logger.trace(f"OrderbookMsg received; event: {event}")
             if event.is_snapshot:
-                self._orderbook.reset(
+                self.orderbook.reset(
                     bids=event.bids,
                     asks=event.asks
                 )
             elif event.is_bbo:
-                self._orderbook.update_bbo(
+                self.orderbook.update_bbo(
                     bid_px=event.bid_px,
                     bid_sz=event.bid_sz,
                     ask_px=event.ask_px,
                     ask_sz=event.ask_sz, 
                 )
             else:
-                self._orderbook.update_full(
+                self.orderbook.update_full(
                     bids=event.bids,
                     asks=event.asks
                 )     
-            self._feature_engine.update_orderbook(event, self._orderbook)
+            self.feature_engine.update_orderbook(event, self.orderbook)
 
         elif isinstance(event, PositionMsg):
             self.logger.trace(f"PositionMsg received; event: {event}")
+            self.oms.consume_position_event(event)
             self._current_position = {
                 "px": event.px,
                 "is_long": event.is_long,
@@ -99,38 +97,33 @@ class PlainStrategy(BaseStrategy):
 
         elif isinstance(event, OrderMsg):
             self.logger.trace(f"OrderMsg received; event: {event}")
-            if event.is_cancelled:
-                self._current_orders.pop(event.cloid, None)
-            else:
-                self._current_orders[event.cloid] = {
-                    "px": event.px,
-                    "is_buy": event.is_buy,
-                    "sz": event.sz
-                }
-            
-            if event.cloid in self._inflight_orders:
-                self._inflight_orders.pop(event.cloid)
+            self.oms.consume_order_event(event)
+
+        elif isinstance(event, ExecutionMsg):
+            self.logger.trace(f"ExecutionMsg received; event: {event}")
+            self.oms.consume_execution_event(event)
 
     async def update_state(self, **kwargs):
         # {cloid: {px: float, sz: float}}
         desired_orders = {}
 
-        mid_px = self._orderbook.get_mid_px()
-        fair_skew = self._feature_engine.get_fair_skew()
-        spread = self._feature_engine.get_spread()
+        mid_px = self.orderbook.get_mid_px()
+        fair_skew = self.feature_engine.get_fair_skew()
+        spread = self.feature_engine.get_spread()
+        current_position = self.oms.get_current_position()
         
         # If the fair skew is X bps away from mid px, we want to take
         # as we believe the edge is > taker fees (ideally plus some margin).
         # Though we only do this if we arent in a heavy position already.
         # NOTE: This is hardcoded to 10bps but it may become a parameter
         # in the near future.
-        in_large_position = self._current_position["usd_sz"] > self.params["max_usd_position"] * 0.5
+        in_large_position = current_position["usd_sz"] > self.params["max_usd_position"] * 0.5
         if abs(fair_skew) > self.params["taker_skew_threshold"] and not in_large_position:
             is_buy = fair_skew > 0.0
 
             # We dont need to add this to the inflight orders, we await it
             # immediately before proceeding.
-            sz_to_take = (self.params["max_usd_position"] - self._current_position["usd_sz"]) / mid_px
+            sz_to_take = (self.params["max_usd_position"] - current_position["usd_sz"]) / mid_px
             await self.exchange.create_order(
                 symbol=self.symbol,
                 is_maker=False,
@@ -166,7 +159,15 @@ class PlainStrategy(BaseStrategy):
 
         while True:
             try:
-                event = await self.producer_queue.get()
+                event: Event = await self.producer_queue.get()
+                
+                # TODO: Future implementation. If the local time is significantly
+                # lagging behind, this shows major backpressure issues. Introduce 
+                # a mode into the update_state which allows the consumer to run 
+                # and not call self.oms.maybe_update_state(). Once the local time
+                # catches up, it can automatically revert back to normal operation.
+                # if time_ns() - event.local_time_ns > 10_000_000:
+                #     self.logger.warning(f"Backpressure detected (>10ms behind); temporarily bypassing state updates")
 
                 if isinstance(event, HealthCheckMsg):
                     if self._health_check_task is not None:

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from framework.tools.round import Round
 from framework.tools.logger import Logger
 from framework.tools.time import time_s
+from framework.tools.orderbook import Orderbook
 
 from framework.base.exchange import BaseExchange
 from framework.base.internal_structs import HealthCheckMsg, Event
@@ -47,6 +48,7 @@ class BaseStrategy(ABC):
         self.logger = logger
         self.round = None
         
+        self.orderbook = Orderbook(size=50)
         self.oms = oms
         self.feature_engine = feature_engine
         # As mentioned in 'main.py', the first queue is reserved for the strategy solely.
