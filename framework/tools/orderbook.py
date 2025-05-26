@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 from numba.experimental import jitclass
-from numba.types import uint64, int64, float64, bool_
+from numba.types import uint64, float64, bool_
 
 @njit(inline="always")
 def isin(a: np.ndarray, b: np.ndarray) -> np.ndarray[bool]:
@@ -63,11 +63,20 @@ class Orderbook:
     An orderbook class, maintaining separate arrays for bid and
     ask orders with functionality to initialize, update, and sort
     the orders.
+
+    The data fed into the orderbook is expected to be in the following format:
+    - Bids: [[px, sz], ...]
+    - Asks: [[px, sz], ...]
+
+    The orderbook will then sort the bids and asks in descending order of price
+    for the bids and ascending order of price for the asks.
+    
+    It assumes the data is in chronological order, and thus doesn't keep track
+    of the sequence id. Sort this out directly in the data feeds!
     """
  
     _size: uint64
     _is_warm: bool_
-    _seq_id: int64
     _asks: float64[:, :]
     _bids: float64[:, :]
 
@@ -77,7 +86,6 @@ class Orderbook:
 
         self._size: int = size
         self._is_warm: bool = False
-        self._seq_id: int = 0
         self._asks: np.ndarray = np.zeros((size, 2), dtype=float64)
         self._bids: np.ndarray = np.zeros((size, 2), dtype=float64)
 
@@ -139,31 +147,20 @@ class Orderbook:
             self._bids[:overlapping_bids].fill(0.0)
             self._bids[:, :] = roll(self._bids, -overlapping_bids, 0)
 
-    def reset(self, asks: np.ndarray, bids: np.ndarray, new_seq_id: int) -> None:
+    def reset(self, asks: np.ndarray, bids: np.ndarray) -> None:
         """
         Refreshes the order book with given *complete* ask and bid data and sorts the book.
 
         Parameters
         ----------
         asks : np.ndarray
-            Initial ask orders data, formatted as [[price, size], ...].
+            Initial ask orders data, formatted as [[px, sz], ...].
 
         bids : np.ndarray
-            Initial bid orders data, formatted as [[price, size], ...].
+            Initial bid orders data, formatted as [[px, sz], ...].
         """
-        assert (
-            asks.ndim == 2
-            and bids.ndim == 2
-            and bids.shape[0] == self._size
-            and asks.shape[0] == self._size
-        ), (
-            f"Both input arrays must be 2D and at least of size {self._size}, "
-            f"but got size {bids.shape[0]} and {asks.shape[0]}"
-        )
-
         # Reset attributes and internal arrays.
         self._is_warm = False
-        self._seq_id = 0
         self._asks.fill(0.0)
         self._bids.fill(0.0)
 
@@ -173,7 +170,6 @@ class Orderbook:
         self._asks[:, :] = asks[asks[:, 0].argsort()]
         self._bids[:, :] = bids[bids[:, 0].argsort()[::-1]]
 
-        self._seq_id = new_seq_id
         self._is_warm = True
 
     def update_bbo(
@@ -182,19 +178,11 @@ class Orderbook:
         bid_sz: float,
         ask_px: float,
         ask_sz: float,
-        new_seq_id: int,
     ) -> None:
         """
         Updates the current orderbook with new best bid ask data.
         """
-        assert (
-            self._is_warm
-        ), "Orderbook must be warmed up (initialized) before attempting to update."
-
-        if new_seq_id <= self._seq_id:
-            return
-
-        self._seq_id = new_seq_id
+        self.ensure_warm()
 
         best_bid_price = self._bids[0, 0]
         best_ask_price = self._asks[0, 0]
@@ -249,7 +237,7 @@ class Orderbook:
                 self._bids[:overlapping_bids].fill(0.0)
                 self._bids[:, :] = roll(self._bids, -overlapping_bids, 0)
 
-    def update_bids(self, bids: np.ndarray, new_seq_id: int) -> None:
+    def update_bids(self, new_bids: np.ndarray) -> None:
         """
         Updates the current bids with new data.
 
@@ -257,20 +245,11 @@ class Orderbook:
         ----------
         bids : np.ndarray
             New bid orders data, formatted as [[price, size], ...].
-        """
-        assert (
-            self._is_warm
-        ), "Orderbook must be warmed up (initialized) before attempting to update."
-        assert bids.shape[0] > 0 and bids.ndim == 2, (
-            f"Input array must be 2D and at least of size 1, "
-            f"but got size {bids.shape[0]}"
-        )
+        """ 
+        self.ensure_warm()
+        self._sort_bids(new_bids)
 
-        if new_seq_id > self._seq_id:
-            self._seq_id = new_seq_id
-            self._sort_bids(bids)
-
-    def update_asks(self, asks: np.ndarray, new_seq_id: int) -> None:
+    def update_asks(self, new_asks: np.ndarray) -> None:
         """
         Updates the current asks with new data.
 
@@ -279,19 +258,10 @@ class Orderbook:
         asks : np.ndarray
             New ask orders data, formatted as [[price, size], ...].
         """
-        assert (
-            self._is_warm
-        ), "Orderbook must be warmed up (initialized) before attempting to update."
-        assert asks.ndim == 2 and asks.shape[0] > 0, (
-            f"Input array must be 2D and at least of size 1, "
-            f"but got size {asks.shape[0]}"
-        )
+        self.ensure_warm()
+        self._sort_asks(new_asks)
 
-        if new_seq_id > self._seq_id:
-            self._seq_id = new_seq_id
-            self._sort_asks(asks)
-
-    def update_full(self, asks: np.ndarray, bids: np.ndarray, new_seq_id: int) -> None:
+    def update_full(self, new_asks: np.ndarray, new_bids: np.ndarray) -> None:
         """
         Updates the order book with new ask and bid data.
 
@@ -303,18 +273,9 @@ class Orderbook:
         bids : np.ndarray
             New bid orders data, formatted as [[price, size], ...].
         """
-        assert (
-            self._is_warm
-        ), "Orderbook must be warmed up (initialized) before attempting to update."
-        assert bids.size > 0 and bids.ndim == 2 and asks.size > 0 and asks.ndim == 2, (
-            f"Both input arrays must be 2D and at least of size 1, "
-            f"but got size {bids.shape[0]} and {asks.shape[0]}"
-        )
-
-        if new_seq_id > self._seq_id:
-            self._seq_id = new_seq_id
-            self._sort_bids(bids)
-            self._sort_asks(asks)
+        self.ensure_warm()
+        self._sort_bids(new_bids)
+        self._sort_asks(new_asks)
 
     def get_mid_px(self) -> float:
         """
@@ -352,7 +313,7 @@ class Orderbook:
         imbalance = top_bid_sz / (top_bid_sz + top_ask_sz)
         return (self._bids[0, 0] * imbalance) + (self._asks[0, 0] * (1.0 - imbalance))
 
-    def get_spread(self):
+    def get_bbo_spread(self):
         """
         Calculate the spread between the best ask and the best bid.
 
@@ -385,15 +346,6 @@ class Orderbook:
         """
         return self._asks
 
-    def get_seq_id(self) -> int:
-        """
-        Get the current sequence ID of the orderbook.
-
-        Returns:
-            int: The latest sequence ID used for updates to this orderbook.
-        """
-        return self._seq_id
-
     def get_bbo(self) -> np.ndarray:
         """
         Return the current best bid and best ask in a single array.
@@ -421,9 +373,9 @@ class Orderbook:
         Raise an error if the orderbook is not 'warm'.
 
         Raises:
-            RuntimeError: If the orderbook is not initialized via '.warmup()'.
+            RuntimeError: If the orderbook is not initialized via '.reset()'.
         """
         if not self._is_warm:
             raise RuntimeError(
-                "Orderbook not warm; must call '.warmup()' before proceeding"
+                "Orderbook not populated; must call '.reset()' before proceeding"
             )
