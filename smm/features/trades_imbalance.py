@@ -1,6 +1,6 @@
 from collections import deque
 
-from smm.features.base_feature import BaseFeature
+from smm.features.base import BaseFeature
 
 class TradesTickImbalance(BaseFeature):
     """Measures the imbalance between buy and sell trade volume over a fixed number of trades.
@@ -63,7 +63,7 @@ class TradesTickImbalance(BaseFeature):
         return self._value
     
 
-class TradesTimeImbalance:
+class TradesTimeImbalance(BaseFeature):
     """Measures the imbalance between buy and sell trade volume over a time window.
     
     Similar to TradesTickImbalance, this feature calculates the ratio of buy volume to sell volume,
@@ -87,6 +87,8 @@ class TradesTimeImbalance:
         window (float): Duration in seconds for the time window. Default is 60.0 seconds.
     """
     def __init__(self, window: float = 60.0):
+        super().__init__()
+        
         self._window = window
         self._trades = deque()
         

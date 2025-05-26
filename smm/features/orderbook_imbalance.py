@@ -1,5 +1,5 @@
 from framework.tools import Orderbook
-from smm.features.base_feature import BaseFeature
+from smm.features.base import BaseFeature
 
 class OrderbookImbalance(BaseFeature):
     """Calculates the imbalance between bid and ask liquidity within a specified price range.

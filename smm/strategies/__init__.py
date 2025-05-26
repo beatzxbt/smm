@@ -1,6 +1,14 @@
-from .base import BaseStrategy
-from .plain import PlainStrategy
-# from .a_and_s import AAndSStrategy
-# from .stinky import StinkyStrategy
+from .base.strategy import BaseStrategy as BaseStrategy
+from .plain.strategy import PlainStrategy as PlainStrategy
+from .stinky.strategy import StinkyStrategy as StinkyStrategy
 
-__all__ = ["BaseStrategy", "PlainStrategy", "AAndSStrategy", "StinkyStrategy"]
+def load_strategy(name: int) -> BaseStrategy:
+    match name:
+        case 0:
+            return PlainStrategy
+        case 1:
+            return StinkyStrategy
+        case _:
+            raise ValueError(f"Strategy {name} not found")
+
+__all__ = ["BaseStrategy", "PlainStrategy", "StinkyStrategy"]
