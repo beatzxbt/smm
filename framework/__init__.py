@@ -6,7 +6,7 @@ from framework.base.data import BaseMarketData, BasePrivateData
 type API_KEY = str
 type API_SECRET = str
 
-def load(exchange: int) -> tuple[BaseExchange, BaseMarketData, BasePrivateData, API_KEY, API_SECRET]:
+def load_exchange(exchange: int) -> tuple[BaseExchange, BaseMarketData, BasePrivateData, API_KEY, API_SECRET]:
     match exchange:
         # case 0:
         #     from framework.binance.exchange import Binance
