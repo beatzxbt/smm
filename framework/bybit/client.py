@@ -10,7 +10,7 @@ from framework.tools.logger import Logger
 from framework.base.client import BaseRestTradeClient, BaseWsTradeClient
 
 
-RECV_WINDOW = 1000
+RECV_WINDOW = 5000
 ENDPOINT_WS_TRADE = "wss://stream.bybit.com/v5/trade"
 
 
@@ -27,8 +27,8 @@ class BybitRestTradeClient(BaseRestTradeClient):
         param_str = timestamp + self.api_key + str(RECV_WINDOW) + payload_str
 
         hash_signature = hmac.new(
-            key=bytes(self.api_secret),
-            msg=bytes(param_str),
+            key=bytes(self.api_secret, "utf-8"),
+            msg=bytes(param_str, "utf-8"),
             digestmod=hashlib.sha256,
         ).hexdigest()
 
@@ -46,7 +46,7 @@ class BybitRestTradeClient(BaseRestTradeClient):
         if not self.ensure_running():
             return {}
 
-        payload_str = self.json_encoder.encode(payload)
+        payload_str = str(self.json_encoder.encode(payload))
         signed_header = self.sign(payload_str)
 
         try:
@@ -148,7 +148,7 @@ class BybitWsTradeClient(BaseWsTradeClient):
         if ws is None:
             raise ConnectionError("Trade WS connection not initialized")
 
-        expire = str(int((time_s() + 60) * 1000))
+        expire = str(int(time_ms() + 60000))
         signature = hmac.new(
             key=bytes(self.api_secret, 'utf-8'),
             msg=bytes(f"GET/realtime{expire}", 'utf-8'),
@@ -160,7 +160,7 @@ class BybitWsTradeClient(BaseWsTradeClient):
             "args": [self.api_key, expire, signature]
         }
 
-        await ws.send_str(self.json_encoder.encode(auth_msg))
+        await ws.send_bytes(self.json_encoder.encode(auth_msg))
         auth_response = await ws.receive()
         if auth_response.type == aiohttp.WSMsgType.TEXT:
             resp = self.json_decoder.decode(auth_response.data)
@@ -287,8 +287,8 @@ class BybitWsTradeClient(BaseWsTradeClient):
                 "req_id": str(time_ns())  # unique for correlation
             }
             try:
-                await self.ws.send_str(self.json_encoder.encode(ping_msg))
-                # self.logger.debug(f"Trade WS sent ping: {ping_msg}")
+                await self.ws.send_bytes(self.json_encoder.encode(ping_msg))
+                self.logger.debug(f"Trade WS sent ping; {ping_msg}")
             except Exception as e:
                 self.logger.error(f"Trade WS failed to send ping; error: {e}")
                 await self._reconnect()
@@ -354,17 +354,15 @@ class BybitWsTradeClient(BaseWsTradeClient):
         time_sent = time_ms()
 
         try:
-            await self.ws.send_str(self.json_encoder.encode(payload))
+            await self.ws.send_bytes(self.json_encoder.encode(payload))
             response = await future
             latency = round(time_ms() - time_sent, 2)
-            # self.logger.debug(f"[{payload.get('op')}] Request latency: {latency}ms")
+            self.logger.trace(f"Trade WS [{payload.get('op')}] latency: {latency}ms")
 
-            # Check typical success patterns
-            if response.get("retMsg") in ["OK", "success"]:
+            if response.get("retCode", 0) == 0:
                 return response
             else:
-                self.logger.debug(f"Trade WS request completed with response: {response}")
-                self.logger.debug(f"Trade WS request payload: {payload}")
+                self.logger.debug(f"Trade WS request failed; response: {response}; payload: {payload}")
                 return response
 
         except Exception as e:
