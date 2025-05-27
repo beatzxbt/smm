@@ -51,7 +51,7 @@ class PlainStrategy(BaseStrategy):
             "trades_time_excitement_window", 
             "orderbook_imbalance_window"
         ]:
-            if param not in self.params["plain"]:
+            if param not in self.params["parameters"]["plain"]:
                 raise ValueError(f"Missing parameter; expected '{param}'")
 
     async def consume_event(self, event: Event, **kwargs):
@@ -117,13 +117,13 @@ class PlainStrategy(BaseStrategy):
         # Though we only do this if we arent in a heavy position already.
         # NOTE: This is hardcoded to 10bps but it may become a parameter
         # in the near future.
-        in_large_position = current_position["usd_sz"] > self.params["max_usd_position"] * 0.5
-        if abs(fair_skew) > self.params["taker_skew_threshold"] and not in_large_position:
+        in_large_position = current_position["usd_sz"] > self.params["parameters"]["common"]["max_usd_position"] * 0.5
+        if abs(fair_skew) > self.params["parameters"]["plain"]["taker_skew_threshold"] and not in_large_position:
             is_buy = fair_skew > 0.0
 
             # We dont need to add this to the inflight orders, we await it
             # immediately before proceeding.
-            sz_to_take = (self.params["max_usd_position"] - current_position["usd_sz"]) / mid_px
+            sz_to_take = (self.params["parameters"]["common"]["max_usd_position"] - current_position["usd_sz"]) / mid_px
             await self.exchange.create_order(
                 symbol=self.symbol,
                 is_maker=False,
@@ -134,9 +134,9 @@ class PlainStrategy(BaseStrategy):
             )
         
         # Generate the desired orders for all levels in both directions.
-        for level in range(self.params["total_orders"] // 2):
+        for level in range(self.params["parameters"]["common"]["total_orders"] // 2):
             level_spread = spread * (level + 1)
-            level_sz = self.params["max_usd_position"] / self.params["total_orders"]
+            level_sz = self.params["parameters"]["common"]["max_usd_position"] / self.params["parameters"]["common"]["total_orders"]
 
             for is_buy in [True, False]:
                 cloid = f"PLAIN{str(level).zfill(2)}{'B' if is_buy else 'S'}"

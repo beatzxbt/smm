@@ -24,11 +24,13 @@ parameters:
 
   plain:
     # Feature params
-    trades_tick_imbalance_window: 100
-    trades_time_imbalance_window: 60.0
-    trades_tick_excitement_window: 100
-    trades_time_excitement_window: 60.0
+    trades_tick_excitement_short_window: 50
+    trades_tick_excitement_long_window: 200
+    trades_time_excitement_short_window: 30.0
+    trades_time_excitement_long_window: 120.0
+    trades_excitement_buffer: 2.0
     orderbook_imbalance_window: 100
+    orderbook_imbalance_depth_bps: 50
 
     # Quote generator params
     minimum_spread: 10          # Value in BPS (Basis Points)
@@ -36,5 +38,6 @@ parameters:
     taker_skew_threshold: 0.5   # Strategy will take when abs(fair_skew) exceeds this
   
   stinky:
-    minimum_spread: 50          # Value in BPS (Basis Points)
-    maximum_spread: 250         # Value in BPS (Basis Points)
+    minimum_spread_bps: 50          # Value in BPS (Basis Points)
+    maximum_spread_bps: 250         # Value in BPS (Basis Points)
+    large_fill_threshold_usd: 100   # Threshold in USD for considering a fill as large

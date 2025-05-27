@@ -12,40 +12,43 @@ class PlainFeatureEngine(BaseFeatureEngine):
     def __init__(self, params: dict):
         super().__init__(params)
 
+        # Access plain strategy parameters
+        plain_params = self._params["parameters"]["plain"]
+
         # Trade features
         self._trade_tick_imbalance = TradesTickImbalance(
-            window=self._params["trades_tick_imbalance_window"]
+            window=plain_params["trades_tick_imbalance_window"]
         )
         self._trade_time_imbalance = TradesTimeImbalance(
-            window=self._params["trades_time_imbalance_window"]
+            window=plain_params["trades_time_imbalance_window"]
         )
         self._trade_tick_excitement = TradesTickExcitement(
-            short_window=self._params["trades_tick_excitement_short_window"],
-            long_window=self._params["trades_tick_excitement_long_window"],
-            buffer=self._params["trades_tick_excitement_buffer"]
+            short_window=plain_params["trades_tick_excitement_short_window"],
+            long_window=plain_params["trades_tick_excitement_long_window"],
+            buffer=plain_params["trades_tick_excitement_buffer"]
         )
         self._trade_time_excitement = TradesTimeExcitement(
-            short_window=self._params["trades_time_excitement_short_window"],
-            long_window=self._params["trades_time_excitement_long_window"],
-            buffer=self._params["trades_time_excitement_buffer"]
+            short_window=plain_params["trades_time_excitement_short_window"],
+            long_window=plain_params["trades_time_excitement_long_window"],
+            buffer=plain_params["trades_time_excitement_buffer"]
         )
         
         # Orderbook features
         self._orderbook_imbalance = OrderbookImbalance(
-            depth_bps=self._params["orderbook_imbalance_depth_bps"]
+            depth_bps=plain_params["orderbook_imbalance_depth_bps"]
         )
 
         # Weights must sum up to 1.0
         self._price_feature_weights = {
-            "orderbook_imbalance": self._params.get("orderbook_imbalance_weight", 0.5),
-            "trade_tick_imbalance": self._params.get("trade_tick_imbalance_weight", 0.3),
-            "trade_time_imbalance": self._params.get("trade_time_imbalance_weight", 0.2),
+            "orderbook_imbalance": plain_params.get("orderbook_imbalance_weight", 0.5),
+            "trade_tick_imbalance": plain_params.get("trade_tick_imbalance_weight", 0.3),
+            "trade_time_imbalance": plain_params.get("trade_time_imbalance_weight", 0.2),
         }
 
         # Weights must sum up to 1.0
         self._spread_feature_weights = {
-            "trade_tick_excitement": self._params.get("trade_tick_excitement_weight", 0.5),
-            "trade_time_excitement": self._params.get("trade_time_excitement_weight", 0.5)
+            "trade_tick_excitement": plain_params.get("trade_tick_excitement_weight", 0.5),
+            "trade_time_excitement": plain_params.get("trade_time_excitement_weight", 0.5)
         }
         self._spread_multiplier = 1.0
 
