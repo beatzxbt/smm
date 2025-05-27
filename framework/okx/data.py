@@ -252,13 +252,13 @@ class OkxPrivateData(BasePrivateData):
         }
 
         self.topic_handler_map = {}
+        self.topic_handler_map.update({"account": self.process_account})
         for symbol in self.symbols:
             self.topic_handler_map.update({
                 f"orders:{symbol}": self.process_order,
                 f"positions:{symbol}": self.process_position,
+                f"executions:{symbol}": self.process_execution,
             })
-        
-        self.topic_handler_map["account"] = self.process_account
         
         # Track position age for each symbol
         self.position_age_map = {symbol: 0.0 for symbol in self.symbols}
