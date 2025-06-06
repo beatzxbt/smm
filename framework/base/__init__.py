@@ -16,7 +16,7 @@ from framework.base.internal_structs import (
     OrderMsg as OrderMsg,
     ExecutionMsg as ExecutionMsg,
     AccountMsg as AccountMsg,
-    HealthCheckMsg as HealthCheckMsg,
+    HeartbeatMsg as HeartbeatMsg,
     MarketDataEvent as MarketDataEvent,
     PrivateDataEvent as PrivateDataEvent,
     Event as Event
@@ -43,7 +43,7 @@ __all__ = [
     "OrderMsg",
     "ExecutionMsg",
     "AccountMsg",
-    "HealthCheckMsg",
+    "HeartbeatMsg",
     "MarketDataEvent",
     "PrivateDataEvent",
     "Event"

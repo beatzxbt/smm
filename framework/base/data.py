@@ -6,7 +6,12 @@ from abc import ABC, abstractmethod
 from framework.tools.logger import Logger
 from framework.tools.time import time_s
 
-from framework.base.internal_structs import HealthCheckMsg
+from framework.base.internal_structs import (
+    Symbol,
+    Exchange,
+    HeartbeatMsg,
+    Event
+)
 
 class BaseMarketData(ABC):
     """Base class for market data handling.
@@ -15,14 +20,22 @@ class BaseMarketData(ABC):
     including connection management, data processing, and distribution to consumers.
     """
     
-    def __init__(self, symbols: list[str], logger: Logger, consumer_queues: list[asyncio.Queue]) -> None:
+    def __init__(
+            self, 
+            exchange: Exchange, 
+            symbols: list[Symbol], 
+            logger: Logger, 
+            consumer_queues: list[asyncio.Queue]
+        ) -> None:
         """Initialize the base market data handler.
         
         Args:
-            symbols (list[str]): The trading symbols to subscribe to.
+            exchange (Exchange): The exchange to subscribe to.
+            symbols (list[Symbol]): The trading symbols to subscribe to.
             logger (Logger): Logger instance for logging events and errors.
             consumer_queues (list[asyncio.Queue]): List of queues for sending data to the consumer modules.
         """
+        self.exchange = exchange
         self.symbols = set(symbols)
         self.logger = logger
         self.consumer_queues = consumer_queues
@@ -31,33 +44,34 @@ class BaseMarketData(ABC):
         self.json_encoder = msgspec.json.Encoder()
 
         # Have this running in the background from the get-go
-        asyncio.create_task(self.broadcast_health_check())
+        asyncio.create_task(self.broadcast_heartbeat())
 
-    def broadcast(self, msg: msgspec.Struct):
+    def broadcast(self, msg: Event):
         """Broadcast a message to all consumer queues.
         
         Args:
-            msg (msgspec.Struct): The structured message to broadcast to all consumers.
+            msg (Event): The structured message to broadcast to all consumers.
         """
         for queue in self.consumer_queues:
             # We can nowait as there's no max size limit
             queue.put_nowait(self.json_encoder.encode(msg))
 
-    async def broadcast_health_check(self, interval: int=60):
-        """Broadcast a health check message to all consumer queues.
+    async def broadcast_heartbeat(self, interval: int=60):
+        """Broadcast a heartbeat message to all consumer queues.
         
         Args:
-            interval (int, optional): The interval in seconds between health check messages. Defaults to 60.
+            interval (int, optional): The interval in seconds between heartbeat messages. Defaults to 60.
         """
         while True:
             await asyncio.sleep(interval)
-            health_check_msg = HealthCheckMsg(
-                id="MarketData",
-                time=time_s(),
-                next_check=time_s() + interval
+            time_now = time_s()
+            heartbeat_msg = HeartbeatMsg(
+                exchange=self.exchange,
+                time=time_now,
+                next_check=time_now + interval
             )
-            self.broadcast(health_check_msg)
-            self.logger.debug(f"Broadcasting health check from market data feed; {health_check_msg}")
+            self.broadcast(heartbeat_msg)
+            self.logger.debug(f"Broadcasting heartbeat from market data feed; {heartbeat_msg}")
 
     @abstractmethod
     async def process_ticker(self, data: dict):
@@ -111,16 +125,26 @@ class BasePrivateData(ABC):
     Manages connection, subscription, and processing of private data like orders and positions.
     Requires authentication with API credentials to access user-specific data.
     """
-    def __init__(self, api_key: str, api_secret: str, symbols: list[str], logger: Logger, consumer_queues: list[asyncio.Queue]):
+    def __init__(
+            self, 
+            exchange: Exchange, 
+            api_key: str, 
+            api_secret: str, 
+            symbols: list[str], 
+            logger: Logger, 
+            consumer_queues: list[asyncio.Queue]
+        ):
         """Initialize the base private data handler.
         
         Args:
+            exchange (Exchange): The exchange to subscribe to.
             api_key (str): API key for authentication with the exchange.
             api_secret (str): API secret for authentication with the exchange.
             symbols (list[str]): The trading symbols to subscribe to.
             logger (Logger): Logger instance for logging events and errors.
             consumer_queues (list[asyncio.Queue]): List of queues for sending data to the consumer modules.
         """
+        self.exchange = exchange
         self.api_key = api_key
         self.api_secret = api_secret
         self.symbols = set(symbols)
@@ -131,7 +155,7 @@ class BasePrivateData(ABC):
         self.json_encoder = msgspec.json.Encoder()
 
         # Have this running in the background from the get-go
-        asyncio.create_task(self.broadcast_health_check())
+        asyncio.create_task(self.broadcast_heartbeat())
 
     def broadcast(self, msg: msgspec.Struct):
         """Broadcast a message to all consumer queues.
@@ -143,21 +167,22 @@ class BasePrivateData(ABC):
             # We can nowait as there's no max size limit
             queue.put_nowait(self.json_encoder.encode(msg))
 
-    async def broadcast_health_check(self, interval: int=60):
+    async def broadcast_heartbeat(self, interval: int=60):
         """Broadcast a health check message to all consumer queues.
         
         Args:
-            interval (int, optional): The interval in seconds between health check messages. Defaults to 60.
+            interval (int, optional): The interval in seconds between heartbeat messages. Defaults to 60.
         """
         while True:
             await asyncio.sleep(interval)
-            health_check_msg = HealthCheckMsg(
-                id="PrivateData",
-                time=time_s(),
-                next_check=time_s() + interval
+            time_now = time_s()
+            heartbeat_msg = HeartbeatMsg(
+                exchange=self.exchange,
+                time=time_now,
+                next_check=time_now + interval
             )
-            self.broadcast(health_check_msg)
-            self.logger.debug(f"Broadcasting health check from private data feed; {health_check_msg}")
+            self.broadcast(heartbeat_msg)
+            self.logger.debug(f"Broadcasting heartbeat from private data feed; {heartbeat_msg}")
 
     @abstractmethod
     async def process_order(self, data: dict):

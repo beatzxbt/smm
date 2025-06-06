@@ -77,7 +77,7 @@ class BybitExchange(BaseExchange):
         if sz is not None and sz <= 0.0:
             raise ValueError(f"Invalid sz; expected >0.0 but got {sz}")
         
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
             "side": "Buy" if is_buy else "Sell",
@@ -88,10 +88,10 @@ class BybitExchange(BaseExchange):
         }
         
         if cloid is not None:
-            payload["orderLinkId"] = cloid
+            params.update({"orderLinkId": cloid})
 
         if is_maker and px is not None:
-            payload["price"] = str(px)
+            params.update({"price": str(px)})
         else:
             raise ValueError(f"Invalid px; expected for maker orders but got {px}")
         
@@ -101,7 +101,7 @@ class BybitExchange(BaseExchange):
                 "X-BAPI-TIMESTAMP": int(time_ms()),
                 "X-BAPI-RECV-WINDOW": RECV_WINDOW
             },
-            "args": [payload]
+            "args": [params]
         }
 
         response = await self._ws_client.submit(payload)
@@ -129,20 +129,20 @@ class BybitExchange(BaseExchange):
         if sz is not None and sz <= 0.0:
             raise ValueError(f"Invalid sz; expected >0.0 but got {sz}")
         
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
         }
 
         if oid is not None:
-            payload["orderId"] = oid
+            params.update({"orderId": oid})
         elif cloid is not None:
-            payload["orderLinkId"] = cloid
+            params.update({"orderLinkId": cloid})
 
         if px is not None:
-            payload["price"] = str(px)
+            params.update({"price": str(px)})
         if sz is not None:
-            payload["qty"] = str(sz)
+            params.update({"qty": str(sz)})
 
         payload = {
             "op": "order.amend",
@@ -150,7 +150,7 @@ class BybitExchange(BaseExchange):
                 "X-BAPI-TIMESTAMP": int(time_ms()),
                 "X-BAPI-RECV-WINDOW": RECV_WINDOW
             },
-            "args": [payload]
+            "args": [params]
         }
 
         response = await self._ws_client.submit(payload)
@@ -170,15 +170,15 @@ class BybitExchange(BaseExchange):
         if not oid and not cloid:
             raise ValueError("Missing oid and/or cloid; either 'oid' or 'cloid' must be provided for cancellation")
         
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
         }
 
         if oid is not None:
-            payload["orderId"] = oid
+            params.update({"orderId": oid})
         elif cloid is not None:
-            payload["orderLinkId"] = cloid
+            params.update({"orderLinkId": cloid})
 
         payload = {
             "op": "order.cancel",
@@ -186,7 +186,7 @@ class BybitExchange(BaseExchange):
                 "X-BAPI-TIMESTAMP": int(time_ms()),
                 "X-BAPI-RECV-WINDOW": RECV_WINDOW
             },
-            "args": [payload]
+            "args": [params]
         }
 
         response = await self._ws_client.submit(payload)
@@ -201,20 +201,20 @@ class BybitExchange(BaseExchange):
         """
         self.ensure_running(rest_only=True)
         
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
         }
         
         response = await self._rest_client.submit(
             endpoint=ENDPOINT_POST_CANCEL_ALL, 
-            payload=payload, 
+            payload=params, 
             method="POST"
         )
         return response
 
     async def get_trades(self, symbol):
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
             "limit": 1000
@@ -223,7 +223,7 @@ class BybitExchange(BaseExchange):
         try:
             async with self.unauth_session.get(
                 url=ENDPOINT_GET_TRADES, 
-                params=payload
+                params=params
             ) as response:
                 resp_text = await response.text()
                 resp_json = self._json_decoder.decode(resp_text)
@@ -254,7 +254,7 @@ class BybitExchange(BaseExchange):
             raise Exception(f"BYBIT REST [{ENDPOINT_GET_TRADES}] request exception; {str(e)}")
     
     async def get_orderbook(self, symbol):
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
             "limit": 500
@@ -263,7 +263,7 @@ class BybitExchange(BaseExchange):
         try:
             async with self.unauth_session.get(
                 url=ENDPOINT_GET_ORDERBOOK,
-                params=payload
+                params=params
             ) as response:
                 resp_text = await response.text()
                 resp_json = self._json_decoder.decode(resp_text)
@@ -285,7 +285,7 @@ class BybitExchange(BaseExchange):
             raise Exception(f"BYBIT REST [{ENDPOINT_GET_ORDERBOOK}] request exception; {str(e)}")
                 
     async def get_ticker(self, symbol):
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol
         }
@@ -293,7 +293,7 @@ class BybitExchange(BaseExchange):
         try:
             async with self.unauth_session.get(
                 url=ENDPOINT_GET_TICKERS, 
-                params=payload
+                params=params
             ) as response:
                 resp_text = await response.text()
                 resp_json = self._json_decoder.decode(resp_text)
@@ -320,7 +320,7 @@ class BybitExchange(BaseExchange):
     async def get_orders(self, symbol):
         self.ensure_running(rest_only=True)
 
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
             "limit": 50
@@ -329,7 +329,7 @@ class BybitExchange(BaseExchange):
         try:
             resp_json = await self._rest_client.submit(
                 endpoint=ENDPOINT_GET_ORDERS, 
-                payload=payload, 
+                payload=params, 
                 method="GET"
             )
 
@@ -363,7 +363,7 @@ class BybitExchange(BaseExchange):
     async def get_position(self, symbol):
         self.ensure_running(rest_only=True)
 
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol
         }
@@ -371,7 +371,7 @@ class BybitExchange(BaseExchange):
         try:
             resp_json = await self._rest_client.submit(
                 endpoint=ENDPOINT_GET_POSITION, 
-                payload=payload, 
+                payload=params, 
                 method="GET"
             )
 
@@ -401,7 +401,7 @@ class BybitExchange(BaseExchange):
     async def get_executions(self, symbol: str) -> List[ExecutionMsg] | None:
         self.ensure_running(rest_only=True)
 
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol,
             "limit": 100
@@ -410,7 +410,7 @@ class BybitExchange(BaseExchange):
         try:
             resp_json = await self._rest_client.submit(
                 endpoint=ENDPOINT_GET_EXECUTIONS,
-                payload=payload,
+                payload=params,
                 method="GET"
             )
 
@@ -446,7 +446,7 @@ class BybitExchange(BaseExchange):
         try:
             resp_json = await self._rest_client.submit(
                 endpoint=ENDPOINT_GET_ACCOUNT, 
-                payload=payload, 
+                payload=params, 
                 method="GET"
             )
             
@@ -470,7 +470,7 @@ class BybitExchange(BaseExchange):
     async def get_precision(self, symbol):
         self.ensure_running(rest_only=True)
 
-        payload = {
+        params = {
             "category": "linear",
             "symbol": symbol
         }
@@ -478,7 +478,7 @@ class BybitExchange(BaseExchange):
         try:
             async with self.unauth_session.get(
                 url=ENDPOINT_GET_INSTRUMENTS_INFO, 
-                params=payload
+                params=params
             ) as response:
                 resp_text = await response.text()
                 resp_json = self._json_decoder.decode(resp_text)

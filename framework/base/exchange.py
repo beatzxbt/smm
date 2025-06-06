@@ -6,7 +6,17 @@ from typing import Dict, Optional, Union, Literal, Tuple, List
 from framework.tools.time import time_ns
 from framework.tools.logger import Logger
 
-from framework.base.internal_structs import OrderMsg, OrderbookMsg, TickerMsg, TradeMsg, PositionMsg, AccountMsg, ExecutionMsg, OrderTimeInForce
+from framework.base.internal_structs import (
+    Symbol, 
+    OrderMsg, 
+    OrderbookMsg, 
+    TickerMsg, 
+    TradeMsg, 
+    PositionMsg, 
+    AccountMsg, 
+    ExecutionMsg, 
+    OrderTimeInForce
+)
 from framework.base.client import BaseRestTradeClient, BaseWsTradeClient
 
 
@@ -138,7 +148,7 @@ class BaseExchange(ABC):
     @abstractmethod
     async def create_order(
         self, 
-        symbol: str, 
+        symbol: Symbol, 
         is_maker: bool, 
         sz: float, 
         is_buy: bool, 
@@ -167,7 +177,7 @@ class BaseExchange(ABC):
     @abstractmethod
     async def amend_order(
         self, 
-        symbol: str,
+        symbol: Symbol,
         sz: Optional[float]=None,
         px: Optional[float]=None,
         oid: Optional[str]=None,
@@ -190,7 +200,7 @@ class BaseExchange(ABC):
     @abstractmethod
     async def cancel_order(
         self, 
-        symbol: str, 
+        symbol: Symbol, 
         oid: Optional[str]=None, 
         cloid: Optional[str]=None
     ) -> Optional[Dict]:
@@ -207,7 +217,7 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def cancel_all_orders(self, symbol: str) -> Optional[Dict]:
+    async def cancel_all_orders(self, symbol: Symbol) -> Optional[Dict]:
         """Cancels all open orders for a symbol.
 
         Args:
@@ -219,7 +229,7 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def get_trades(self, symbol: str) -> Optional[TradeMsg]:
+    async def get_trades(self, symbol: Symbol) -> Optional[TradeMsg]:
         """Gets recent trades for a symbol. The trades are returned in 
         re-chronological order, so the first trade in the list is the 
         oldest and the last trade in the list is the newest.
@@ -233,7 +243,7 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def get_orderbook(self, symbol: str) -> Optional[OrderbookMsg]:
+    async def get_orderbook(self, symbol: Symbol) -> Optional[OrderbookMsg]:
         """Gets an orderbook snapshot for a symbol. The orderbook is returned 
         with the levels sorted in ascending order of price. Bids will have the 
         lowest price at the front of its list and asks will have the highest 
@@ -248,7 +258,7 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> Optional[TickerMsg]:
+    async def get_ticker(self, symbol: Symbol) -> Optional[TickerMsg]:
         """Gets ticker data for a symbol.
 
         Args:
@@ -260,7 +270,7 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def get_orders(self, symbol: str) -> Optional[List[OrderMsg]]:
+    async def get_orders(self, symbol: Symbol) -> Optional[List[OrderMsg]]:
         """Gets open orders for a symbol.
 
         Args:
@@ -272,7 +282,7 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def get_position(self, symbol: str) -> Optional[PositionMsg]:
+    async def get_position(self, symbol: Symbol) -> Optional[PositionMsg]:
         """Gets current position data for a symbol.
 
         Args:
@@ -284,7 +294,7 @@ class BaseExchange(ABC):
         pass
     
     @abstractmethod
-    async def get_executions(self, symbol: str) -> Optional[List[ExecutionMsg]]:
+    async def get_executions(self, symbol: Symbol) -> Optional[List[ExecutionMsg]]:
         """Gets executions for a symbol.
 
         Args:
@@ -305,7 +315,7 @@ class BaseExchange(ABC):
         pass
 
     @abstractmethod
-    async def get_precision(self, symbol: str) -> Optional[Tuple[float, float]]:
+    async def get_precision(self, symbol: Symbol) -> Optional[Tuple[float, float]]:
         """Gets the precision for a symbol.
 
         Returns:
