@@ -1,8 +1,48 @@
 import msgspec
-from enum import Enum
-from typing import Optional, Union, Literal
+from enum import IntEnum
+from typing import Optional, Union
 
-class Trade(msgspec.Struct):
+from framework.tools.time import time_ns
+
+class Exchange(IntEnum):
+    """Represents an exchange.
+    
+    Args:
+        BINANCE: Binance.
+        BYBIT: Bybit.
+        OKX: OKX.
+        HYPERLIQUID: Hyperliquid.
+    """
+    BINANCE = 0
+    BYBIT = 1
+    OKX = 2
+    HYPERLIQUID = 3
+    EXTENDED = 4
+    DYDX = 5
+    PARADEX = 6
+
+class Symbol(str):
+    """Represents a symbol.
+    
+    Args:
+        symbol: The symbol.
+    """
+    pass
+
+class InternalMsg(msgspec.Struct):
+    """Represents a message that is internal to the framework.
+    
+    Args:
+        local_time_ns: The timestamp when the message was created.
+        exchange: The exchange that the message is from.
+        symbol: The symbol that the message is for.
+    """
+    exchange: Exchange
+    symbol: Symbol = msgspec.field(default=Symbol(""))
+    local_time_ns: int = msgspec.field(default=time_ns())
+    extern_latency_us: Optional[int] = msgspec.field(default=0)
+
+class Trade(msgspec.Struct, array_like=True, kw_only=True):
     """Represents a trade that occurred on the exchange.
     
     Args:
@@ -10,14 +50,13 @@ class Trade(msgspec.Struct):
         px: The price at which the trade occurred.
         is_buy: Whether the trade was a buy (True) or sell (False).
         sz: The quantity that was traded.
-        is_maker: Whether the trade was as a maker (True) or taker (False).
     """
     time: float
     px: float
     is_buy: bool
     sz: float
 
-class TradeMsg(msgspec.Struct, kw_only=True, tag="Trade"):
+class TradeMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
     """Represents a trade that occurred on the exchange.
     
     Args:
@@ -26,34 +65,37 @@ class TradeMsg(msgspec.Struct, kw_only=True, tag="Trade"):
         time: The timestamp when the trade occurred.
         trades: List of individual trade objects.
     """
-    id: Optional[str]=""
-    symbol: str
-    time: float
-
     trades: list[Trade]
 
-class OrderbookMsg(msgspec.Struct, kw_only=True, tag="Orderbook"):
+# There is no difference between a dataclass and a msgspec.Struct, though
+# there is a ~4x speed increment when creating these Structs.
+class OrderbookLevel(msgspec.Struct, array_like=True, kw_only=True):
+    """Represents a single level in the orderbook.
+    
+    Args:
+        px: Price level.
+        sz: Total size at this price level.
+        num_orders: Number of orders at this price level.
+    """
+    px: float
+    sz: float
+    num_orders: Optional[int] = 1
+
+class OrderbookMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
     """Represents the current state of the orderbook.
     
     Args:
-        id: Unique identifier for the orderbook update.
-        symbol: The trading pair symbol.
-        time: The timestamp of this orderbook snapshot.
-        bids: List of bid entries as [price, quantity] pairs, sorted by price in descending order.
-        asks: List of ask entries as [price, quantity] pairs, sorted by price in ascending order.
+        bids: List of bid entries.
+        asks: List of ask entries.
         is_bbo: Whether this update contains only the best bid and offer.
         is_snapshot: Whether this is a complete orderbook snapshot.
     """
-    id: Optional[str]=""
-    symbol: str
-    time: float
-
-    bids: list[list[float, float]]
-    asks: list[list[float, float]]
+    bids: list[OrderbookLevel]
+    asks: list[OrderbookLevel]
     is_bbo: bool
     is_snapshot: bool
 
-class TickerMsg(msgspec.Struct, kw_only=True, tag="Ticker"):
+class TickerMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
     """Represents the current ticker information for a symbol.
     
     Args:
@@ -68,10 +110,6 @@ class TickerMsg(msgspec.Struct, kw_only=True, tag="Ticker"):
         px_chg_24h: Price change in the last 24 hours.
         oi: Open interest.
     """
-    id: Optional[str]=""
-    symbol: str
-    time: float
-
     mark_px: float
     index_px: float
     funding_rate: float
@@ -81,28 +119,21 @@ class TickerMsg(msgspec.Struct, kw_only=True, tag="Ticker"):
     oi: Optional[float] = None
 
 
-class PositionMsg(msgspec.Struct, kw_only=True, tag="Position"):
+class PositionMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
     """Represents a trading position.
     
     Args:
-        id: Unique identifier for the position update.
-        symbol: The trading pair symbol.
-        time: The timestamp of this position information.
         px: The average entry price of the position.
         is_long: Whether the position is long (True) or short (False).
         sz: The position size.
         age: The age of the position in seconds.
     """
-    id: Optional[str]=""
-    symbol: str
-    time: float
-
     px: float
     is_long: bool
     sz: float
     age: Optional[float] = None
 
-class OrderTimeInForce(Enum):
+class OrderTimeInForce(IntEnum):
     """Represents the time in force policy of an order.
     
     Args:
@@ -111,18 +142,15 @@ class OrderTimeInForce(Enum):
         PO: Post only.
         FOK: Fill or kill.
     """
-    GTC = "GTC"
-    IOC = "IOC"
-    PO = "PO"
-    FOK = "FOK"
+    GTC = 0
+    IOC = 1
+    PO = 2
+    FOK = 3
 
-class OrderMsg(msgspec.Struct, kw_only=True, tag="OrderStatus"):
+class OrderMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
     """Represents the current status of an order.
     
     Args:
-        id: Unique identifier for the order update.
-        symbol: The trading pair symbol.
-        time: The timestamp of this order information.
         create_time_ms: The timestamp when the order was created.
         oid: The exchange order ID.
         cloid: The client order ID.
@@ -133,10 +161,6 @@ class OrderMsg(msgspec.Struct, kw_only=True, tag="OrderStatus"):
         tif: The time in force policy of the order.
         is_reduce_only: Whether the order is reduce-only.
     """
-    id: Optional[str]=""
-    symbol: str
-    time: float
-
     create_time_ms: float
     oid: str
     cloid: Optional[str] = None
@@ -148,60 +172,46 @@ class OrderMsg(msgspec.Struct, kw_only=True, tag="OrderStatus"):
     is_cancelled: bool
     is_reduce_only: bool
 
-class ExecutionMsg(msgspec.Struct, kw_only=True, tag="Execution"):
+class ExecutionMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
     """Represents an execution (fill) of an order.
     
     Args:
-        id: Unique identifier for the execution.
-        symbol: The trading pair symbol.
-        time: The timestamp when this execution occurred.
         px: The price at which the execution occurred.
         is_buy: Whether the execution was a buy (True) or sell (False).
         sz: The quantity that was executed.
         is_maker: Whether the execution was as a maker (True) or taker (False).
         fee_paid: The fee paid for this execution.
     """
-    id: Optional[str]=""
-    symbol: str
-    time: float
-
     px: float
     is_buy: bool
     sz: float
     is_maker: bool
     fee_paid: Optional[float] = None
 
-class AccountMsg(msgspec.Struct, kw_only=True, tag="Account"):
+class AccountMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
     """Represents account information.
     
     Args:
-        id: Unique identifier for the account update.
-        time: The timestamp of this account information.
         bal: The total balance of the account.
         im: Initial margin requirement.
         mm: Maintenance margin requirement.
-        uPnl: Unrealized profit and loss.
+        upnl: Unrealized profit and loss.
     """
-    id: Optional[str]=""
-    time: float
-    
     bal: float
     im: float
     mm: float
-    uPnl: float
+    upnl: float
 
-class HealthCheckMsg(msgspec.Struct, kw_only=True, tag="HealthCheck"):
-    """Represents a health check message.
+class HeartbeatMsg(InternalMsg, array_like=True, kw_only=True, tag=True):
+    """Represents a heartbeat message.
     
     Args:
-        id: Unique identifier for the health check.
-        time: The timestamp of this health check.
-        next_check: The timestamp of the next health check.
+        time: The timestamp of this heartbeat in seconds.
+        next_check: The timestamp of the next heartbeat in seconds.
     """
-    id: Optional[str]=""
     time: float
     next_check: float
 
 MarketDataEvent = Union[TradeMsg, OrderbookMsg, TickerMsg]
 PrivateDataEvent = Union[PositionMsg, OrderMsg, ExecutionMsg, AccountMsg]
-Event = Union[TradeMsg, OrderbookMsg, TickerMsg, PositionMsg, OrderMsg, ExecutionMsg, AccountMsg, HealthCheckMsg]
+Event = Union[TradeMsg, OrderbookMsg, TickerMsg, PositionMsg, OrderMsg, ExecutionMsg, AccountMsg, HeartbeatMsg]
