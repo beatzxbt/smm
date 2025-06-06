@@ -1,381 +1,326 @@
-import numpy as np
-from numba import njit
-from numba.experimental import jitclass
-from numba.types import uint64, float64, bool_
+from typing import Dict, List, Tuple, Optional, Iterator
 
-@njit(inline="always")
-def isin(a: np.ndarray, b: np.ndarray) -> np.ndarray[bool]:
-    """
-    Constaints:
-    * 'a': dim=1, dtype='same as b'
-    * 'b': dim=1, dtype='same as a'
-    """
-    assert a.ndim == 1 and b.ndim == 1, "2D arrays not supported."
+from framework.base.internal_structs import OrderbookLevel
 
-    b_set = set(b)
-    out_len = a.size
-    out = np.empty(out_len, dtype=bool_)
-    for i in range(out_len):
-        out[i] = a[i] in b_set
-
-    return out
-
-@njit(inline="always")
-def roll(a: np.ndarray, shift: int, axis: int) -> np.ndarray:
-    """
-    Constraints:
-    * 'axis': int >= 0
-    """
-    assert axis >= 0, "Axis must be positive."
-
-    if shift == 0:
-        return a
-
-    if a.ndim == 1:
-        if shift > 0:
-            return np.concat((a[-shift:], a[:-shift]))
-        else:
-            return np.concat((a[shift:], a[:shift]))
-
-    # Numba throws index error without this. Seems that it cant
-    # infer the early return from ndim==1 branch and fails to
-    # generate the memory map correctly for 'a'
-    assert a.ndim > 1
-
-    shift = shift % a.shape[axis]
-
-    out = np.empty_like(a)
-    axis_len = a.shape[axis]
-
-    # Roll the array
-    for i in range(axis_len):
-        new_index = (i + shift) % axis_len
-        if axis == 0:
-            out[new_index, :] = a[i, :]
-        else:
-            out[:, new_index] = a[:, i]
-
-    return out
-
-@jitclass
 class Orderbook:
     """
-    An orderbook class, maintaining separate arrays for bid and
-    ask orders with functionality to initialize, update, and sort
-    the orders.
-
-    The data fed into the orderbook is expected to be in the following format:
-    - Bids: [[px, sz], ...]
-    - Asks: [[px, sz], ...]
-
-    The orderbook will then sort the bids and asks in descending order of price
-    for the bids and ascending order of price for the asks.
-    
-    It assumes the data is in chronological order, and thus doesn't keep track
-    of the sequence id. Sort this out directly in the data feeds!
+    An orderbook class maintaining separate dictionaries for bid and
+    ask orders with functionality to initialize, update, and access
+    best bid/offer information.
     """
- 
-    _size: uint64
-    _is_warm: bool_
-    _asks: float64[:, :]
-    _bids: float64[:, :]
 
-    def __init__(self, size: int) -> None:
-        if size <= 1:
-            raise ValueError(f"Invalid size; expected >1 but got {size}")
+    def __init__(
+            self, 
+            size: int=500, 
+            initial_bids: Optional[List[OrderbookLevel]]=None, 
+            initial_asks: Optional[List[OrderbookLevel]]=None
+        ) -> None:
+        self._size = size
 
-        self._size: int = size
-        self._is_warm: bool = False
-        self._asks: np.ndarray = np.zeros((size, 2), dtype=float64)
-        self._bids: np.ndarray = np.zeros((size, 2), dtype=float64)
+        self._asks: Dict[float, OrderbookLevel] = {}
+        self._bids: Dict[float, OrderbookLevel] = {}
+        
+        self._sorted_ask_pxs: List[float] = []
+        self._sorted_bid_pxs: List[float] = []
 
-    def _sort_bids(self, bids: np.ndarray) -> None:
-        """
-        Removes entries with matching prices in update, regardless of size, and then
-        adds non-zero quantity data from update to the book.
-
-        Sorts the bid orders in descending order of price.
-
-        If the best bid is higher than any asks, remove those asks by:
-         - Filling the to-be removed arrays with zeros.
-         - Rolling it to the back of the orderbook.
-        """
-        removed_old_prices = self._bids[~isin(self._bids[:, 0], bids[:, 0])]
-        new_full_bids = np.vstack(
-            (
-                removed_old_prices[
-                    removed_old_prices[:, 1] != 0.0  # Re-remove zeros incase of overlap
-                ],
-                bids[bids[:, 1] != 0.0],
+        self._is_populated = False
+        
+        if initial_bids is not None and initial_asks is not None:
+            self.update(
+                bids=initial_bids, 
+                asks=initial_asks, 
+                is_snapshot=True
             )
-        )
-
-        self._bids = new_full_bids[new_full_bids[:, 0].argsort()][::-1][: self._size]
-
-        # Remove overlapping asks.
-        if self._bids[0, 0] >= self._asks[0, 0]:
-            overlapping_asks = self._asks[self._asks[:, 0] <= self._bids[0, 0]].shape[0]
-            self._asks[:overlapping_asks].fill(0.0)
-            self._asks[:, :] = roll(self._asks, -overlapping_asks, 0)
-
-    def _sort_asks(self, asks: np.ndarray) -> None:
-        """
-        Removes entries with matching prices in update, regardless of size, and then
-        adds non-zero quantity data from update to the book.
-
-        Sorts the ask orders in ascending order of price.
-
-        If the best ask is lower than any bids, remove those bids by:
-         - Filling the to-be removed arrays with zeros.
-         - Rolling it to the back of the orderbook.
-        """
-        removed_old_prices = self._asks[~isin(self._asks[:, 0], asks[:, 0])]
-        new_full_asks = np.vstack(
-            (
-                removed_old_prices[
-                    removed_old_prices[:, 1] != 0.0  # Re-remove zeros incase of overlap
-                ],
-                asks[asks[:, 1] != 0.0],
-            )
-        )
-
-        self._asks = new_full_asks[new_full_asks[:, 0].argsort()][: self._size]
-
-        # Remove overlapping bids.
-        if self._asks[0, 0] <= self._bids[0, 0]:
-            overlapping_bids = self._bids[self._bids[:, 0] >= self._asks[0, 0]].shape[0]
-            self._bids[:overlapping_bids].fill(0.0)
-            self._bids[:, :] = roll(self._bids, -overlapping_bids, 0)
-
-    def reset(self, asks: np.ndarray, bids: np.ndarray) -> None:
-        """
-        Refreshes the order book with given *complete* ask and bid data and sorts the book.
-
-        Parameters
-        ----------
-        asks : np.ndarray
-            Initial ask orders data, formatted as [[px, sz], ...].
-
-        bids : np.ndarray
-            Initial bid orders data, formatted as [[px, sz], ...].
-        """
-        # Reset attributes and internal arrays.
-        self._is_warm = False
-        self._asks.fill(0.0)
-        self._bids.fill(0.0)
-
-        # Prefer to broadcast onto internal arrays, not overwrite.
-        # We also assume that they come in without any overlapping bids/asks,
-        # skipping that check and previous array stacking for perf.
-        self._asks[:, :] = asks[asks[:, 0].argsort()]
-        self._bids[:, :] = bids[bids[:, 0].argsort()[::-1]]
-
-        self._is_warm = True
-
-    def update_bbo(
-        self,
-        bid_px: float,
-        bid_sz: float,
-        ask_px: float,
-        ask_sz: float,
-    ) -> None:
-        """
-        Updates the current orderbook with new best bid ask data.
-        """
-        self.ensure_warm()
-
-        best_bid_price = self._bids[0, 0]
-        best_ask_price = self._asks[0, 0]
-
-        # Matching bid price, update size.
-        if bid_px == best_bid_price:
-            if bid_sz == 0.0:
-                # Most feeds don't send size 0 through the BBA
-                # feed, but just incase, this case is included.
-                # It is inefficient due to the realloc, but wont
-                # be optimized further.
-                self._bids = self._bids[1:]
-            else:
-                self._bids[0, 1] = bid_sz
-
-        # Higher bid price, insert ontop then solve ask overlaps.
-        elif bid_px > best_bid_price:
-            self._bids = roll(self._bids, 1, 0)
-            self._bids[0, 0] = bid_px
-            self._bids[0, 1] = bid_sz
-
-            # Remove overlapping asks (identical to self._sort_bids())
-            if self._bids[0, 0] >= self._asks[0, 0]:
-                overlapping_asks = self._asks[
-                    self._asks[:, 0] <= self._bids[0, 0]
-                ].shape[0]
-                self._asks[:overlapping_asks].fill(0.0)
-                self._asks[:, :] = roll(self._asks, -overlapping_asks, 0)
-
-        # Matching ask price, update size.
-        if ask_px == best_ask_price:
-            if ask_sz == 0.0:
-                # Most feeds don't send size 0 through the BBA
-                # feed, but just incase, this case is included.
-                # It is inefficient due to the realloc, but wont
-                # be optimized further.
-                self._asks = self._asks[1:]
-            else:
-                self._asks[0, 1] = ask_sz
-
-        # Lower ask price, insert ontop then solve bid overlaps.
-        elif ask_px < best_ask_price:
-            self._asks = roll(self._asks, 1, 0)
-            self._asks[0, 0] = ask_px
-            self._asks[0, 1] = ask_sz
-
-            # Remove overlapping bids (identical to self._sort_asks()).
-            if self._asks[0, 0] <= self._bids[0, 0]:
-                overlapping_bids = self._bids[
-                    self._bids[:, 0] >= self._asks[0, 0]
-                ].shape[0]
-                self._bids[:overlapping_bids].fill(0.0)
-                self._bids[:, :] = roll(self._bids, -overlapping_bids, 0)
-
-    def update_bids(self, new_bids: np.ndarray) -> None:
-        """
-        Updates the current bids with new data.
-
-        Parameters
-        ----------
-        bids : np.ndarray
-            New bid orders data, formatted as [[price, size], ...].
-        """ 
-        self.ensure_warm()
-        self._sort_bids(new_bids)
-
-    def update_asks(self, new_asks: np.ndarray) -> None:
-        """
-        Updates the current asks with new data.
-
-        Parameters
-        ----------
-        asks : np.ndarray
-            New ask orders data, formatted as [[price, size], ...].
-        """
-        self.ensure_warm()
-        self._sort_asks(new_asks)
-
-    def update_full(self, new_asks: np.ndarray, new_bids: np.ndarray) -> None:
-        """
-        Updates the order book with new ask and bid data.
-
-        Parameters
-        ----------
-        asks : np.ndarray
-            New ask orders data, formatted as [[price, size], ...].
-
-        bids : np.ndarray
-            New bid orders data, formatted as [[price, size], ...].
-        """
-        self.ensure_warm()
-        self._sort_bids(new_bids)
-        self._sort_asks(new_asks)
-
-    def get_mid_px(self) -> float:
-        """
-        Return the midpoint between the best bid and best ask prices.
-
-        Returns:
-            float: 
-                The midpoint, calculated as (best_bid + best_ask) / 2.0.
-
-        Raises:
-            RuntimeError: If the orderbook is not warmed (caught via `ensure_warm()`).
-        """
-        self.ensure_warm()
-        return (self._bids[0, 0] + self._asks[0, 0]) / 2.0
-
-    def get_wmid_px(self):
-        """
-        Return a 'weighted mid' price considering size at the top bid and ask.
-
-        This method computes an imbalance ratio based on the top bid size and top ask size, 
-        and uses that ratio to do a linear interpolation between best_bid and best_ask prices.
-
-        Returns:
-            float:
-                The weighted mid, computed as 
-                (best_bid_price * imbalance + best_ask_price * (1 - imbalance)),
-                where imbalance = top_bid_size / (top_bid_size + top_ask_size).
-
-        Raises:
-            RuntimeError: If the orderbook is not warmed (caught via `ensure_warm()`).
-        """
-        self.ensure_warm()
-        top_bid_sz = self._bids[0, 1]
-        top_ask_sz = self._asks[0, 1]
-        imbalance = top_bid_sz / (top_bid_sz + top_ask_sz)
-        return (self._bids[0, 0] * imbalance) + (self._asks[0, 0] * (1.0 - imbalance))
-
-    def get_bbo_spread(self):
-        """
-        Calculate the spread between the best ask and the best bid.
-
-        Returns:
-            float: The difference between the best ask price (asks[0,0])
-                and the best bid price (bids[0,0]).
-        """
-        self.ensure_warm()
-        return self._asks[0, 0] - self._bids[0, 0]
     
-    # ----- Public array access methods ----- #
-
-    def get_bids(self) -> np.ndarray:
+    def _ensure_populated(self) -> None:
+        """Check if the orderbook is populated."""
+        if not self._is_populated:
+            raise ValueError("Orderbook is not populated.")
+    
+    def _ensure_snapshot_validity(self, bids: List[OrderbookLevel], asks: List[OrderbookLevel]) -> None:
+        """Check if the snapshot is valid."""
+        len_bids = len(bids)
+        if len(bids) != self._size:
+            raise ValueError(f"Invalid bids with snapshot; expected {self._size} bids but got {len_bids}.")
+        
+        len_asks = len(asks)
+        if len(asks) != self._size:
+            raise ValueError(f"Invalid asks with snapshot; expected {self._size} asks but got {len_asks}.")
+        
+    def _remove_ask(self, px: float) -> None:
+        """Remove an ask level."""
+        if px in self._asks:
+            del self._asks[px]
+            self._sorted_ask_pxs.remove(px)
+    
+    def _remove_bid(self, px: float) -> None:
+        """Remove a bid level."""
+        if px in self._bids:
+            del self._bids[px]
+            self._sorted_bid_pxs.remove(px)
+    
+    def update(self, bids: List[OrderbookLevel], asks: List[OrderbookLevel], is_snapshot: bool = False) -> None:
+        """Update the orderbook.
+        
+        Args:
+            bids: List of bid levels.
+            asks: List of ask levels.
+            is_snapshot: Whether this is a snapshot update.
         """
-        Return the entire bids array.
+        if is_snapshot:
+            self._ensure_snapshot_validity(bids, asks)
+
+            self.reset()
+    
+            for ask in asks:
+                self._asks[ask.px] = ask
+                self._sorted_ask_pxs.append(ask.px)
+            self._sorted_ask_pxs.sort()
+
+            for bid in bids:
+                self._bids[bid.px] = bid
+                self._sorted_bid_pxs.append(bid.px)
+            self._sorted_bid_pxs.sort(reverse=True)
+
+            # As we allow for the orderbook to be not populated directly on initialization,
+            # we allow it here as a snapshot serves the same purpose in a cheap way.
+            self._is_populated = True
+
+        else:
+            for ask in asks:
+                if ask.sz == 0.0:
+                    self._remove_ask(ask.px)
+                else:
+                    if ask.px not in self._asks:
+                        self._sorted_ask_pxs.append(ask.px)
+                        self._sorted_ask_pxs.sort()
+                    self._asks[ask.px] = ask
+
+            for bid in bids:
+                if bid.sz == 0.0:
+                    self._remove_bid(bid.px)
+                else:
+                    if bid.px not in self._bids:
+                        self._sorted_bid_pxs.append(bid.px)
+                        self._sorted_bid_pxs.sort(reverse=True)
+                    self._bids[bid.px] = bid
+
+    def update_bbo(self, bid: OrderbookLevel, ask: OrderbookLevel) -> None:
+        """Update the best bid and offer. BBO updates usually don't 
+        supply sz=0 updates for signalling level deletion, and directly
+        provide the new best bid/ask if available. Therefore, we ignore it
+        and directly update the best bid/ask for now, fixing any issues
+        arising with the orderbook by assuming this source of truth.
+        
+        Args: 
+            bid: Best bid level.
+            ask: Best ask level.
+        """
+        # Handle bid update
+        if bid.sz == 0:
+            # Remove current best bid if it exists
+            if self._sorted_bid_pxs:
+                best_bid_px = self._sorted_bid_pxs[0]
+                if best_bid_px in self._bids:
+                    del self._bids[best_bid_px]
+                    self._sorted_bid_pxs.remove(best_bid_px)
+        else:
+            # Update or replace the best bid
+            if self._sorted_bid_pxs and bid.px in self._bids:
+                # Update existing best bid
+                self._bids[bid.px] = bid
+            else:
+                # New best bid - remove old best if exists and add new one
+                if self._sorted_bid_pxs:
+                    old_best_px = self._sorted_bid_pxs[0]
+                    if old_best_px != bid.px and old_best_px in self._bids:
+                        del self._bids[old_best_px]
+                        self._sorted_bid_pxs.remove(old_best_px)
+                
+                self._bids[bid.px] = bid
+                if bid.px not in self._sorted_bid_pxs:
+                    self._sorted_bid_pxs.append(bid.px)
+                    self._sorted_bid_pxs.sort(reverse=True)
+        
+        # Handle ask update
+        if ask.sz == 0:
+            # Remove current best ask if it exists
+            if self._sorted_ask_pxs:
+                best_ask_px = self._sorted_ask_pxs[0]
+                if best_ask_px in self._asks:
+                    del self._asks[best_ask_px]
+                    self._sorted_ask_pxs.remove(best_ask_px)
+        else:
+            # Update or replace the best ask
+            if self._sorted_ask_pxs and ask.px in self._asks:
+                # Update existing best ask
+                self._asks[ask.px] = ask
+            else:
+                # New best ask - remove old best if exists and add new one
+                if self._sorted_ask_pxs:
+                    old_best_px = self._sorted_ask_pxs[0]
+                    if old_best_px != ask.px and old_best_px in self._asks:
+                        del self._asks[old_best_px]
+                        self._sorted_ask_pxs.remove(old_best_px)
+                
+                self._asks[ask.px] = ask
+                if ask.px not in self._sorted_ask_pxs:
+                    self._sorted_ask_pxs.append(ask.px)
+                    self._sorted_ask_pxs.sort()
+    
+    def get_bbo(self) -> Tuple[Optional[OrderbookLevel], Optional[OrderbookLevel]]:
+        """Get best bid and offer.
+        
+        Returns:
+            Tuple of (best_bid, best_ask). Either can be None if no levels exist.
+        """
+        self._ensure_populated()
+        best_bid_px = self._sorted_bid_pxs[0]
+        best_ask_px = self._sorted_ask_pxs[0]
+        return self._bids[best_bid_px], self._asks[best_ask_px]
+    
+    def get_asks(self, depth: Optional[int] = None) -> List[OrderbookLevel]:
+        """Get ask levels sorted by price (lowest first).
+        
+        Args:
+            depth: Maximum number of levels to return. If None, returns all.
+            
+        Returns:
+            List of ask levels sorted by price.
+        """
+        self._ensure_populated()
+        pxs = self._sorted_ask_pxs[:depth] if depth else self._sorted_ask_pxs
+        return [self._asks[px] for px in pxs]
+    
+    def iter_asks(self) -> Iterator[OrderbookLevel]:
+        """Iterate over ask levels sorted by price (lowest first).
+        
+        Args:
+            depth: Maximum number of levels to return. If None, returns all.
+        """
+        self._ensure_populated()
+        for px in self._sorted_ask_pxs:
+            yield self._asks[px]
+
+    def get_bids(self, depth: Optional[int] = None) -> List[OrderbookLevel]:
+        """Get bid levels sorted by price (highest first).
+        
+        Args:
+            depth: Maximum number of levels to return. If None, returns all.
+            
+        Returns:
+            List of bid levels sorted by price.
+        """
+        self._ensure_populated()
+        pxs = self._sorted_bid_pxs[:depth] if depth else self._sorted_bid_pxs
+        return [self._bids[px] for px in pxs]
+    
+    def iter_bids(self) -> Iterator[OrderbookLevel]:
+        """Iterate over bid levels sorted by price (highest first).
+        
+        Args:
+            depth: Maximum number of levels to return. If None, returns all.
+        """
+        self._ensure_populated()
+        for px in self._sorted_bid_pxs: 
+            yield self._bids[px]
+
+    def get_bbo_spread(self) -> Optional[float]:
+        """Get the bid-ask spread.
+        
+        Returns:
+            The spread (ask - bid) or None if BBO is incomplete.
+        """
+        self._ensure_populated()
+        best_bid, best_ask = self.get_bbo()
+        return best_ask.px - best_bid.px
+    
+    def get_mid_px(self) -> Optional[float]:
+        """Get the mid price between best bid and ask.
+        
+        Returns:
+            The mid price or None if BBO is incomplete.
+        """
+        self._ensure_populated()
+        best_bid, best_ask = self.get_bbo()
+        return (best_bid.px + best_ask.px) / 2.0
+    
+    def get_wmid_px(self) -> Optional[float]:
+        """Get the weighted mid price between best bid and ask.
+        
+        Returns:
+            The weighted mid price or None if BBO is incomplete.
+        """
+        self._ensure_populated()
+        best_bid, best_ask = self.get_bbo()
+        return (best_bid.px * best_bid.sz + best_ask.px * best_ask.sz) / (best_bid.sz + best_ask.sz)
+    
+    def get_sz_impact(self, sz: float, is_buy: bool, is_base_currency: bool = True) -> float:
+        """Get the direct price impact if a theoretical size were to be executed on the book.
+        
+        Args:
+            sz: The size of the trade to simulate.
+            is_buy: True for buy order (consuming asks), False for sell order (consuming bids).
+            is_base_currency: Whether the trade is in the base currency.
 
         Returns:
-            np.ndarray: The NumPy array representing the bid side 
-                of the orderbook.
+            The price impact as the difference between execution price and mid price.
+            Returns 0.0 if no impact or insufficient liquidity.
         """
-        return self._bids
+        self._ensure_populated()
+        if sz == 0.0:
+            return 0.0
+        
+        mid_px = self.get_mid_px()
+        if is_base_currency:
+            sz *= mid_px
+        
+        remaining_sz = sz
+        total_cost = 0.0
+        
+        if is_buy:
+            # Consuming asks (buying)
+            for px in self._sorted_ask_pxs:
+                level = self._asks[px]
+                consumed_sz = min(remaining_sz, level.sz)
+                total_cost += consumed_sz * px
+                remaining_sz -= consumed_sz
+                
+                if remaining_sz <= 0.0:
+                    break
+        else:
+            # Consuming bids (selling)
+            for px in self._sorted_bid_pxs:
+                level = self._bids[px]
+                consumed_sz = min(remaining_sz, level.sz)
+                total_cost += consumed_sz * px
+                remaining_sz -= consumed_sz
+                
+                if remaining_sz <= 0.0:
+                    break
+        
+        if remaining_sz > 0.0:
+            return float('inf')
+        
+        avg_execution_px = total_cost / sz
+        return abs(avg_execution_px - mid_px)
 
-    def get_asks(self) -> np.ndarray:
-        """
-        Return the entire asks array.
-
+    def is_crossed(self, orderbook: 'Orderbook') -> bool:
+        """Check if the orderbook is crossed.
+        
         Returns:
-            np.ndarray: The NumPy array representing the ask side 
-                of the orderbook.
+            True if the orderbook is crossed, False otherwise.
         """
-        return self._asks
+        # Other's BBO call already checks for populatedness
+        self._ensure_populated()
+        
+        my_best_bid, my_best_ask = self.get_bbo()
+        other_best_bid, other_best_ask = orderbook.get_bbo()
+        return my_best_bid.px > other_best_ask.px or my_best_ask.px < other_best_bid.px
 
-    def get_bbo(self) -> np.ndarray:
-        """
-        Return the current best bid and best ask in a single array.
-
-        Returns:
-            np.ndarray: A NumPy array of shape (2, 2), where:
-                [0] => best bid [price, size]
-                [1] => best ask [price, size]
-        """
-        return np.array([self._bids[0], self._asks[0]])
-
-    # ----- Fast sanity checkers ----- #
-
-    def is_warm(self) -> bool:
-        """
-        Check if the orderbook is considered 'warm' (i.e., has been initialized).
-
-        Returns:
-            bool: True if warmed up, False otherwise.
-        """
-        return self._is_warm
-
-    def ensure_warm(self):
-        """
-        Raise an error if the orderbook is not 'warm'.
-
-        Raises:
-            RuntimeError: If the orderbook is not initialized via '.reset()'.
-        """
-        if not self._is_warm:
-            raise RuntimeError(
-                "Orderbook not populated; must call '.reset()' before proceeding"
-            )
+    def reset(self) -> None:
+        """Reset the orderbook to empty state."""
+        self._asks.clear()
+        self._bids.clear()
+        self._sorted_ask_pxs.clear()
+        self._sorted_bid_pxs.clear()
