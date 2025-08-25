@@ -1,0 +1,42 @@
+[project]
+name = "smm"
+version = "2.0.0"
+description = "simple crypto market maker"
+readme = "README.md"
+authors = [
+    { name = "beatzxbt", email = "121855680+beatzxbt@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+license = "MIT"
+keywords = ["market making", "hft", "high performance python"]
+classifiers = [
+    "Development Status :: 5 - Stable",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+dependencies = [
+    "numpy",
+    "msgspec",
+    "aiohttp",
+    "uvloop",
+    "ruamel.yaml",
+    "ciso8601",
+    "dotenv>=0.9.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "pyright",
+    "uv",
+]
+
+[tool.pyright]
+include = ["src"]
+extraPaths = ["src"]
