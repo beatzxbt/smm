@@ -1,21 +1,20 @@
 import asyncio
+
 from framework.base.tools.logger.handlers.base import BaseLogHandler
 
 
 class DiscordLogHandler(BaseLogHandler):
-    """
-    A log handler that sends messages to a Discord webhook.
-    """
+    """A log handler that sends messages to a Discord webhook."""
 
     def __init__(self, webhook: str):
-        """
-        Initializes the DiscordLogHandler.
+        """Initializes the DiscordLogHandler.
 
         Args:
             webhook (str): The Discord webhook URL.
 
         Raises:
             ValueError: If webhook is invalid.
+
         """
         super().__init__()
 

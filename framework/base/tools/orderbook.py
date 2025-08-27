@@ -1,11 +1,11 @@
-from typing import Optional, Iterator, Self
+from collections.abc import Iterator
+from typing import Self
 
 from framework.base.stream.structs import OrderbookLevel
 
 
 class Orderbook:
-    """
-    An orderbook class maintaining separate dictionaries for bid and
+    """An orderbook class maintaining separate dictionaries for bid and
     ask orders with functionality to initialize, update, and access
     best bid/offer information.
     """
@@ -15,8 +15,8 @@ class Orderbook:
     def __init__(
         self,
         size: int = 500,
-        initial_bids: Optional[list[OrderbookLevel]] = None,
-        initial_asks: Optional[list[OrderbookLevel]] = None,
+        initial_bids: list[OrderbookLevel] | None = None,
+        initial_asks: list[OrderbookLevel] | None = None,
     ) -> None:
         self._size = size
 
@@ -172,7 +172,7 @@ class Orderbook:
         return self._bids[best_bid_px], self._asks[best_ask_px]
 
     def get_asks(
-        self, depth: Optional[int] = None, copy: bool = False
+        self, depth: int | None = None, copy: bool = False
     ) -> list[OrderbookLevel]:
         """Get ask levels sorted by price (lowest first)."""
         self._ensure_populated()
@@ -183,7 +183,7 @@ class Orderbook:
         return [self._asks[price] for price in prices]
 
     def get_bids(
-        self, depth: Optional[int] = None, copy: bool = False
+        self, depth: int | None = None, copy: bool = False
     ) -> list[OrderbookLevel]:
         """Get bid levels sorted by price (highest first)."""
         self._ensure_populated()
@@ -193,14 +193,14 @@ class Orderbook:
             return [self._bids[price].copy() for price in prices]
         return [self._bids[price] for price in prices]
 
-    def iter_asks(self, depth: Optional[int] = None) -> Iterator[OrderbookLevel]:
+    def iter_asks(self, depth: int | None = None) -> Iterator[OrderbookLevel]:
         """Iterate over ask levels sorted by price (lowest -> highest)."""
         self._ensure_populated()
         depth = depth if depth is not None else len(self._sorted_ask_prices)
         for price in self._sorted_ask_prices[:depth]:
             yield self._asks[price]
 
-    def iter_bids(self, depth: Optional[int] = None) -> Iterator[OrderbookLevel]:
+    def iter_bids(self, depth: int | None = None) -> Iterator[OrderbookLevel]:
         """Iterate over bid levels sorted by price (highest -> lowest)."""
         self._ensure_populated()
         depth = depth if depth is not None else len(self._sorted_bid_prices)

@@ -1,5 +1,6 @@
-import time
 import datetime
+import time
+
 import ciso8601
 
 
@@ -27,7 +28,7 @@ def iso8601_to_unix(timestamp: str) -> int:
     """Converts an ISO 8601 formatted timestamp to a Unix timestamp (seconds)."""
     dt = ciso8601.parse_datetime(timestamp)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
+        dt = dt.replace(tzinfo=datetime.UTC)
     return int(dt.timestamp())
 
 
@@ -52,7 +53,7 @@ def unix_to_iso8601(timestamp: float) -> str:
 
     # Get base time without fractional seconds
     base_time = datetime.datetime.fromtimestamp(
-        int(seconds), tz=datetime.timezone.utc
+        int(seconds), tz=datetime.UTC
     ).isoformat(timespec="seconds")
 
     # Add high precision fractional seconds
@@ -61,5 +62,5 @@ def unix_to_iso8601(timestamp: float) -> str:
 
 def time_iso8601() -> str:
     """Returns the current UTC time as 'YYYY-MM-DDTHH:MM:SS.fffZ'."""
-    dt = datetime.datetime.now(datetime.timezone.utc)
+    dt = datetime.datetime.now(datetime.UTC)
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"

@@ -2,29 +2,44 @@
 # If you are looking for better, faster implementations then check out that repository instead.
 # Url: https://github.com/beatzxbt/mm-toolbox
 
+from typing import TYPE_CHECKING, Any
+
 from .logger import (
-    Logger as Logger,
-    LoggerConfig as LoggerConfig,
-    FileLogHandler as FileLogHandler,
     DiscordLogHandler as DiscordLogHandler,
 )
-from .time import (
-    time_ms as time_ms,
-    time_s as time_s,
-    time_ns as time_ns,
+from .logger import (
+    FileLogHandler as FileLogHandler,
 )
+from .logger import (
+    Logger as Logger,
+)
+from .logger import (
+    LoggerConfig as LoggerConfig,
+)
+from .moving_average import ExponentialMovingAverage
+from .multiq import consume_multiq as consume_multiq
 from .rounder import (
     Rounder as Rounder,
+)
+from .rounder import (
     RounderConfig as RounderConfig,
 )
-from .multiq import consume_multiq as consume_multiq
-from .moving_average import ExponentialMovingAverage
+from .symbol_formatter import format_symbol as format_symbol
+from .time import (
+    time_ms as time_ms,
+)
+from .time import (
+    time_ns as time_ns,
+)
+from .time import (
+    time_s as time_s,
+)
 from .websocket import (
-    WebsocketConnection as WebsocketConnection,
     AuthenticationStrategy as AuthenticationStrategy,
 )
-from .symbol_formatter import format_symbol as format_symbol
-from typing import TYPE_CHECKING, Any
+from .websocket import (
+    WebsocketConnection as WebsocketConnection,
+)
 
 __all__ = [
     "Logger",

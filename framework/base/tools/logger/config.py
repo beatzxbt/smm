@@ -9,8 +9,7 @@ class LoggerConfig:
         str_format: str,
         buffer_timeout_s: float,
     ):
-        """
-        Initializes the LoggerConfig.
+        """Initializes the LoggerConfig.
 
         Args:
             base_level (LogLevel): The minimum log level that will be logged.
@@ -19,6 +18,7 @@ class LoggerConfig:
                 Supports %(asctime)s, %(levelname)s, %(name)s, and %(message)s.
             buffer_timeout_s (float): Maximum time (in seconds) before forcing
                 a buffer flush, even if it's not full. Must be > 0.
+
         """
         self.base_level = base_level
         self.to_console = to_console

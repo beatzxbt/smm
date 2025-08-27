@@ -1,4 +1,5 @@
 from enum import IntEnum
+
 from msgspec import Struct
 
 from framework.base.tools.time import unix_to_iso8601
