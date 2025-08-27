@@ -77,13 +77,13 @@ class Orderbook:
             self.reset()
 
             for ask in asks:
-                self._asks[ask.px] = ask
-                self._sorted_ask_prices.append(ask.px)
+                self._asks[ask.price] = ask
+                self._sorted_ask_prices.append(ask.price)
             self._sorted_ask_prices.sort()
 
             for bid in bids:
-                self._bids[bid.px] = bid
-                self._sorted_bid_prices.append(bid.px)
+                self._bids[bid.price] = bid
+                self._sorted_bid_prices.append(bid.price)
             self._sorted_bid_prices.sort(reverse=True)
 
             self._is_populated = True
@@ -91,20 +91,20 @@ class Orderbook:
         else:
             for ask in asks:
                 if ask.size == 0.0:
-                    self._remove_ask(ask.px)
+                    self._remove_ask(ask.price)
                 else:
-                    if ask.px not in self._asks:
-                        self._sorted_ask_prices.append(ask.px)
-                    self._asks[ask.px] = ask
+                    if ask.price not in self._asks:
+                        self._sorted_ask_prices.append(ask.price)
+                    self._asks[ask.price] = ask
             self._sorted_ask_prices.sort()
 
             for bid in bids:
                 if bid.size == 0.0:
-                    self._remove_bid(bid.px)
+                    self._remove_bid(bid.price)
                 else:
-                    if bid.px not in self._bids:
-                        self._sorted_bid_prices.append(bid.px)
-                    self._bids[bid.px] = bid
+                    if bid.price not in self._bids:
+                        self._sorted_bid_prices.append(bid.price)
+                    self._bids[bid.price] = bid
             self._sorted_bid_prices.sort(reverse=True)
 
     def update_bbo(self, bid: OrderbookLevel, ask: OrderbookLevel) -> None:

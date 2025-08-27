@@ -49,7 +49,7 @@ class WebsocketConnection:
 
     def _increment_seq_id(self) -> None:
         self.seq_id += 1
-        type(self).global_seq_id += 1
+        self.global_seq_id += 1
 
     async def connect(self, on_message: Callable[[bytes], None]) -> None:
         """Connect to WebSocket and handle authentication if needed."""

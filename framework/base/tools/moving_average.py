@@ -3,7 +3,7 @@ from typing import Optional
 
 class ExponentialMovingAverage:
     """
-    Exponential Moving Average (EMA) calculator.
+    Exponential Moving Average (EMA).
 
     The EMA gives more weight to recent values and responds more quickly to changes
     compared to a simple moving average. It's calculated using the formula:
@@ -12,7 +12,7 @@ class ExponentialMovingAverage:
 
     def __init__(self, period: Optional[int] = None, alpha: Optional[float] = None):
         """
-        Initializes the EMA calculator.
+        Initializes the EMA.
 
         Args:
             period (int): The period for the EMA calculation. Must be greater than 0.
