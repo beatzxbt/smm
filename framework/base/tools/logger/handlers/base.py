@@ -4,6 +4,7 @@ import aiohttp
 from abc import ABC, abstractmethod
 
 from framework.base.tools.logger.config import LoggerConfig
+from framework.base.tools.logger.structs import Log
 
 
 class BaseLogHandler(ABC):
@@ -73,11 +74,6 @@ class BaseLogHandler(ABC):
                 pass
 
     @abstractmethod
-    async def push(self, buffer: list[str]) -> None:
-        """
-        Flushes the given buffer of log entries in some way.
-
-        Args:
-            buffer (list[str]): The list of log messages to push.
-        """
+    def push(self, buffer: list[Log]) -> None:
+        """Flush the given buffer of log entries in some way (synchronous)."""
         pass

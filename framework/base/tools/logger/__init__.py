@@ -1,13 +1,13 @@
-# this is copy pasted from the mm_toolbox v1.0, which isnt out yet
-# so we need to keep it here for now. upon release, this should be
-# in the files to simply import 'from mm_toolbox.logging.standard import *'
-
 from .logger import (
     Logger as Logger,
 )
 
-from .config import (
+from .structs import (
+    Log as Log,
     LogLevel as LogLevel,
+)
+
+from .config import (
     LoggerConfig as LoggerConfig,
 )
 
@@ -20,6 +20,7 @@ from .handlers import (
 
 __all__ = [
     "Logger",
+    "Log",
     "LogLevel",
     "LoggerConfig",
     "BaseLogHandler",

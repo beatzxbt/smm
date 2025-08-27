@@ -63,7 +63,8 @@ class Rounder:
     def bid_prices(self, prices: np.ndarray[float]) -> np.ndarray[float]:
         """Round an array of prices down to the nearest tick size multiple (bids)."""
         rounding_direction = np.floor if self.config.round_bids_down else np.ceil
-        values = self.tick_size * rounding_direction(prices * self._inverse_tick_size)
+        raw = prices * self._inverse_tick_size
+        values = self.tick_size * rounding_direction(raw)
         return (
             np.round(values * self._tick_rounding_factor) / self._tick_rounding_factor
         )
@@ -71,7 +72,8 @@ class Rounder:
     def ask_prices(self, prices: np.ndarray[float]) -> np.ndarray[float]:
         """Round an array of prices up to the nearest tick size multiple (asks)."""
         rounding_direction = np.ceil if self.config.round_asks_up else np.floor
-        values = self.tick_size * rounding_direction(prices * self._inverse_tick_size)
+        raw = prices * self._inverse_tick_size
+        values = self.tick_size * rounding_direction(raw)
         return (
             np.round(values * self._tick_rounding_factor) / self._tick_rounding_factor
         )

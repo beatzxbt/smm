@@ -34,10 +34,8 @@ class FileLogHandler(BaseLogHandler):
                     pass  # Create empty file
         self.filepath = filepath
 
-    async def push(self, buffer) -> None:
-        # This isnt really async, but to keep dependencies low and
-        # keep the interface consistent, we'll keep it as is.
+    def push(self, buffer) -> None:
         with open(self.filepath, "a") as file:
-            combined_logs = "\n".join(buffer) + "\n"
-            file.write(combined_logs)
+            for msg in buffer:
+                file.write(f"{msg}\n")
             file.flush()
