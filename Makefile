@@ -3,7 +3,8 @@
         monitor monitor-charts
 .DEFAULT_GOAL := help
 
-TEST_FLAGS := -xvv -s -p no:anchorpy
+# Always run full test suite without fail-fast
+TEST_FLAGS := -vv -s -p no:anchorpy
 
 format: ## Format code using ruff
 	uv run ruff format .
@@ -21,12 +22,20 @@ typecheck: ## Run static type checking
 docstring: ## Check docstring style and completeness
 	uv run ruff check . --select D,PD
 
+docstring-fix: ## Fix docstring style and completeness
+	uv run ruff check --fix . --select D,PD
+	uv run ruff check --fix --unsafe-fixes . --select D,PD
+
 style: ## Check code style (without docstrings)
 	uv run ruff check . --select E,W,F,I,N,UP,B,C4,SIM,TCH
 
-fix: format lint-fix ## Run all formatters and fixers
+style-fix: ## Fix code style (without docstrings)
+	uv run ruff check --fix . --select E,W,F,I,N,UP,B,C4,SIM,TCH
+	uv run ruff check --fix --unsafe-fixes . --select E,W,F,I,N,UP,B,C4,SIM,TCH
 
-check: fix 	typecheck ## Run all checks (format, lint‑fix, typecheck)
+fix: format lint-fix docstring-fix style-fix ## Run all formatters and fixers
+
+check: fix typecheck ## Run all checks (format, lint‑fix, typecheck)
 
 sync: ## Re‑lock and install latest versions
 	uv lock --upgrade       # rebuild uv.lock with newer pins
