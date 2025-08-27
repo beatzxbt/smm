@@ -1,21 +1,20 @@
 import os
+
 from framework.base.tools.logger.handlers.base import BaseLogHandler
 
 
 class FileLogHandler(BaseLogHandler):
-    """
-    A log handler that appends log messages to a text file.
-    """
+    """A log handler that appends log messages to a text file."""
 
     def __init__(self, filepath: str, create: bool = False) -> None:
-        """
-        Initialize the FileLogHandler with a target file path.
+        """Initialize the FileLogHandler with a target file path.
 
         Args:
             filepath (str): Path to the text file for appending logs. Must end with ".txt".
 
         Raises:
             ValueError: If the provided filepath does not end with ".txt".
+
         """
         super().__init__()
 

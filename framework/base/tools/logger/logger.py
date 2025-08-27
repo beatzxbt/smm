@@ -1,19 +1,17 @@
 import sys
+import threading
 import time
 import traceback
-import threading
-from typing import Optional
 from collections import deque
 
-from framework.base.tools.time import time_s, time_ns
 from framework.base.tools.logger.config import LoggerConfig
 from framework.base.tools.logger.handlers import BaseLogHandler
 from framework.base.tools.logger.structs import Log, LogLevel
+from framework.base.tools.time import time_ns, time_s
 
 
 class Logger:
-    """
-    A simple asynchronous logger that buffers messages and pushes them to
+    """A simple asynchronous logger that buffers messages and pushes them to
     configured handlers at an appropriate time or based on severity.
     """
 
@@ -21,10 +19,9 @@ class Logger:
         self,
         name: str = "",
         config: LoggerConfig = None,
-        handlers: Optional[list[BaseLogHandler]] = None,
+        handlers: list[BaseLogHandler] | None = None,
     ):
-        """
-        Initializes a Logger with specified configuration and handlers.
+        """Initializes a Logger with specified configuration and handlers.
 
         Args:
             config (LoggerConfig): Configuration settings for the logger (base level, stdout, buffer size, etc.).
@@ -34,6 +31,7 @@ class Logger:
 
         Raises:
             TypeError: If one of the provided handlers does not inherit from LogHandler.
+
         """
         self._name = name
         self._config = LoggerConfig.default() if config is None else config
@@ -107,13 +105,11 @@ class Logger:
         self._queue.append(log)
 
     def debug(self, msg: str) -> None:
-        """
-        Send a debug-level log message.
-        """
+        """Send a debug-level log message."""
         if not self._is_running:
             return
 
-        if LogLevel.DEBUG >= self._config.base_level:
+        if self._config.base_level <= LogLevel.DEBUG:
             log = Log(
                 time_ns=time_ns(),
                 level=LogLevel.DEBUG,
@@ -126,7 +122,7 @@ class Logger:
         if not self._is_running:
             return
 
-        if LogLevel.INFO >= self._config.base_level:
+        if self._config.base_level <= LogLevel.INFO:
             log = Log(
                 time_ns=time_ns(),
                 level=LogLevel.INFO,
@@ -135,13 +131,11 @@ class Logger:
             self._queue.append(log)
 
     def warning(self, msg: str) -> None:
-        """
-        Send a warning-level log message.
-        """
+        """Send a warning-level log message."""
         if not self._is_running:
             return
 
-        if LogLevel.WARNING >= self._config.base_level:
+        if self._config.base_level <= LogLevel.WARNING:
             log = Log(
                 time_ns=time_ns(),
                 level=LogLevel.WARNING,
@@ -150,13 +144,11 @@ class Logger:
             self._queue.append(log)
 
     def error(self, msg: str) -> None:
-        """
-        Send an error-level log message.
-        """
+        """Send an error-level log message."""
         if not self._is_running:
             return
 
-        if LogLevel.ERROR >= self._config.base_level:
+        if self._config.base_level <= LogLevel.ERROR:
             log = Log(
                 time_ns=time_ns(),
                 level=LogLevel.ERROR,
@@ -165,21 +157,16 @@ class Logger:
             self._queue.append(log)
 
     def shutdown(self):
-        """
-        Shuts down the logger, ensuring all buffered messages are flushed
+        """Shuts down the logger, ensuring all buffered messages are flushed
         and handlers are closed.
         """
         # Block any further log messages from being added to the queue.
         self._is_running = False
 
     def is_running(self) -> bool:
-        """
-        Check if the master logger is running.
-        """
+        """Check if the master logger is running."""
         return self._is_running
 
     def get_name(self) -> str:
-        """
-        Get the name of the master logger.
-        """
+        """Get the name of the master logger."""
         return self._name

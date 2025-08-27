@@ -1,6 +1,7 @@
+from typing import Self
+
 import numpy as np
 from msgspec import Struct
-from typing import Optional, Self
 
 
 class RounderConfig(Struct):
@@ -9,19 +10,17 @@ class RounderConfig(Struct):
     round_sizes_up: bool
 
     @classmethod
-    def default(self) -> Self:
+    def default(cls) -> Self:
         return RounderConfig(
             round_bids_down=True, round_asks_up=True, round_sizes_up=True
         )
 
 
 class Rounder:
-    """
-    Provides rounding operations on prices and sizes according to specified tick and lot sizes.
-    """
+    """Provides rounding operations on prices and sizes according to specified tick and lot sizes."""
 
     def __init__(
-        self, tick_size: float, lot_size: float, config: Optional[RounderConfig] = None
+        self, tick_size: float, lot_size: float, config: RounderConfig | None = None
     ):
         if tick_size <= 0.0:
             raise ValueError("Invalid tick_size; must be greater than 0")

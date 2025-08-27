@@ -1,15 +1,15 @@
 import asyncio
-import msgspec
-import aiohttp
 from abc import ABC, abstractmethod
+
+import aiohttp
+import msgspec
 
 from framework.base.tools.logger.config import LoggerConfig
 from framework.base.tools.logger.structs import Log
 
 
 class BaseLogHandler(ABC):
-    """
-    Abstract base class for log handlers, defining how log messages
+    """Abstract base class for log handlers, defining how log messages
     should be pushed to their respective destinations.
     """
 
@@ -51,9 +51,7 @@ class BaseLogHandler(ABC):
         return self._primary_config
 
     def add_primary_config(self, config: LoggerConfig):
-        """
-        Add the primary configuration to the handler.
-        """
+        """Add the primary configuration to the handler."""
         self._primary_config = config
 
     def __del__(self):

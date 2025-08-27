@@ -1,7 +1,9 @@
 import asyncio
-import aiohttp
 from abc import abstractmethod
-from typing import Self, Protocol, Callable, Optional, final, cast
+from collections.abc import Callable
+from typing import Protocol, Self, cast, final
+
+import aiohttp
 
 
 class AuthenticationStrategy(Protocol):
@@ -29,7 +31,7 @@ class WebsocketConnection:
         self,
         wss_url: str,
         on_connect: list[bytes],
-        auth_strategy: Optional[AuthenticationStrategy] = None,
+        auth_strategy: AuthenticationStrategy | None = None,
     ):
         """Initialize WebSocket connection."""
         self.wss_url = wss_url
@@ -121,4 +123,4 @@ class WebsocketConnection:
             )
         msg = await self._ws_iter.__anext__()
         self._increment_seq_id()
-        return cast(bytes, msg)
+        return cast("bytes", msg)

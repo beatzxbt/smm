@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterable
+from collections.abc import AsyncIterable
 
 
 async def consume_multiq[T](queues: list[asyncio.Queue[T]]) -> AsyncIterable[T]:
@@ -42,5 +42,5 @@ async def consume_multiq[T](queues: list[asyncio.Queue[T]]) -> AsyncIterable[T]:
                 # Re-arm the completed queue
                 task_to_index[asyncio.create_task(queues[index].get())] = index
     finally:
-        for task in task_to_index.keys():
+        for task in task_to_index:
             task.cancel()
