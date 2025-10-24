@@ -1,7 +1,7 @@
 import asyncio
 from abc import abstractmethod
-from collections.abc import Callable
-from typing import Protocol, Self, cast, final
+from collections.abc import Callable, Awaitable
+from typing import Protocol, Self, cast, Any
 
 import aiohttp
 
@@ -23,7 +23,6 @@ class NoAuthenticationStrategy(AuthenticationStrategy):
         return True
 
 
-@final
 class WebsocketConnection:
     global_seq_id: int = 0
 
@@ -32,6 +31,11 @@ class WebsocketConnection:
         wss_url: str,
         on_connect: list[bytes],
         auth_strategy: AuthenticationStrategy | None = None,
+        *,
+        enable_reconnect: bool = True,
+        max_reconnect_attempts: int = 3,
+        reconnect_base_delay: float = 0.5,
+        reconnect_backoff_factor: float = 2.0,
     ):
         """Initialize WebSocket connection."""
         self.wss_url = wss_url
@@ -41,8 +45,12 @@ class WebsocketConnection:
         self.ws: aiohttp.ClientWebSocketResponse | None = None
 
         self.seq_id = 0
-        self.remaining_reconnect_attempts = 3
-        self.reconnect_delay = 0.5
+
+        # Reconnection configuration
+        self.enable_reconnect = enable_reconnect
+        self.max_reconnect_attempts = max_reconnect_attempts
+        self.reconnect_base_delay = reconnect_base_delay
+        self.reconnect_backoff_factor = reconnect_backoff_factor
 
         self.is_connected = False
 
@@ -53,11 +61,12 @@ class WebsocketConnection:
         self.seq_id += 1
         self.global_seq_id += 1
 
-    async def connect(self, on_message: Callable[[bytes], None]) -> None:
-        """Connect to WebSocket and handle authentication if needed."""
-        attempts = self.remaining_reconnect_attempts
-        delay = self.reconnect_delay
-        for _ in range(attempts):
+    async def connect(self, on_message: Callable[[bytes], Awaitable[None]]) -> None:
+        """Connect to WebSocket and stream messages to the provided handler."""
+        attempts = 1 if not self.enable_reconnect else max(self.max_reconnect_attempts, 1)
+        delay = self.reconnect_base_delay
+        backoff = self.reconnect_backoff_factor
+        for attempt_idx in range(attempts):
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.ws_connect(self.wss_url) as ws:
@@ -74,11 +83,13 @@ class WebsocketConnection:
 
                         async for msg in ws:
                             self._increment_seq_id()
-                            await on_message(msg)
+                            await on_message(self._to_bytes(msg))
                         return
             except aiohttp.WSServerHandshakeError:
+                if attempt_idx >= attempts - 1:
+                    break
                 await asyncio.sleep(delay)
-                delay *= 2.0
+                delay *= backoff
             except asyncio.CancelledError:
                 break
         raise RuntimeError(f"Max reconnection attempts reached; url: {self.wss_url}")
@@ -123,4 +134,15 @@ class WebsocketConnection:
             )
         msg = await self._ws_iter.__anext__()
         self._increment_seq_id()
-        return cast("bytes", msg)
+        return self._to_bytes(msg)
+
+    def _to_bytes(self, msg: Any) -> bytes:
+        """Normalize messages (bytes/str/aiohttp WSMessage) to bytes."""
+        # aiohttp.WSMessage has a .data attribute
+        data = getattr(msg, "data", msg)
+        if isinstance(data, (bytes, bytearray, memoryview)):
+            return bytes(data)
+        if isinstance(data, str):
+            return data.encode("utf-8")
+        # Fallback: best-effort string conversion
+        return str(data).encode("utf-8")

@@ -11,8 +11,10 @@ class RounderConfig(Struct):
 
     @classmethod
     def default(cls) -> Self:
-        return RounderConfig(
-            round_bids_down=True, round_asks_up=True, round_sizes_up=True
+        return cls(
+            round_bids_down=True, 
+            round_asks_up=True, 
+            round_sizes_up=True
         )
 
 
@@ -59,7 +61,7 @@ class Rounder:
         value = self.lot_size * rounding_direction(size * self._inverse_lot_size)
         return self._round_to(value, self._lot_rounding_factor)
 
-    def bid_prices(self, prices: np.ndarray[float]) -> np.ndarray[float]:
+    def bid_prices(self, prices: np.ndarray) -> np.ndarray:
         """Round an array of prices down to the nearest tick size multiple (bids)."""
         rounding_direction = np.floor if self.config.round_bids_down else np.ceil
         raw = prices * self._inverse_tick_size
@@ -68,7 +70,7 @@ class Rounder:
             np.round(values * self._tick_rounding_factor) / self._tick_rounding_factor
         )
 
-    def ask_prices(self, prices: np.ndarray[float]) -> np.ndarray[float]:
+    def ask_prices(self, prices: np.ndarray) -> np.ndarray:
         """Round an array of prices up to the nearest tick size multiple (asks)."""
         rounding_direction = np.ceil if self.config.round_asks_up else np.floor
         raw = prices * self._inverse_tick_size
@@ -77,7 +79,7 @@ class Rounder:
             np.round(values * self._tick_rounding_factor) / self._tick_rounding_factor
         )
 
-    def sizes(self, sizes: np.ndarray[float]) -> np.ndarray[float]:
+    def sizes(self, sizes: np.ndarray) -> np.ndarray:
         """Round an array of sizes down to the nearest lot size multiple."""
         rounding_direction = np.floor if self.config.round_sizes_up else np.ceil
         values = self.lot_size * rounding_direction(sizes * self._inverse_lot_size)
