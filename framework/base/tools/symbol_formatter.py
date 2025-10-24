@@ -17,10 +17,6 @@ def format_symbol(symbol: str, venue: Venue) -> str:
         case (
             Venue.BYBIT
             | Venue.OKX
-            | Venue.HYPERLIQUID
-            | Venue.PARADEX
-            | Venue.EXTENDED
-            | Venue.DYDX
         ):
             upper_case = symbol.upper()
             if not upper_case.isalpha():
