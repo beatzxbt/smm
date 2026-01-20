@@ -40,7 +40,7 @@ BINANCE_TIF_MAP: dict[str, OrderTimeInForce] = {
 }
 
 
-class BookTickerStreamUpdate(Struct, tag=True):
+class BookTickerStreamUpdate(Struct, tag=True, frozen=True):
     """Best bid/ask price and quantity update for a symbol.
 
     Pushes real-time updates whenever the best bid or ask price/quantity changes.
@@ -95,7 +95,7 @@ class BookTickerStreamUpdate(Struct, tag=True):
         )
 
 
-class DiffBookDepthStreamUpdate(Struct, tag=True):
+class DiffBookDepthStreamUpdate(Struct, tag=True, frozen=True):
     """Partial orderbook depth update with only changed price levels.
 
     Provides efficient depth updates by sending only the bid/ask levels that changed
@@ -158,7 +158,7 @@ class DiffBookDepthStreamUpdate(Struct, tag=True):
         )
 
 
-class TradeStreamUpdate(Struct):
+class TradeStreamUpdate(Struct, frozen=True):
     """Individual trade execution for a symbol.
 
     Delivers real-time trade data as transactions occur, including price, quantity,
@@ -213,16 +213,16 @@ class TradeStreamUpdate(Struct):
         )
 
 
-class OpenInterestInfo(Struct):
+class OpenInterestInfo(Struct, frozen=True):
     open_interest: float
 
 
-class TickerStats24h(Struct):
+class TickerStats24h(Struct, frozen=True):
     price_chg_24h_pct: float
     avg_volume_24h: float
 
 
-class TickerStats24hStreamUpdate(Struct):
+class TickerStats24hStreamUpdate(Struct, frozen=True):
     """24-hour rolling statistics for a symbol.
 
     Provides price change, percentage change, and volume information over a 24-hour
@@ -257,7 +257,7 @@ class TickerStats24hStreamUpdate(Struct):
         )
 
 
-class MarkPriceStreamUpdate(Struct):
+class MarkPriceStreamUpdate(Struct, frozen=True):
     """Mark price, index price, and funding rate for a perpetual contract.
 
     Delivers real-time mark price (used for liquidations), index price (underlying
@@ -321,7 +321,7 @@ class MarkPriceStreamUpdate(Struct):
         )
 
 
-class OrderUpdateStreamUpdate(Struct):
+class OrderUpdateStreamUpdate(Struct, frozen=True):
     """Order status update from the exchange (user data stream).
 
     Provides real-time order state changes including partial fills, cancellations,
@@ -398,7 +398,7 @@ class OrderUpdateStreamUpdate(Struct):
         )
 
 
-class AccountUpdateStreamUpdate(Struct):
+class AccountUpdateStreamUpdate(Struct, frozen=True):
     """Account balance and margin status update (user data stream).
 
     Provides balance changes, margin levels, and PnL updates. Triggered by balance
@@ -469,7 +469,7 @@ class AccountUpdateStreamUpdate(Struct):
         )
 
 
-class PositionUpdateStreamUpdate(Struct):
+class PositionUpdateStreamUpdate(Struct, frozen=True):
     """Position size and entry price update (user data stream).
 
     Contains position changes for each symbol including size (positive for long,
@@ -537,7 +537,7 @@ class PositionUpdateStreamUpdate(Struct):
         return None
 
 
-class ExecutionReportStreamUpdate(Struct):
+class ExecutionReportStreamUpdate(Struct, frozen=True):
     """Trade execution details for an order (user data stream).
 
     Contains details of executed trades, including price, quantity, fees, and

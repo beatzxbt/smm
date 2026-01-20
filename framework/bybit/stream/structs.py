@@ -44,7 +44,7 @@ BYBIT_TIF_MAP = EnumMap(
 )
 
 
-class BybitTickerMsg(Struct, rename="camel"):
+class BybitTickerMsg(Struct, rename="camel", frozen=True):
     """24-hour ticker statistics for a perpetual contract.
 
     Provides real-time market statistics including mark price, index price, funding
@@ -122,7 +122,7 @@ class BybitTickerMsg(Struct, rename="camel"):
         )
 
 
-class BybitTradeMsg(Struct):
+class BybitTradeMsg(Struct, frozen=True):
     """Individual trade execution on the market.
 
     Represents a single trade for a symbol including price, quantity, side, and
@@ -160,12 +160,12 @@ class BybitTradeMsg(Struct):
         )
 
 
-class BybitOrderbookLevel(Struct):
+class BybitOrderbookLevel(Struct, frozen=True):
     price: float
     size: float
 
 
-class BybitOrderbookMsg(Struct, rename="camel"):
+class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
     """Orderbook depth snapshot or update.
 
     Provides bid and ask levels for a symbol. Can represent either a full snapshot
@@ -232,7 +232,7 @@ class BybitOrderbookMsg(Struct, rename="camel"):
         )
 
 
-class BybitPublicMsg[T](Struct):
+class BybitPublicMsg[T](Struct, frozen=True):
     """Generic wrapper for Bybit public websocket messages.
 
     Wraps public stream data (ticker, trades, orderbook) with metadata including
@@ -257,7 +257,7 @@ class BybitPublicMsg[T](Struct):
     ts: int | None = None
 
 
-class BybitTradePublicMsg(Struct, rename="camel"):
+class BybitTradePublicMsg(Struct, rename="camel", frozen=True):
     """Wrapper for Bybit public trade stream messages.
 
     Contains a list of recent trades for a symbol. Includes server timestamp and
@@ -328,7 +328,7 @@ class BybitTradePublicMsg(Struct, rename="camel"):
         )
 
 
-class BybitPrivateMsg[T](Struct, rename="camel"):
+class BybitPrivateMsg[T](Struct, rename="camel", frozen=True):
     """Generic wrapper for Bybit private websocket messages.
 
     Wraps private stream data (orders, positions, executions, wallet) with metadata
@@ -353,7 +353,7 @@ class BybitPrivateMsg[T](Struct, rename="camel"):
     data: list[T]
 
 
-class BybitPositionMsg(Struct, rename="camel"):
+class BybitPositionMsg(Struct, rename="camel", frozen=True):
     """Position update for a symbol (private stream).
 
     Provides complete position data including size, entry price, mark price, leverage,
@@ -469,7 +469,7 @@ class BybitPositionMsg(Struct, rename="camel"):
         )
 
 
-class BybitOrderMsg(Struct, rename="camel"):
+class BybitOrderMsg(Struct, rename="camel", frozen=True):
     """Order update for a submitted order (private stream).
 
     Provides order status, pricing, execution details, and metadata. Includes reject
@@ -573,7 +573,7 @@ class BybitOrderMsg(Struct, rename="camel"):
         )
 
 
-class BybitExecutionMsg(Struct, rename="camel"):
+class BybitExecutionMsg(Struct, rename="camel", frozen=True):
     """Trade execution/fill details (private stream).
 
     Provides details of a trade execution including filled price, quantity, fees, and
@@ -657,7 +657,7 @@ class BybitExecutionMsg(Struct, rename="camel"):
         )
 
 
-class BybitWalletMsg(Struct, rename="camel"):
+class BybitWalletMsg(Struct, rename="camel", frozen=True):
     """Account wallet/balance update (private stream).
 
     Provides account equity, margin rates, and unrealized PnL. Updated whenever
