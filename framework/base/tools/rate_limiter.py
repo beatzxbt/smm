@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
 
-from framework.base.tools.time import time_s
+from mm_toolbox.time import time_s
 
 
 @dataclass
@@ -31,7 +30,9 @@ class RateLimiter:
         now_s: float = float(time_s())
         elapsed: float = max(0.0, now_s - self._last_refill_s)
         if elapsed > 0.0:
-            self._tokens = min(self.capacity, self._tokens + elapsed * self.rate_per_sec)
+            self._tokens = min(
+                self.capacity, self._tokens + elapsed * self.rate_per_sec
+            )
             self._last_refill_s = now_s
 
     def try_acquire(self, tokens: float = 1.0) -> bool:
@@ -56,5 +57,3 @@ class RateLimiter:
         if deficit == 0.0:
             return 0.0
         return deficit / self.rate_per_sec
-
-
