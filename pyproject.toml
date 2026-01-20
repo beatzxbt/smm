@@ -1,42 +1,34 @@
 [project]
-name = "smm"
+name = "bybit-smm-workspace"
 version = "2.0.0"
-description = "simple crypto market maker"
-readme = "README.md"
-authors = [
-    { name = "beatzxbt", email = "121855680+beatzxbt@users.noreply.github.com" }
-]
-requires-python = ">=3.13"
-license = "MIT"
-keywords = ["market making", "hft", "high performance python"]
-classifiers = [
-    "Development Status :: 5 - Stable",
-    "Intended Audience :: Developers",
-    "Natural Language :: English",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Libraries :: Python Modules"
-]
+description = "Workspace for crypto trading framework and strategies"
+requires-python = ">=3.13.9"
 dependencies = [
-    "numpy",
-    "msgspec",
-    "aiohttp",
-    "uvloop",
-    "ruamel.yaml",
-    "ciso8601",
-    "dotenv>=0.9.9",
+    "framework",
+    "smm",
+    "cmm",
+    "napalm",
+    "glasses",
 ]
+
+[tool.uv.workspace]
+members = ["framework", "smm", "cmm", "napalm", "glasses"]
+
+[tool.uv.sources]
+framework = { workspace = true }
+smm = { workspace = true }
+cmm = { workspace = true }
+napalm = { workspace = true }
+glasses = { workspace = true }
 
 [dependency-groups]
 dev = [
     "pytest",
+    "pytest-asyncio",
     "ruff",
-    "pyright",
+    "ty",
     "uv",
 ]
 
-[tool.pyright]
-include = ["src"]
-extraPaths = ["src"]
+[tool.ty.src]
+include = ["framework", "smm", "cmm", "napalm", "glasses", "tests"]
