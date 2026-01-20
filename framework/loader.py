@@ -8,6 +8,7 @@ from framework.base.trading.exchange import Exchange
 
 class VenueBundle(NamedTuple):
     """A bundle of exchange class types for a given venue."""
+
     exchange: Type[Exchange]
     market_data_stream: Type[MarketDataStream]
     private_data_stream: Type[PrivateDataStream]

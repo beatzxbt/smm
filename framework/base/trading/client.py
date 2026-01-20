@@ -6,8 +6,8 @@ import aiohttp
 import msgspec
 
 from framework.base.common import Venue
-from framework.base.tools import Logger
-from framework.base.trading.structs import ClientResponse
+from mm_toolbox.logging.standard import Logger
+from framework.base.trading.models import ClientResponse
 
 
 class HttpMethod(StrEnum):
@@ -20,12 +20,13 @@ class HttpMethod(StrEnum):
 class HttpClient(ABC):
     """Base class for HTTP API clients."""
 
-    def __init__(self, venue: Venue, logger: Logger):
+    def __init__(self, venue: Venue, logger: Logger, load_secrets: bool):
         """Initialize the base client."""
         self.venue = venue
         self.logger = logger
+        self.load_secrets = load_secrets
 
-        self.session = aiohttp.ClientSession()
+        self._session: aiohttp.ClientSession | None = None
 
         self.is_running = True
 
@@ -63,22 +64,30 @@ class HttpClient(ABC):
     async def close(self):
         """Close the client session."""
         if self.is_running:
-            await self.session.close()
+            if self._session and not self._session.closed:
+                await self._session.close()
             self.logger.info(
                 f"{self.__class__.__name__} connection closed; {self.venue}"
             )
             self.is_running = False
 
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
 
 class WsClient(ABC):
     """Base class for WebSocket API clients."""
 
-    def __init__(self, venue: Venue, logger: Logger):
+    def __init__(self, venue: Venue, logger: Logger, load_secrets: bool):
         """Initialize the base client."""
         self.venue = venue
         self.logger = logger
+        self.load_secrets = load_secrets
 
-        self.session = aiohttp.ClientSession()
+        self._session: aiohttp.ClientSession | None = None
 
         self.is_running = False
 
@@ -108,8 +117,15 @@ class WsClient(ABC):
     async def close(self):
         """Close the client session."""
         if self.is_running:
-            await self.session.close()
+            if self._session and not self._session.closed:
+                await self._session.close()
             self.logger.info(
                 f"{self.__class__.__name__} connection closed; {self.venue}"
             )
             self.is_running = False
+
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session

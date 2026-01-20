@@ -1,102 +1,106 @@
+"""
+Private data stream handler for processing authenticated exchange data.
+
+Provides abstract interface for streaming order, position, execution, and account data.
+"""
+
+from __future__ import annotations
+
 import asyncio
-from enum import StrEnum
-from abc import ABC, abstractmethod
-from collections.abc import Iterable
-from typing import final
+from abc import abstractmethod
 
-from framework.base.trading.exchange import Secret
-from framework.base.tools.time import time_ms
-from framework.base.tools.logger import Logger
 from framework.base.common import Instrument, Venue
-from framework.base.stream.structs import DataMsg, HeartbeatMsg, PrivateDataMsg
+from framework.base.stream.models import (
+    Msg,
+    PrivateDataStreamType,
+)
+from framework.base.stream.stream import DataStream
+from mm_toolbox.logging.standard import Logger
 
-class PrivateDataStreamType(StrEnum):
-    ORDER = "Order"
-    POSITION = "Position"
-    EXECUTION = "Execution"
-    ACCOUNT = "Account"
 
-ALL_PRIVATE_DATA_STREAM_TYPES: set[PrivateDataStreamType] = {
-    PrivateDataStreamType.ORDER,
-    PrivateDataStreamType.POSITION,
-    PrivateDataStreamType.EXECUTION,
-    PrivateDataStreamType.ACCOUNT,
-}
+class PrivateDataStream(DataStream):
+    """Base class for handling private data streams.
 
-class PrivateDataStream(ABC):
-    """Base class for handling private data streams."""
+    Args:
+        venue (Venue): The exchange venue this stream connects to.
+        logger (Logger): Logger instance for debug and error messages.
+        consumer_queues (list[asyncio.Queue[Msg]]): Queues to broadcast messages to.
+    """
 
     def __init__(
         self,
         venue: Venue,
-        key: Secret,
-        secret: Secret,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[DataMsg]],
-    ):
-        """Initialize the base private data handler."""
-        self.venue = venue
-        self.key = key
-        self.secret = secret
-        self.logger = logger
-        self.consumer_queues = consumer_queues
+        consumer_queues: list[asyncio.Queue[Msg]],
+    ) -> None:
+        """Initialize the private data stream base.
 
-        self.is_running = False
+        Args:
+            venue (Venue): The exchange venue this stream connects to.
+            logger (Logger): Logger instance for debug and error messages.
+            consumer_queues (list[asyncio.Queue[Msg]]): Queues to broadcast messages to.
 
-    @final
-    def broadcast(self, msg: DataMsg):
-        """Broadcast a message to all consumer queues."""
-        for queue in self.consumer_queues:
-            queue.put_nowait(msg)
-
-    @final
-    async def broadcast_heartbeat(self, interval_s: int = 60):
-        """Broadcast a health check message to all consumer queues."""
-        interval_ms = interval_s * 1000
-
-        while True:
-            if not self.is_running:
-                await asyncio.sleep(1)
-                continue
-
-            await asyncio.sleep(interval_s)
-            time_now_ms = time_ms()
-            heartbeat_msg = HeartbeatMsg(
-                venue=self.venue,
-                time_now_ms=time_now_ms,
-                time_next_check_ms=time_now_ms + interval_ms,
-            )
-            self.broadcast(heartbeat_msg)
-            self.logger.debug(
-                f"Broadcasting heartbeat from {self.venue.name}PrivateDataStream;"
-            )
+        Returns:
+            None.
+        """
+        super().__init__(venue, logger, consumer_queues)
 
     @abstractmethod
-    def instrument_to_symbol(self, instrument: Instrument) -> str:
-        """Convert an instrument to a symbol."""
-        pass
+    async def stream_order(self, instruments: list[Instrument]) -> None:
+        """Process order data. The processed data must be distributed via self.broadcast(msg).
+
+        Args:
+            instruments (list[Instrument]): Instruments to stream order data for.
+
+        Returns:
+            None.
+        """
+        ...
 
     @abstractmethod
-    async def stream_order(self, instruments: list[Instrument]):
-        """Process order data. The processed data must be distributed via self.broadcast(msg)."""
-        pass
+    async def stream_position(self, instruments: list[Instrument]) -> None:
+        """Process position data. The processed data must be distributed via self.broadcast(msg).
+
+        Args:
+            instruments (list[Instrument]): Instruments to stream position data for.
+
+        Returns:
+            None.
+        """
+        ...
 
     @abstractmethod
-    async def stream_position(self, instruments: list[Instrument]):
-        """Process position data. The processed data must be distributed via self.broadcast(msg)."""
-        pass
+    async def stream_execution(self, instruments: list[Instrument]) -> None:
+        """Process execution data. The processed data must be distributed via self.broadcast(msg).
+
+        Args:
+            instruments (list[Instrument]): Instruments to stream execution data for.
+
+        Returns:
+            None.
+        """
+        ...
 
     @abstractmethod
-    async def stream_execution(self, instruments: list[Instrument]):
-        """Process execution data. The processed data must be distributed via self.broadcast(msg)."""
-        pass
+    async def stream_account(self) -> None:
+        """Process account data. The processed data must be distributed via self.broadcast(msg).
+
+        Returns:
+            None.
+        """
+        ...
 
     @abstractmethod
-    async def stream_account(self):
-        """Process account data. The processed data must be distributed via self.broadcast(msg)."""
-        pass
+    async def run(
+        self, instruments: list[Instrument], stream_types: set[PrivateDataStreamType]
+    ) -> None:
+        """Open and stream the required instruments and data types.
 
-    @abstractmethod
-    async def start(self, instruments: list[Instrument], stream_types: set[PrivateDataStreamType]):
-        """Open and stream the required instruments and data types."""
-        pass
+        Args:
+            instruments (list[Instrument]): Instruments to stream data for.
+            stream_types (set[PrivateDataStreamType]): Stream types to enable.
+
+        Returns:
+            None.
+        """
+        ...

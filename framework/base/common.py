@@ -1,7 +1,14 @@
+from collections import defaultdict
 from enum import StrEnum
-from typing import Self
+from typing import Self, Iterable, Iterator, TypeVar, Generic, cast
 
 from msgspec import Struct
+
+
+Symbol = str  # Type alias for venue-specific symbol strings
+
+K = TypeVar("K")
+V = TypeVar("V")
 
 
 class Venue(StrEnum):
@@ -29,67 +36,172 @@ class Instrument(Struct, frozen=True):
     venue: Venue
     base: str
     quote: str
-    symbol: str # Exchange specific version of the instrument (eg "BTCUSDT", "BTC-USDT", "BTC/USDT")
+    symbol: str  # Exchange specific (eg "BTCUSDT", "BTC-USDT", "BTC/USDT")
+    code: int  # Some exchanges use market ids alongside a symbol
     instrument_type: InstrumentType
 
     @classmethod
     def empty(cls) -> Self:
         """Returns an empty instrument, when value is not required/known."""
         return cls(
-            venue=Venue.NULL, base="", quote="", symbol="", instrument_type=InstrumentType.NULL
-        )
-
-    @classmethod
-    def from_str(cls, instrument: str) -> Self:
-        """Create an instrument from a string seperated by hyphens."""
-        venue, base, quote, symbol, instrument_type = instrument.split("-")
-        return cls(
-            venue=Venue(venue),
-            base=base,
-            quote=quote,
-            symbol=symbol,
-            instrument_type=InstrumentType(instrument_type),
+            venue=Venue.NULL,
+            base="",
+            quote="",
+            symbol="",
+            code=0,
+            instrument_type=InstrumentType.NULL,
         )
 
     def __str__(self):
-        return f"{self.venue.value}-{self.base}-{self.quote}-{self.symbol}-{self.instrument_type.value}".upper()
+        return f"{self.venue.value}:{self.base}/{self.quote}:{self.instrument_type.value}".upper()
 
 
-class SimpleCache[K: str, V: int | float]:
-    """Simple wrapper around dict to check for changed number values.
+class InstrumentCollection:
+    """Collection of instruments with filtering and grouping capabilities."""
 
-    As hardcoded behaviour, it updates the cache with the new value if any
-    comparison functions are called. If the value doesn't exist, it is considered
-    different and is also added to the cache.
+    def __init__(self, instruments: Iterable[Instrument] | None = None):
+        self._instruments: set[Instrument] = set(instruments) if instruments else set()
 
-    This may be used for things like sequence ids of various symbols.
+        # Map (venue, symbol) -> Instrument (Unique)
+        self._venue_symbol_map: dict[tuple[Venue, str], Instrument] = {
+            (i.venue, i.symbol): i for i in self._instruments
+        }
 
-    Watch out for memory usage if you have a ton of keys!
+        self._by_venue: dict[Venue, list[Instrument]] = defaultdict(list)
+        for i in self._instruments:
+            self._by_venue[i.venue].append(i)
+
+    @property
+    def instruments(self) -> list[Instrument]:
+        return list(self._instruments)
+
+    @property
+    def venues(self) -> set[Venue]:
+        return set(self._by_venue.keys())
+
+    def add(self, instrument: Instrument) -> None:
+        if instrument in self._instruments:
+            return
+        self._instruments.add(instrument)
+        self._venue_symbol_map[(instrument.venue, instrument.symbol)] = instrument
+        self._by_venue[instrument.venue].append(instrument)
+
+    def get(self, venue: Venue, symbol: str) -> Instrument | None:
+        """Fast lookup for an instrument by venue and symbol."""
+        return self._venue_symbol_map.get((venue, symbol), None)
+
+    def get_by_venue(self, venue: Venue) -> list[Instrument]:
+        return self._by_venue[venue]
+
+    def remove(self, instrument: Instrument) -> None:
+        if instrument not in self._instruments:
+            return
+        self._instruments.remove(instrument)
+        self._venue_symbol_map.pop((instrument.venue, instrument.symbol))
+        self._by_venue[instrument.venue].remove(instrument)
+
+    def merge(self, other: "InstrumentCollection") -> None:
+        """Merges another InstrumentCollection into this one."""
+        for instrument in other.instruments:
+            self.add(instrument)
+
+    def filter(
+        self,
+        venues: Iterable[Venue] | None = None,
+        bases: Iterable[str] | None = None,
+        quotes: Iterable[str] | None = None,
+        instrument_types: Iterable[InstrumentType] | None = None,
+        base_blacklist: Iterable[str] | None = None,
+        quote_blacklist: Iterable[str] | None = None,
+    ) -> list[Instrument]:
+        """Filters instruments based on provided criteria."""
+        venue_set = set(venues) if venues else None
+        base_set = set(bases) if bases else None
+        quote_set = set(quotes) if quotes else None
+        type_set = set(instrument_types) if instrument_types else None
+        base_bl = set(base_blacklist) if base_blacklist else set()
+        quote_bl = set(quote_blacklist) if quote_blacklist else set()
+
+        result: list[Instrument] = []
+        for i in self._instruments:
+            if venue_set and i.venue not in venue_set:
+                continue
+            if base_set and i.base not in base_set:
+                continue
+            if quote_set and i.quote not in quote_set:
+                continue
+            if type_set and i.instrument_type not in type_set:
+                continue
+            if i.base in base_bl:
+                continue
+            if i.quote in quote_bl:
+                continue
+            result.append(i)
+        return result
+
+    def __iter__(self) -> Iterator[Instrument]:
+        return iter(self._instruments)
+
+    def __len__(self) -> int:
+        return len(self._instruments)
+
+    def __contains__(self, instrument: Instrument) -> bool:
+        return instrument in self._instruments
+
+
+class SimpleMap(Generic[K, V]):
+    """Simple K<->V bi-directional mapping implementation.
+
+    Makes it simpler to use a map with both keys and values.
+
+    Supports (map=SimpleMap()):
+        map[key] or map[value] -> value or key
+        map[key] = value -> map[value] = key
+        map[value] = key -> map[key] = value
+        key in map or value in map -> bool
+        del map[key] or del map[value] -> None
+
+    Args:
+        items: A dictionary of items to initialize the map with.
+
+    Returns:
+        A SimpleMap instance.
     """
 
-    def __init__(self):
-        self.cache: dict[K, V] = {}
+    def __init__(self, items: dict[K, V]) -> None:
+        self._k_to_v_map: dict[K, V] = items
+        self._v_to_k_map: dict[V, K] = {v: k for k, v in items.items()}
 
-    def is_different(self, key: K, new_value: V) -> bool:
-        result = True
-        if value := self.cache.get(key, None):
-            result = value != new_value
-        self.cache[key] = new_value
-        return result
+    def get(self, key: K | V) -> V | K | None:
+        """Get value by key or value, returning None if not found."""
+        if key in self._k_to_v_map:
+            return self._k_to_v_map[cast(K, key)]
+        elif key in self._v_to_k_map:
+            return self._v_to_k_map[cast(V, key)]
+        return None
 
-    def is_higher(self, key: K, new_value: V) -> bool:
-        result = True
-        if value := self.cache.get(key, None):
-            result = value < new_value
-        self.cache[key] = new_value
-        return result
+    def __getitem__(self, key: K | V) -> V | K:
+        if key in self._k_to_v_map:
+            return self._k_to_v_map[cast(K, key)]
+        elif key in self._v_to_k_map:
+            return self._v_to_k_map[cast(V, key)]
+        else:
+            raise KeyError(f"Key {key} not found in map")
 
-    def is_lower(self, key: K, new_value: V) -> bool:
-        result = True
-        if value := self.cache.get(key, None):
-            result = value > new_value
-        self.cache[key] = new_value
-        return result
+    def __setitem__(self, key: K, value: V) -> None:
+        self._k_to_v_map[key] = value
+        self._v_to_k_map[value] = key
 
-    def clear(self):
-        self.cache.clear()
+    def __contains__(self, key: K | V) -> bool:
+        return key in self._k_to_v_map or key in self._v_to_k_map
+
+    def __delitem__(self, key: K | V) -> None:
+        if key in self._k_to_v_map:
+            del self._k_to_v_map[cast(K, key)]
+        elif key in self._v_to_k_map:
+            del self._v_to_k_map[cast(V, key)]
+        else:
+            raise KeyError(f"Key {key} not found in map")
+
+    def __len__(self) -> int:
+        return len(self._k_to_v_map)
