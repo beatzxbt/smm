@@ -1,0 +1,60 @@
+# Core settings
+[core]
+# venue: "Bybit", "BinanceUSDM", "BinanceCOINM"
+venue = "Bybit"
+symbol = "SOLUSDT"
+# trader: "plain" or "stinky"
+trader = "plain"
+
+# Volatility model (EWMA of trade returns)
+[volatility]
+half_life_s = 10.0
+min_spread_bps = 5.0
+max_spread_bps = 200.0
+update_interval_s = 1.0
+
+# Pricing settings
+[pricing]
+levels = 5
+base_spread_bps = 15.0
+max_inventory_quote = 500.0
+inventory_spread_ladder = [
+  [2.0, 0.5],
+  [3.0, 0.8],
+]
+
+# Risk settings
+[risk]
+max_inventory_quote = 500.0
+max_open_orders = 10
+max_order_distance_pct = 1.0
+
+# OMS budgets
+[oms]
+price_buffer_bps = 5.0
+
+[oms.create]
+limit = 10
+per = "sec"
+
+[oms.amend]
+limit = 5
+per = "sec"
+
+[oms.cancel]
+limit = 10
+per = "sec"
+
+# Plain trader overrides
+[plain]
+cloid_prefix = "PLAIN"
+
+# Stinky trader overrides
+[stinky]
+levels = 6
+min_spread_bps = 50.0
+max_spread_bps = 250.0
+large_fill_threshold_quote = 100.0
+small_fill_wait_s = 1.0
+large_fill_wait_s = 5.0
+cloid_prefix = "STINKY"
