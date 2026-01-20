@@ -1,3 +1,13 @@
+"""Structs for deserializing Bybit V5 websocket stream events.
+
+This module provides dataclass-like structs that deserialize raw API payloads from
+Bybit's websocket streams into strongly-typed Python objects. Each struct maps
+directly to a specific stream event type, handling field name conversions via msgspec.
+
+The module includes structs for public streams (ticker, depth, trades) and private
+streams (orders, positions, executions, wallet).
+"""
+
 from msgspec import Struct, field
 
 from framework.base.common import (
@@ -35,6 +45,36 @@ BYBIT_TIF_MAP = EnumMap(
 
 
 class BybitTickerMsg(Struct, rename="camel"):
+    """24-hour ticker statistics for a perpetual contract.
+
+    Provides real-time market statistics including mark price, index price, funding
+    rate, open interest, and 24-hour high/low/volume data. Used for monitoring market
+    conditions and ticker displays.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/public/ticker
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",               // trading symbol
+          "tickDirection": "UpTick",         // tick direction
+          "price24hPcnt": "0.035",           // 24h price change percent
+          "lastPrice": "30000.50",           // last trade price
+          "prevPrice24h": "29000.00",        // price 24h ago
+          "highPrice24h": "31000.00",        // 24h high price
+          "lowPrice24h": "28000.00",         // 24h low price
+          "prevPrice1h": "29900.00",         // price 1h ago
+          "markPrice": "30000.00",           // current mark price
+          "indexPrice": "29995.25",          // index price
+          "openInterest": "100000.50",       // total open interest
+          "openInterestValue": "3000050000", // open interest value
+          "turnover24h": "5000000000",       // 24h turnover
+          "volume24h": "100000",             // 24h volume
+          "nextFundingTime": 1568014500000,  // next funding time (ms)
+          "fundingRate": "0.0001"            // current funding rate
+        }
+    """
+
     symbol: str
     tick_direction: str
     price_24h_pcnt: float
@@ -83,6 +123,26 @@ class BybitTickerMsg(Struct, rename="camel"):
 
 
 class BybitTradeMsg(Struct):
+    """Individual trade execution on the market.
+
+    Represents a single trade for a symbol including price, quantity, side, and
+    execution time. Contains unique trade ID and sequence number for deduplication.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/public/trade
+
+    Example payload::
+
+        {
+          "T": 1568014460891,               // trade time (ms)
+          "S": "BTCUSDT",                   // symbol
+          "s": "Buy",                       // side (Buy/Sell)
+          "v": "1.0",                       // volume (quantity)
+          "p": "30000.50",                  // price
+          "i": "1234567890",                // trade ID
+          "seq": 12345                      // sequence number
+        }
+    """
+
     time_ms: int = field(name="T")
     symbol: str = field(name="S")
     side: str = field(name="s")
@@ -106,6 +166,31 @@ class BybitOrderbookLevel(Struct):
 
 
 class BybitOrderbookMsg(Struct, rename="camel"):
+    """Orderbook depth snapshot or update.
+
+    Provides bid and ask levels for a symbol. Can represent either a full snapshot
+    or a differential update depending on the subscription type. Each level contains
+    price and size.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook
+
+    Example payload::
+
+        {
+          "s": "BTCUSDT",                   // symbol
+          "b": [                            // bids (best to worst)
+            {"price": "30000.00", "size": "1.0"},
+            {"price": "29999.50", "size": "2.0"}
+          ],
+          "a": [                            // asks (best to worst)
+            {"price": "30001.00", "size": "1.5"},
+            {"price": "30002.00", "size": "3.0"}
+          ],
+          "u": 12345,                       // update ID
+          "seq": 67890                      // sequence number
+        }
+    """
+
     symbol: str = field(name="s")
     bids: list[BybitOrderbookLevel] = field(name="b")
     asks: list[BybitOrderbookLevel] = field(name="a")
@@ -148,6 +233,24 @@ class BybitOrderbookMsg(Struct, rename="camel"):
 
 
 class BybitPublicMsg[T](Struct):
+    """Generic wrapper for Bybit public websocket messages.
+
+    Wraps public stream data (ticker, trades, orderbook) with metadata including
+    topic, message type, and optional server timestamp. The type parameter T is one
+    of BybitTickerMsg, BybitTradeMsg, or BybitOrderbookMsg.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/public/
+
+    Example payload::
+
+        {
+          "topic": "tickers.BTCUSDT",       // subscription topic
+          "type": "snapshot",               // message type (snapshot/delta)
+          "data": {...},                    // typed data (ticker/trade/orderbook)
+          "ts": 1568014460891               // server timestamp (ms, optional)
+        }
+    """
+
     topic: str
     type: str
     data: T
@@ -155,7 +258,33 @@ class BybitPublicMsg[T](Struct):
 
 
 class BybitTradePublicMsg(Struct, rename="camel"):
-    """Wrapper for Bybit public trade messages."""
+    """Wrapper for Bybit public trade stream messages.
+
+    Contains a list of recent trades for a symbol. Includes server timestamp and
+    message type (typically "snapshot" for initial data). Used for deduplicating
+    trades by sequence number.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/public/trade
+
+    Example payload::
+
+        {
+          "topic": "publicTrade.BTCUSDT",   // subscription topic
+          "type": "snapshot",               // message type
+          "ts": 1568014460891,              // server timestamp (ms)
+          "data": [
+            {
+              "T": 1568014460891,           // trade time (ms)
+              "S": "BTCUSDT",               // symbol
+              "s": "Buy",                   // side
+              "v": "1.0",                   // volume
+              "p": "30000.50",              // price
+              "i": "1234567890",            // trade ID
+              "seq": 12345                  // sequence number
+            }
+          ]
+        }
+    """
 
     topic: str
     type: str  # "snapshot"
@@ -200,6 +329,24 @@ class BybitTradePublicMsg(Struct, rename="camel"):
 
 
 class BybitPrivateMsg[T](Struct, rename="camel"):
+    """Generic wrapper for Bybit private websocket messages.
+
+    Wraps private stream data (orders, positions, executions, wallet) with metadata
+    including topic, message type, and server timestamp. The type parameter T is one
+    of BybitPositionMsg, BybitOrderMsg, BybitExecutionMsg, or BybitWalletMsg.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/private/
+
+    Example payload::
+
+        {
+          "topic": "order.linear",          // subscription topic
+          "type": "UPDATE",                 // message type (SNAPSHOT/UPDATE)
+          "ts": 1568014460891,              // server timestamp (ms)
+          "data": [...]                     // array of typed data objects
+        }
+    """
+
     topic: str
     type: str
     ts: int
@@ -207,6 +354,56 @@ class BybitPrivateMsg[T](Struct, rename="camel"):
 
 
 class BybitPositionMsg(Struct, rename="camel"):
+    """Position update for a symbol (private stream).
+
+    Provides complete position data including size, entry price, mark price, leverage,
+    PnL, liquidation price, and risk metrics. Includes timestamps and risk management
+    settings (TP/SL).
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/private/position
+
+    Example payload::
+
+        {
+          "positionIdx": 0,                 // position index (0=one-way, 1=buy, 2=sell)
+          "tradeMode": 0,                   // trade mode
+          "riskId": 1,                      // risk ID
+          "riskLimitValue": "100000",       // risk limit value
+          "symbol": "BTCUSDT",              // symbol
+          "side": "Buy",                    // position side
+          "size": "1.0",                    // position size
+          "entryPrice": "30000.0",          // entry price
+          "leverage": "10",                 // leverage
+          "positionValue": "30000.0",       // position value
+          "positionBalance": "3000.0",      // position balance
+          "markPrice": "30500.0",           // mark price
+          "positionIm": "3000.0",           // initial margin
+          "positionImByMp": "3000.0",       // IM by mark price
+          "positionMm": "1500.0",           // maintenance margin
+          "positionMmByMp": "1500.0",       // MM by mark price
+          "takeProfit": "31000.0",          // take profit price
+          "stopLoss": "29000.0",            // stop loss price
+          "trailingStop": "0",              // trailing stop
+          "unrealisedPnl": "500.0",         // unrealized PnL
+          "curRealisedPnl": "100.0",        // current realized PnL
+          "cumRealisedPnl": "1000.0",       // cumulative realized PnL
+          "sessionAvgPrice": "30200.0",     // session average price
+          "createdTime": "1568014460891",   // creation time (ms)
+          "updatedTime": "1568014461891",   // update time (ms)
+          "tpslMode": "Full",               // TP/SL mode
+          "liqPrice": "25000.0",            // liquidation price
+          "bustPrice": "24000.0",           // bankruptcy price
+          "category": "linear",             // product category
+          "positionStatus": "Normal",       // position status
+          "adlRankIndicator": 0,            // ADL rank
+          "autoAddMargin": 0,               // auto-add margin enabled
+          "leverageSysUpdatedTime": "0",    // leverage update time
+          "mmrSysUpdatedTime": "0",         // MMR update time
+          "seq": 12345,                     // sequence number
+          "isReduceOnly": false             // reduce-only flag
+        }
+    """
+
     position_idx: int
     trade_mode: int
     risk_id: int
@@ -273,6 +470,50 @@ class BybitPositionMsg(Struct, rename="camel"):
 
 
 class BybitOrderMsg(Struct, rename="camel"):
+    """Order update for a submitted order (private stream).
+
+    Provides order status, pricing, execution details, and metadata. Includes reject
+    reasons, trigger information (for conditional orders), and creation/update times.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/private/order
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",              // symbol
+          "orderId": "123456789",           // order ID
+          "side": "Buy",                    // order side
+          "orderType": "Limit",             // order type
+          "cancelType": "",                 // cancel type (if cancelled)
+          "price": "30000.0",               // limit price
+          "qty": "1.0",                     // order quantity
+          "timeInForce": "GTC",             // time in force
+          "orderStatus": "New",             // order status
+          "orderLinkId": "client_order_1",  // client order ID
+          "lastPriceOnCreated": "30100.0",  // mark price at creation
+          "reduceOnly": false,              // reduce-only flag
+          "leavesQty": "1.0",               // remaining quantity
+          "leavesValue": "30000.0",         // remaining value
+          "cumExecQty": "0",                // cumulative executed qty
+          "cumExecValue": "0",              // cumulative executed value
+          "avgPrice": "0",                  // average fill price
+          "blockTradeId": "",               // block trade ID
+          "positionIdx": 0,                 // position index
+          "cumExecFee": "0",                // cumulative fee
+          "closedPnl": "0",                 // closed PnL
+          "createdTime": "1568014460891",   // creation time (ms)
+          "updatedTime": "1568014460891",   // update time (ms)
+          "rejectReason": "",               // rejection reason
+          "stopOrderType": "TAKE_PROFIT",   // stop order type (if conditional)
+          "triggerDirection": 1,            // trigger direction
+          "triggerBy": "LastPrice",         // trigger by (LastPrice/IndexPrice)
+          "closeOnTrigger": false,          // close-on-trigger flag
+          "category": "linear",             // product category
+          "placeType": "",                  // place type
+          "placeType": ""                   // create type
+        }
+    """
+
     symbol: str
     order_id: str
     side: str
@@ -333,6 +574,47 @@ class BybitOrderMsg(Struct, rename="camel"):
 
 
 class BybitExecutionMsg(Struct, rename="camel"):
+    """Trade execution/fill details (private stream).
+
+    Provides details of a trade execution including filled price, quantity, fees, and
+    execution classification. Includes order information and mark price at execution.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/private/execution
+
+    Example payload::
+
+        {
+          "category": "linear",             // product category
+          "symbol": "BTCUSDT",              // symbol
+          "closedSize": "0",                // closed size
+          "execFee": "0.15",                // execution fee
+          "execId": "1234567890",           // execution ID
+          "execPrice": "30000.0",           // execution price
+          "execQty": "0.5",                 // execution quantity
+          "execType": "Trade",              // execution type
+          "execValue": "15000.0",           // execution value
+          "feeRate": "0.0005",              // fee rate
+          "markPrice": "30050.0",           // mark price
+          "indexPrice": "30045.0",          // index price
+          "underlyingPrice": "30040.0",     // underlying price
+          "leavesQty": "0.5",               // remaining quantity
+          "orderId": "123456789",           // order ID
+          "orderLinkId": "client_order_1",  // client order ID
+          "orderPrice": "30000.0",          // order price
+          "orderQty": "1.0",                // order quantity
+          "orderType": "Limit",             // order type
+          "stopOrderType": "",              // stop order type
+          "side": "Buy",                    // execution side
+          "execTime": "1568014460891",      // execution time (ms)
+          "isLeverage": "0",                // is leverage trade
+          "isMaker": true,                  // is maker
+          "seq": 12345,                     // sequence number
+          "marketUnit": "USDT",             // market unit
+          "execPnl": "0",                   // execution PnL
+          "createType": ""                  // create type
+        }
+    """
+
     category: str
     symbol: str
     closed_size: str
@@ -376,6 +658,23 @@ class BybitExecutionMsg(Struct, rename="camel"):
 
 
 class BybitWalletMsg(Struct, rename="camel"):
+    """Account wallet/balance update (private stream).
+
+    Provides account equity, margin rates, and unrealized PnL. Updated whenever
+    balance changes from trades, deposits, or funding payments.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/websocket/private/wallet
+
+    Example payload::
+
+        {
+          "totalEquity": "5000.0",          // total account equity
+          "accountIMRate": "0.20",          // account initial margin rate
+          "accountMMRate": "0.12",          // account maintenance margin rate
+          "totalPerpUPL": "500.0"           // total perpetual unrealized PnL
+        }
+    """
+
     total_equity: str
     account_im_rate: str = field(name="accountIMRate")
     account_mm_rate: str = field(name="accountMMRate")
