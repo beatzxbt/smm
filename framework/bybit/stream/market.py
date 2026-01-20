@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
 import msgspec
 
@@ -81,7 +82,7 @@ class BybitMarketDataStream(MarketDataStream):
 
         for instrument in instruments:
             symbol = self.instrument_to_symbol(instrument)
-            on_connect["args"].append(f"tickers.{symbol}")
+            cast(list[str], on_connect["args"]).append(f"tickers.{symbol}")
 
         on_connect_bytes = [msgspec.json.encode(on_connect)]
         json_decoder = msgspec.json.Decoder(BybitPublicMsg[BybitTickerMsg])
@@ -118,10 +119,11 @@ class BybitMarketDataStream(MarketDataStream):
         """
         on_connect: dict[str, str | list[str]] = {"op": "subscribe", "args": []}
 
+        args = cast(list[str], on_connect["args"])
         for instrument in instruments:
             symbol = self.instrument_to_symbol(instrument)
-            on_connect["args"].append(f"orderbook.1.{symbol}")
-            on_connect["args"].append(f"orderbook.500.{symbol}")
+            args.append(f"orderbook.1.{symbol}")
+            args.append(f"orderbook.500.{symbol}")
 
         on_connect_bytes = [msgspec.json.encode(on_connect)]
         json_decoder = msgspec.json.Decoder(BybitPublicMsg[BybitOrderbookMsg])
@@ -179,9 +181,10 @@ class BybitMarketDataStream(MarketDataStream):
 
         symbol_to_seq_cache: SimpleCache[str, int] = SimpleCache()
 
+        args = cast(list[str], on_connect["args"])
         for instrument in instruments:
             symbol = self.instrument_to_symbol(instrument)
-            on_connect["args"].append(f"publicTrade.{symbol}")
+            args.append(f"publicTrade.{symbol}")
 
         on_connect_bytes = [msgspec.json.encode(on_connect)]
         decoder = msgspec.json.Decoder(BybitTradePublicMsg)
