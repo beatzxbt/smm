@@ -1,0 +1,24 @@
+[project]
+name = "smm"
+version = "2.0.0"
+description = "Simple crypto market maker application"
+authors = [{ name = "beatzxbt" }]
+requires-python = ">=3.13.9"
+license = "MIT"
+
+dependencies = [
+    "framework",
+    "uvloop",
+    "dotenv>=0.9.9",
+    "mm-toolbox==1.0.0b0",
+]
+
+[tool.uv.sources]
+framework = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
