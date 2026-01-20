@@ -1,0 +1,21 @@
+[project]
+name = "framework"
+version = "2.0.0"
+description = "Core exchange interface framework for crypto trading"
+readme = "README.md"
+authors = [{ name = "beatzxbt" }]
+requires-python = ">=3.13.9"
+license = "MIT"
+
+dependencies = [
+    "numpy",
+    "msgspec",
+    "aiohttp",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
