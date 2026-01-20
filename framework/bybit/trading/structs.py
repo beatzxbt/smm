@@ -7,7 +7,7 @@ cancellation responses from the Bybit Trade WebSocket API into strongly-typed Py
 from msgspec import Struct
 
 
-class BybitWsCreateOrderResult(Struct, rename="camel"):
+class BybitWsCreateOrderResult(Struct, rename="camel", frozen=True):
     """Result of a Trade WebSocket order creation request.
 
     Contains complete order details after successful creation, including order ID,
@@ -72,7 +72,7 @@ class BybitWsCreateOrderResult(Struct, rename="camel"):
     update_time: int
 
 
-class BybitWsOrderResponse[T](Struct, rename="camel"):
+class BybitWsOrderResponse[T](Struct, rename="camel", frozen=True):
     """Generic wrapper for Trade WebSocket order action responses.
 
     Wraps the result of websocket Trade API requests, providing request ID, status code,

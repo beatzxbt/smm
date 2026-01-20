@@ -18,7 +18,7 @@ from framework.base.stream.models import (
 )
 
 
-class BinanceWsCreateOrderResult(Struct, rename="camel"):
+class BinanceWsCreateOrderResult(Struct, rename="camel", frozen=True):
     """Result of a websocket order creation request.
 
     Contains complete order details after successful creation, including order ID,
@@ -83,7 +83,7 @@ class BinanceWsCreateOrderResult(Struct, rename="camel"):
     update_time: int
 
 
-class BinanceWsAmendOrderResult(Struct, rename="camel"):
+class BinanceWsAmendOrderResult(Struct, rename="camel", frozen=True):
     """Result of a websocket order amendment request.
 
     Contains updated order details after successful modification, including all
@@ -148,7 +148,7 @@ class BinanceWsAmendOrderResult(Struct, rename="camel"):
     update_time: int
 
 
-class BinanceWsCancelOrderResult(Struct, rename="camel"):
+class BinanceWsCancelOrderResult(Struct, rename="camel", frozen=True):
     """Result of a websocket order cancellation request.
 
     Contains final order details after successful cancellation, confirming the order
@@ -215,7 +215,7 @@ class BinanceWsCancelOrderResult(Struct, rename="camel"):
     good_till_date: int
 
 
-class BinanceWsOrderResponse[T](Struct, rename="camel"):
+class BinanceWsOrderResponse[T](Struct, rename="camel", frozen=True):
     """Generic wrapper for websocket order action responses.
 
     Wraps the result field of websocket Trade API responses, providing status code
@@ -246,7 +246,7 @@ class BinanceWsOrderResponse[T](Struct, rename="camel"):
         return self.status == 200 or self.status == 0
 
 
-class BinanceHttpCancelAllOrdersResponse(Struct):
+class BinanceHttpCancelAllOrdersResponse(Struct, frozen=True):
     """Response from canceling all open orders for a symbol (HTTP REST API).
 
     Confirms that a bulk order cancellation request succeeded or failed. Returns a
@@ -270,7 +270,7 @@ class BinanceHttpCancelAllOrdersResponse(Struct):
         return self.code == 200 or self.code == 0
 
 
-class BinanceHttpOrderbookResponse(Struct, rename="camel"):
+class BinanceHttpOrderbookResponse(Struct, rename="camel", frozen=True):
     """Full orderbook snapshot (HTTP REST API).
 
     Returns the current full depth of bids and asks for a symbol. Each level is a
@@ -302,7 +302,7 @@ class BinanceHttpOrderbookResponse(Struct, rename="camel"):
     asks: list[list[str]]
 
 
-class BinanceHttpTicker24hrResponse(Struct, rename="camel"):
+class BinanceHttpTicker24hrResponse(Struct, rename="camel", frozen=True):
     """24-hour rolling ticker statistics for a symbol (HTTP REST API).
 
     Provides comprehensive market statistics over the last 24 hours including price
@@ -350,7 +350,7 @@ class BinanceHttpTicker24hrResponse(Struct, rename="camel"):
     count: int
 
 
-class BinanceHttpMarkPriceResponse(Struct, rename="camel"):
+class BinanceHttpMarkPriceResponse(Struct, rename="camel", frozen=True):
     """Current mark price and funding information (HTTP REST API).
 
     Provides the current mark price, index price, funding rate, and next funding time
@@ -382,7 +382,7 @@ class BinanceHttpMarkPriceResponse(Struct, rename="camel"):
     time: int
 
 
-class BinanceHttpOpenInterestResponse(Struct, rename="camel"):
+class BinanceHttpOpenInterestResponse(Struct, rename="camel", frozen=True):
     """Current open interest for a perpetual contract (HTTP REST API).
 
     Provides the total open interest (sum of all long/short positions) for a symbol.
@@ -404,7 +404,7 @@ class BinanceHttpOpenInterestResponse(Struct, rename="camel"):
     time: int
 
 
-class BinanceHttpTradeResponse(Struct, rename="camel"):
+class BinanceHttpTradeResponse(Struct, rename="camel", frozen=True):
     """Recent trade in the market (HTTP REST API).
 
     Represents a single recent trade for a symbol, including price, quantity, and
@@ -432,7 +432,7 @@ class BinanceHttpTradeResponse(Struct, rename="camel"):
     is_buyer_maker: bool
 
 
-class SymbolInformationFilters(Struct, rename="camel"):
+class SymbolInformationFilters(Struct, rename="camel", frozen=True):
     """Trading filters and constraints for a symbol.
 
     Defines constraints on price, quantity, and order parameters. Fields present
@@ -467,7 +467,7 @@ class SymbolInformationFilters(Struct, rename="camel"):
     step_size: Optional[str]
 
 
-class SymbolInformation(Struct, rename="camel"):
+class SymbolInformation(Struct, rename="camel", frozen=True):
     """Trading information for a single symbol.
 
     Provides status, base/quote assets, underlying type, and list of applicable
@@ -506,7 +506,7 @@ class SymbolInformation(Struct, rename="camel"):
     filters: list[SymbolInformationFilters]
 
 
-class BinanceHttpExchangeInformationResponse(Struct):
+class BinanceHttpExchangeInformationResponse(Struct, frozen=True):
     """Exchange information containing all tradable symbols and their constraints.
 
     Provides metadata about all symbols available on the exchange, including trading
@@ -539,7 +539,7 @@ class BinanceHttpExchangeInformationResponse(Struct):
     symbols: list[SymbolInformation]
 
 
-class BinanceHttpOrdersResponse(Struct, rename="camel"):
+class BinanceHttpOrdersResponse(Struct, rename="camel", frozen=True):
     """Open order details (HTTP REST API).
 
     Represents a single open order returned from the current open orders endpoint.
@@ -603,7 +603,7 @@ class BinanceHttpOrdersResponse(Struct, rename="camel"):
     good_till_date: int
 
 
-class BinanceHttpPositionResponse(Struct, rename="camel"):
+class BinanceHttpPositionResponse(Struct, rename="camel", frozen=True):
     """Position details for a symbol (HTTP REST API).
 
     Provides complete position information including size, entry price, mark price,
@@ -656,7 +656,7 @@ class BinanceHttpPositionResponse(Struct, rename="camel"):
     update_time: int
 
 
-class ExecutionResponse(Struct):
+class ExecutionResponse(Struct, frozen=True):
     """Represents an execution (fill) of an order."""
 
     venue: Venue
@@ -665,7 +665,7 @@ class ExecutionResponse(Struct):
     executions: list[Execution]
 
 
-class AccountResponse(Struct):
+class AccountResponse(Struct, frozen=True):
     """Represents account information."""
 
     venue: Venue
@@ -677,7 +677,7 @@ class AccountResponse(Struct):
     unrealized_pnl: float
 
 
-class HttpOrder(Struct, rename="camel"):
+class HttpOrder(Struct, rename="camel", frozen=True):
     """Order details from HTTP REST API.
 
     Represents a single order with complete details including pricing, execution
@@ -725,7 +725,7 @@ class HttpOrder(Struct, rename="camel"):
     close_position: bool
 
 
-class HttpPosition(Struct, rename="camel"):
+class HttpPosition(Struct, rename="camel", frozen=True):
     """Position information from HTTP REST API.
 
     Provides complete position data including entry price, mark price, unrealized PnL,
@@ -771,7 +771,7 @@ class HttpPosition(Struct, rename="camel"):
     update_time: int
 
 
-class HttpUserTrade(Struct, rename="camel"):
+class HttpUserTrade(Struct, rename="camel", frozen=True):
     """User trade/execution history from HTTP REST API.
 
     Represents a single trade executed by the user, including fill details, fees,
@@ -813,7 +813,7 @@ class HttpUserTrade(Struct, rename="camel"):
     is_isolated: bool
 
 
-class HttpAccount(Struct, rename="camel"):
+class HttpAccount(Struct, rename="camel", frozen=True):
     """Account information and balance summary (HTTP REST API).
 
     Provides complete account-level information including trading permissions, margin
