@@ -1,3 +1,13 @@
+"""Structs for Binance USDS-M Futures websocket and REST API trading responses.
+
+This module provides dataclass-like structs for deserializing order creation/amendment/
+cancellation responses from the websocket Trade API, as well as REST API responses for
+market data, account information, and trading history.
+
+Includes both WebSocket Trade API responses (orders, positions, executions) and HTTP
+REST API responses (market data, accounts, trades).
+"""
+
 from typing import Optional
 
 from msgspec import Struct
@@ -9,7 +19,43 @@ from framework.base.stream.models import (
 
 
 class BinanceWsCreateOrderResult(Struct, rename="camel"):
-    """Represents the 'result' field from the create order action websocket response."""
+    """Result of a websocket order creation request.
+
+    Contains complete order details after successful creation, including order ID,
+    status, prices, quantities, and timing information. Used to confirm order
+    placement through the Trade WebSocket API.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/websocket-api/Place-Order
+
+    Example payload::
+
+        {
+          "orderId": 123456,                    // order ID
+          "symbol": "BTCUSDT",                  // trading pair
+          "status": "NEW",                      // order status
+          "clientOrderId": "client_order_1",    // client-assigned ID
+          "price": "30000.0",                   // limit price
+          "avgPrice": "0",                      // average fill price
+          "origQty": "1.0",                     // original quantity
+          "executedQty": "0",                   // executed quantity
+          "cumQty": "0",                        // cumulative quantity
+          "cumQuote": "0",                      // cumulative quote
+          "timeInForce": "GTC",                 // time in force
+          "type": "LIMIT",                      // order type
+          "reduceOnly": false,                  // reduce-only flag
+          "closePosition": false,               // close position flag
+          "side": "BUY",                        // order side
+          "positionSide": "LONG",               // position side
+          "stopPrice": "0",                     // stop price (if applicable)
+          "workingType": "CONTRACT_PRICE",      // working type
+          "priceProtect": false,                // price protection
+          "origType": "LIMIT",                  // original order type
+          "priceMatch": "NONE",                 // price matching mode
+          "selfTradePreventionMode": "NONE",    // STP mode
+          "goodTillDate": 0,                    // good till date (if GTD)
+          "updateTime": 1568014460891           // update time (ms)
+        }
+    """
 
     order_id: int
     symbol: str
@@ -38,7 +84,43 @@ class BinanceWsCreateOrderResult(Struct, rename="camel"):
 
 
 class BinanceWsAmendOrderResult(Struct, rename="camel"):
-    """Represents the 'result' field from the amend order action websocket response."""
+    """Result of a websocket order amendment request.
+
+    Contains updated order details after successful modification, including all
+    current order parameters. Used to confirm order amendments through the Trade
+    WebSocket API.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/websocket-api/Amend-Order
+
+    Example payload::
+
+        {
+          "orderId": 123456,                    // order ID
+          "symbol": "BTCUSDT",                  // trading pair
+          "status": "NEW",                      // order status
+          "clientOrderId": "client_order_1",    // client-assigned ID
+          "price": "31000.0",                   // updated price
+          "avgPrice": "0",                      // average fill price
+          "origQty": "1.0",                     // original quantity
+          "executedQty": "0",                   // executed quantity
+          "cumQty": "0",                        // cumulative quantity
+          "cumQuote": "0",                      // cumulative quote
+          "timeInForce": "GTC",                 // time in force
+          "type": "LIMIT",                      // order type
+          "reduceOnly": false,                  // reduce-only flag
+          "closePosition": false,               // close position flag
+          "side": "BUY",                        // order side
+          "positionSide": "LONG",               // position side
+          "stopPrice": "0",                     // stop price
+          "workingType": "CONTRACT_PRICE",      // working type
+          "priceProtect": false,                // price protection
+          "origType": "LIMIT",                  // original order type
+          "priceMatch": "NONE",                 // price matching mode
+          "selfTradePreventionMode": "NONE",    // STP mode
+          "goodTillDate": 0,                    // good till date
+          "updateTime": 1568014460891           // update time (ms)
+        }
+    """
 
     order_id: int
     symbol: str
@@ -67,7 +149,44 @@ class BinanceWsAmendOrderResult(Struct, rename="camel"):
 
 
 class BinanceWsCancelOrderResult(Struct, rename="camel"):
-    """Represents the 'result' field from the cancel order action websocket response."""
+    """Result of a websocket order cancellation request.
+
+    Contains final order details after successful cancellation, confirming the order
+    is no longer active. Used to confirm order cancellations through the Trade
+    WebSocket API.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/websocket-api/Cancel-Order
+
+    Example payload::
+
+        {
+          "orderId": 123456,                    // order ID
+          "clientOrderId": "client_order_1",    // client-assigned ID
+          "cumQty": "0",                        // cumulative quantity
+          "cumQuote": "0",                      // cumulative quote
+          "executedQty": "0",                   // executed quantity
+          "origQty": "1.0",                     // original quantity
+          "origType": "LIMIT",                  // original order type
+          "price": "30000.0",                   // order price
+          "reduceOnly": false,                  // reduce-only flag
+          "side": "BUY",                        // order side
+          "positionSide": "LONG",               // position side
+          "status": "CANCELED",                 // final status
+          "stopPrice": "0",                     // stop price
+          "closePosition": false,               // close position flag
+          "symbol": "BTCUSDT",                  // trading pair
+          "timeInForce": "GTC",                 // time in force
+          "type": "LIMIT",                      // order type
+          "activatePrice": "0",                 // activation price
+          "priceRate": "0",                     // price rate
+          "updateTime": 1568014460891,          // update time (ms)
+          "workingType": "CONTRACT_PRICE",      // working type
+          "priceProtect": false,                // price protection
+          "priceMatch": "NONE",                 // price matching mode
+          "selfTradePreventionMode": "NONE",    // STP mode
+          "goodTillDate": 0                     // good till date
+        }
+    """
 
     order_id: int
     client_order_id: str
@@ -97,7 +216,26 @@ class BinanceWsCancelOrderResult(Struct, rename="camel"):
 
 
 class BinanceWsOrderResponse[T](Struct, rename="camel"):
-    """Represents the response from the order action websocket response."""
+    """Generic wrapper for websocket order action responses.
+
+    Wraps the result field of websocket Trade API responses, providing status code
+    and request ID alongside the typed result payload. The type parameter T is one of
+    BinanceWsCreateOrderResult, BinanceWsAmendOrderResult, or BinanceWsCancelOrderResult.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/websocket-api/
+
+    Example payload::
+
+        {
+          "id": "1",                   // request ID (echo from request)
+          "status": 200,               // HTTP-like status code (0 or 200 for success)
+          "result": {                  // typed result (CreateOrderResult, etc.)
+            "orderId": 123456,
+            "symbol": "BTCUSDT",
+            ...
+          }
+        }
+    """
 
     id: str
     status: int
@@ -109,7 +247,20 @@ class BinanceWsOrderResponse[T](Struct, rename="camel"):
 
 
 class BinanceHttpCancelAllOrdersResponse(Struct):
-    """Represents the response from the cancel all orders action."""
+    """Response from canceling all open orders for a symbol (HTTP REST API).
+
+    Confirms that a bulk order cancellation request succeeded or failed. Returns a
+    simple status code and message.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Cancel-all-Open-Orders
+
+    Example payload::
+
+        {
+          "code": 200,                 // status code (200 or 0 for success)
+          "msg": "success"             // status message
+        }
+    """
 
     code: int
     msg: str
@@ -120,7 +271,29 @@ class BinanceHttpCancelAllOrdersResponse(Struct):
 
 
 class BinanceHttpOrderbookResponse(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Order-Book."""
+    """Full orderbook snapshot (HTTP REST API).
+
+    Returns the current full depth of bids and asks for a symbol. Each level is a
+    [price, quantity] pair as strings. Includes event and transaction timestamps.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Order-Book
+
+    Example payload::
+
+        {
+          "lastUpdateId": 1234,        // last update ID
+          "E": 1568014460893,          // event time (ms)
+          "T": 1568014460891,          // transaction time (ms)
+          "bids": [
+            ["30000.00", "1.0"],       // [price, quantity]
+            ["29999.50", "2.0"]
+          ],
+          "asks": [
+            ["30001.00", "1.5"],       // [price, quantity]
+            ["30002.00", "3.0"]
+          ]
+        }
+    """
 
     last_update_id: int
     E: int  # Event time
@@ -130,7 +303,34 @@ class BinanceHttpOrderbookResponse(Struct, rename="camel"):
 
 
 class BinanceHttpTicker24hrResponse(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/24hr-Ticker-Price-Change-Statistics."""
+    """24-hour rolling ticker statistics for a symbol (HTTP REST API).
+
+    Provides comprehensive market statistics over the last 24 hours including price
+    changes, volumes, high/low prices, and OHLC data.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/24hr-Ticker-Price-Change-Statistics
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",               // symbol
+          "priceChange": "1000.00",          // absolute price change
+          "priceChangePercent": "3.50",      // percentage price change
+          "weightedAvgPrice": "29500.00",    // weighted average price
+          "lastPrice": "30000.00",           // last price
+          "lastQty": "1.0",                  // last quantity
+          "openPrice": "29000.00",           // open price
+          "highPrice": "31000.00",           // 24h high
+          "lowPrice": "28000.00",            // 24h low
+          "volume": "100000.0",              // total volume (base asset)
+          "quoteVolume": "2950000000.00",    // total volume (quote asset)
+          "openTime": 1568014460000,         // period open time (ms)
+          "closeTime": 1568100860000,        // period close time (ms)
+          "firstId": 100,                    // first trade ID
+          "lastId": 500,                     // last trade ID
+          "count": 401                       // trade count
+        }
+    """
 
     symbol: str
     price_change: str
@@ -151,7 +351,26 @@ class BinanceHttpTicker24hrResponse(Struct, rename="camel"):
 
 
 class BinanceHttpMarkPriceResponse(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Mark-Price."""
+    """Current mark price and funding information (HTTP REST API).
+
+    Provides the current mark price, index price, funding rate, and next funding time
+    for a perpetual contract. Used for liquidation pricing and PnL calculations.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Mark-Price
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",               // symbol
+          "markPrice": "30000.50",           // mark price
+          "indexPrice": "29995.25",          // index price
+          "estimatedSettlePrice": "30002.00", // estimated settle price
+          "lastFundingRate": "0.0001",       // last funding rate
+          "nextFundingTime": 1568014500000,  // next funding time (ms)
+          "interestRate": "0.0003",          // interest rate
+          "time": 1568014460893              // timestamp (ms)
+        }
+    """
 
     symbol: str
     mark_price: str
@@ -164,7 +383,21 @@ class BinanceHttpMarkPriceResponse(Struct, rename="camel"):
 
 
 class BinanceHttpOpenInterestResponse(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Open-Interest."""
+    """Current open interest for a perpetual contract (HTTP REST API).
+
+    Provides the total open interest (sum of all long/short positions) for a symbol.
+    Useful for gauging market activity and analyzing positioning.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Open-Interest
+
+    Example payload::
+
+        {
+          "openInterest": "100000.50",       // total open interest
+          "symbol": "BTCUSDT",               // symbol
+          "time": 1568014460893              // timestamp (ms)
+        }
+    """
 
     open_interest: str
     symbol: str
@@ -172,7 +405,24 @@ class BinanceHttpOpenInterestResponse(Struct, rename="camel"):
 
 
 class BinanceHttpTradeResponse(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Recent-Trades-List."""
+    """Recent trade in the market (HTTP REST API).
+
+    Represents a single recent trade for a symbol, including price, quantity, and
+    aggressor side. Typically returned as a list in response to recent trades request.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Recent-Trades-List
+
+    Example payload::
+
+        {
+          "id": 123456,                      // trade ID
+          "price": "30000.50",               // trade price
+          "qty": "1.0",                      // trade quantity
+          "quoteQty": "30000.50",            // trade quote quantity
+          "time": 1568014460893,             // trade time (ms)
+          "isBuyerMaker": false              // is buyer the market maker
+        }
+    """
 
     id: int
     price: str
@@ -183,7 +433,26 @@ class BinanceHttpTradeResponse(Struct, rename="camel"):
 
 
 class SymbolInformationFilters(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information."""
+    """Trading filters and constraints for a symbol.
+
+    Defines constraints on price, quantity, and order parameters. Fields present
+    depend on filter_type: PRICE_FILTER has min/max price and tick size, while
+    LOT_SIZE/MARKET_LOT_SIZE have quantity constraints.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information
+
+    Example payload::
+
+        {
+          "filterType": "PRICE_FILTER",      // filter type
+          "minPrice": "0.01",                // minimum price (if PRICE_FILTER)
+          "maxPrice": "1000000.00",          // maximum price (if PRICE_FILTER)
+          "tickSize": "0.01",                // price increment (if PRICE_FILTER)
+          "minQty": "0.001",                 // minimum quantity (if LOT_SIZE)
+          "maxQty": "1000000.0",             // maximum quantity (if LOT_SIZE)
+          "stepSize": "0.001"                // quantity increment (if LOT_SIZE)
+        }
+    """
 
     filter_type: str
 
@@ -199,7 +468,36 @@ class SymbolInformationFilters(Struct, rename="camel"):
 
 
 class SymbolInformation(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information."""
+    """Trading information for a single symbol.
+
+    Provides status, base/quote assets, underlying type, and list of applicable
+    trading filters (price, quantity, order constraints).
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information
+
+    Example payload::
+
+        {
+          "status": "TRADING",               // symbol status
+          "baseAsset": "BTC",                // base asset
+          "quoteAsset": "USDT",              // quote asset
+          "underlyingType": "COIN",          // underlying asset type
+          "filters": [
+            {
+              "filterType": "PRICE_FILTER",
+              "minPrice": "0.01",
+              "maxPrice": "1000000.00",
+              "tickSize": "0.01"
+            },
+            {
+              "filterType": "LOT_SIZE",
+              "minQty": "0.001",
+              "maxQty": "1000000.0",
+              "stepSize": "0.001"
+            }
+          ]
+        }
+    """
 
     status: str
     base_asset: str
@@ -209,13 +507,75 @@ class SymbolInformation(Struct, rename="camel"):
 
 
 class BinanceHttpExchangeInformationResponse(Struct):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information."""
+    """Exchange information containing all tradable symbols and their constraints.
+
+    Provides metadata about all symbols available on the exchange, including trading
+    status, asset information, and applicable filters (price/quantity constraints).
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information
+
+    Example payload::
+
+        {
+          "symbols": [
+            {
+              "status": "TRADING",
+              "baseAsset": "BTC",
+              "quoteAsset": "USDT",
+              "underlyingType": "COIN",
+              "filters": [...]
+            },
+            {
+              "status": "TRADING",
+              "baseAsset": "ETH",
+              "quoteAsset": "USDT",
+              "underlyingType": "COIN",
+              "filters": [...]
+            }
+          ]
+        }
+    """
 
     symbols: list[SymbolInformation]
 
 
 class BinanceHttpOrdersResponse(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Current-Open-Orders"""
+    """Open order details (HTTP REST API).
+
+    Represents a single open order returned from the current open orders endpoint.
+    Contains all order parameters, status, and pricing information.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Current-Open-Orders
+
+    Example payload::
+
+        {
+          "avgPrice": "0",                   // average fill price
+          "clientOrderId": "client_order_1", // client-assigned ID
+          "cumQuote": "0",                   // cumulative quote
+          "executedQty": "0",                // executed quantity
+          "orderId": 123456,                 // order ID
+          "origQty": "1.0",                  // original quantity
+          "origType": "LIMIT",               // original order type
+          "price": "30000.0",                // order price
+          "reduceOnly": false,               // reduce-only flag
+          "side": "BUY",                     // order side
+          "positionSide": "LONG",            // position side
+          "status": "NEW",                   // order status
+          "stopPrice": "0",                  // stop price
+          "closePosition": false,            // close position flag
+          "symbol": "BTCUSDT",               // symbol
+          "time": 1568014460891,             // order creation time (ms)
+          "timeInForce": "GTC",              // time in force
+          "type": "LIMIT",                   // order type
+          "updateTime": 1568014460891,       // update time (ms)
+          "workingType": "CONTRACT_PRICE",   // working type
+          "priceProtect": false,             // price protection
+          "priceMatch": "NONE",              // price matching mode
+          "selfTradePreventionMode": "NONE", // STP mode
+          "goodTillDate": 0                  // good till date
+        }
+    """
 
     avg_price: str
     client_order_id: str
@@ -244,7 +604,37 @@ class BinanceHttpOrdersResponse(Struct, rename="camel"):
 
 
 class BinanceHttpPositionResponse(Struct, rename="camel"):
-    """Represents a trading position from Binance HTTP API."""
+    """Position details for a symbol (HTTP REST API).
+
+    Provides complete position information including size, entry price, mark price,
+    PnL, liquidation price, margins, and leverage. Updated in real-time as positions
+    change.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Position-Information-V2
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",               // symbol
+          "positionSide": "LONG",            // position side
+          "positionAmt": "1.0",              // position amount (quantity)
+          "entryPrice": "30000.0",           // entry price
+          "breakEvenPrice": "30100.0",       // break-even price
+          "markPrice": "30500.0",            // current mark price
+          "unRealizedProfit": "500.0",       // unrealized PnL
+          "liquidationPrice": "25000.0",     // liquidation price
+          "isolatedMargin": "1000.0",        // isolated margin (if isolated)
+          "notional": "30500.0",             // notional value
+          "marginAsset": "USDT",             // margin asset
+          "isolatedWallet": "1000.0",        // isolated wallet balance
+          "initialMargin": "1000.0",         // initial margin
+          "maintMargin": "600.0",            // maintenance margin
+          "positionInitialMargin": "1000.0", // position initial margin
+          "openOrderInitialMargin": "0",     // open order initial margin
+          "adl": 0,                          // auto-deleveraging level
+          "updateTime": 1568014460891        // update time (ms)
+        }
+    """
 
     symbol: str
     position_side: str
@@ -288,7 +678,34 @@ class AccountResponse(Struct):
 
 
 class HttpOrder(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Current-Open-Orders."""
+    """Order details from HTTP REST API.
+
+    Represents a single order with complete details including pricing, execution
+    status, and timing information.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Current-Open-Orders
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",               // symbol
+          "orderId": 123456,                 // order ID
+          "clientOrderId": "client_order_1", // client-assigned ID
+          "price": "30000.0",                // limit price
+          "origQty": "1.0",                  // original quantity
+          "executedQty": "0.5",              // executed quantity
+          "cumulativeQuoteQty": "15000.0",   // cumulative quote quantity
+          "status": "PARTIALLY_FILLED",      // order status
+          "timeInForce": "GTC",              // time in force
+          "type": "LIMIT",                   // order type
+          "side": "BUY",                     // order side
+          "stopPrice": "0",                  // stop price
+          "time": 1568014460891,             // order creation time (ms)
+          "updateTime": 1568014460991,       // update time (ms)
+          "reduceOnly": false,               // reduce-only flag
+          "closePosition": false             // close position flag
+        }
+    """
 
     symbol: str
     order_id: int
@@ -309,7 +726,33 @@ class HttpOrder(Struct, rename="camel"):
 
 
 class HttpPosition(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Position-Information-V2."""
+    """Position information from HTTP REST API.
+
+    Provides complete position data including entry price, mark price, unrealized PnL,
+    liquidation price, leverage, and margin information.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Position-Information-V2
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",               // symbol
+          "positionAmt": "1.0",              // position amount (quantity)
+          "entryPrice": "30000.0",           // entry price
+          "markPrice": "30500.0",            // mark price
+          "unrealPnl": "500.0",              // unrealized PnL
+          "liquidationPrice": "25000.0",     // liquidation price
+          "leverage": "10",                  // leverage used
+          "maxNotionalValue": "300000",      // max notional value
+          "marginType": "cross",             // margin type (cross/isolated)
+          "isolatedMargin": "0",             // isolated margin amount
+          "isAutoAddMargin": false,          // auto-add margin enabled
+          "positionSide": "LONG",            // position side
+          "notional": "30500.0",             // notional value
+          "isolatedWallet": "0",             // isolated wallet balance
+          "updateTime": 1568014460891        // update time (ms)
+        }
+    """
 
     symbol: str
     position_amt: str
@@ -329,7 +772,31 @@ class HttpPosition(Struct, rename="camel"):
 
 
 class HttpUserTrade(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Account-Trade-List."""
+    """User trade/execution history from HTTP REST API.
+
+    Represents a single trade executed by the user, including fill details, fees,
+    and execution classification (maker/taker, buyer/seller).
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Account-Trade-List
+
+    Example payload::
+
+        {
+          "symbol": "BTCUSDT",               // symbol
+          "id": 12345,                       // trade ID
+          "orderId": 123456,                 // related order ID
+          "side": "BUY",                     // trade side
+          "qty": "0.5",                      // trade quantity
+          "price": "30000.0",                // trade price
+          "quoteQty": "15000.0",             // quote quantity
+          "commission": "0.15",              // fee amount
+          "commissionAsset": "USDT",         // fee asset
+          "time": 1568014460891,             // trade time (ms)
+          "isBuyer": true,                   // is buyer
+          "isMaker": false,                  // is maker
+          "isIsolated": false                // is isolated position
+        }
+    """
 
     symbol: str
     id: int
@@ -347,7 +814,34 @@ class HttpUserTrade(Struct, rename="camel"):
 
 
 class HttpAccount(Struct, rename="camel"):
-    """https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Account-Information-V2."""
+    """Account information and balance summary (HTTP REST API).
+
+    Provides complete account-level information including trading permissions, margin
+    levels, total balances, and unrealized PnL across all positions.
+
+    Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Account-Information-V2
+
+    Example payload::
+
+        {
+          "feeTier": 0,                        // maker fee tier
+          "canTrade": true,                    // trading enabled
+          "canDeposit": true,                  // deposits enabled
+          "canWithdraw": true,                 // withdrawals enabled
+          "updateTime": 1568014460891,         // update time (ms)
+          "totalInitialMargin": "1000.0",      // total initial margin required
+          "totalMaintMargin": "600.0",         // total maintenance margin required
+          "totalWalletBalance": "5000.0",      // total wallet balance
+          "totalUnrealizedPnl": "500.0",       // total unrealized PnL
+          "totalMarginBalance": "5500.0",      // total margin balance
+          "totalPositionInitialMargin": "1000.0", // position initial margin
+          "totalOpenOrderInitialMargin": "100.0", // open order initial margin
+          "totalCrossWalletBalance": "5000.0",    // cross margin wallet balance
+          "totalCrossUnPnl": "500.0",             // cross margin unrealized PnL
+          "availableBalance": "3400.0",           // available balance
+          "maxWithdrawAmount": "3400.0"           // max withdrawal amount
+        }
+    """
 
     fee_tier: int
     can_trade: bool
