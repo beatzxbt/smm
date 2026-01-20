@@ -233,14 +233,15 @@ class BinanceExchange(Exchange):
                 err_msg=response.err_msg,
             )
 
+        amend_response = cast(BinanceWsOrderResponse, response.data)
         return ClientResponseSuccess(
             data=AmendOrderResponse(
                 moments=Moments(),
                 venue=amend_order.instrument.venue,
                 instrument=amend_order.instrument,
                 trigger=amend_order,
-                order_id=str(response.data.result.order_id),
-                client_order_id=response.data.result.client_order_id,
+                order_id=str(amend_response.result.order_id),
+                client_order_id=amend_response.result.client_order_id,
             ),
         )
 
@@ -274,14 +275,15 @@ class BinanceExchange(Exchange):
                 err_msg=response.err_msg,
             )
 
+        cancel_response = cast(BinanceWsOrderResponse, response.data)
         return ClientResponseSuccess(
             data=CancelOrderResponse(
                 moments=Moments(),
                 venue=cancel_order.instrument.venue,
                 instrument=cancel_order.instrument,
                 trigger=cancel_order,
-                order_id=str(response.data.result.order_id),
-                client_order_id=response.data.result.client_order_id,
+                order_id=str(cancel_response.result.order_id),
+                client_order_id=cancel_response.result.client_order_id,
             ),
         )
 
@@ -353,7 +355,7 @@ class BinanceExchange(Exchange):
                 decoder=decoder,
             )
 
-            if response.is_successful:
+            if response.is_successful and response.data is not None:
                 trades = [
                     Trade(
                         time_ms=trade.time,
