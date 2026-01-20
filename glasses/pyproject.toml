@@ -1,0 +1,21 @@
+[project]
+name = "glasses"
+version = "0.1.0"
+description = "Monitoring and analytics platform with GUI (placeholder)"
+authors = [{ name = "beatzxbt" }]
+requires-python = ">=3.13.9"
+license = "MIT"
+
+dependencies = [
+    "framework",
+]
+
+[tool.uv.sources]
+framework = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
