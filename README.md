@@ -1,7 +1,7 @@
 Simple Market Maker
 ===================
 
-This is a simple framework and set of strategies designed toward market making on crypto exchanges. 
+This is a simple framework and set of strategies designed toward learning market making on crypto exchanges. 
 
 ***DISCLAIMER: Nothing in this repository constitutes financial advice (and therefore, please use at your own risk). It is tailored primarily for learning purposes, and is highly unlikely you will make profits trading any of the provided strategies. [BeatzXBT](https://twitter.com/BeatzXBT) will not accept liability for any loss or damage including, without limitation to, any loss of capital which may arise directly or indirectly from use of or reliance on this software.***
 
@@ -15,10 +15,10 @@ In the terminal run the following commands:
 $ cd /path/to/your/workspace
 
 # Clone the repository
-$ git clone git@github.com:beatzxbt/bybit-smm.git
+$ git clone git@github.com:beatzxbt/smm.git
 
 # Change directories into the project
-$ cd bybit-smm
+$ cd smm
 ```
 
 __Note: Each terminal command going forward will be run within the main project directory.__
@@ -30,21 +30,6 @@ Copy `.env.exmaple` to `.env`. This is where we are going to store our API keys:
 $ cp .env.example .env
 ```
 
-Next, you will need to create a Bybit account. __If you are not ready to trade real money, you can create a testnet account with no KYC required by signing up at [testnet.bybit.com](https://testnet.bybit.com/en/).__
-
-
-Once you have created your Bybit account, generate API key and secret following [this guide](https://learn.bybit.com/bybit-guide/how-to-create-a-bybit-api-key/). Once you have your API keys, edit the `.env` file that you generated earlier, filling in your credentials:
-```
-API_KEY=YOUR_API_KEY_HERE
-API_SECRET=YOUR_API_SECRET_HERE
-```
-
-The account **must** be a Unified Trading Account (UTA).
-
-_Optional: If you are using the testnet to trade, set the `TESTNET` flag to True within the `.env` file:_
-```
-TESTNET=True
-```
 
 ### Install the requirements
 _Optional: If you are familiar with virtual environments, create one now and activate it. If not, this step is not necessary:_
@@ -63,39 +48,22 @@ $ pip install -r requirements.txt
 
 Next, we are going to configure the parameters that actually determine which market we are making, and how the trader should behave. 
 
-Sensible defaults are set in `parameters.yaml.example`. Copy it over to your `parameter.yaml` file to get started:
-```console
-$ cp parameters.yaml.example parameters.yaml
-```
+Sensible defaults are set in `smm/config.toml`. Edit this file to configure your venue,
+symbol, trader, and component settings.
 
-The `parameters.yaml` file is gitignored, and can be configured for each environment that you are trading in separately.
-
-Each of the configurable parameters are explained below in more detail
-
-- `account_size` - Your account size in USD.
-- `primary_data_feed` - Either Binance or Bybit. While most of the features are based on Bybit's own price, selecting Binance will start additional websocket streams to enable additional pricing features. Only possible if the symbol is trading on Binance USD-M.
-
-- `binance_symbol`: - The derivatives symbol on Binance USD-M, unused if primary_data_feed is set to Bybit.
-- `bybit_symbol`: - The derivatives symbol on Bybit Futures.
-
-#### Master offsets 
-- `price_offset` - Offset the generates quote prices ± some value. Positive number increases the quote price (and vice versa), however keep in mind that the API will return errors if the offset causes the minimum quote price to be less than 0, or the prices to be outside the exchange defined min/max range.
-- `size_offset` - Offset the generates quote sizes ± some value. Positive number increases the quote size (and vice versa), however keep in mind that the API will return errors if the offset causes the minimum quote size to be less than minimum trading size.
-- `volatility_offset` - Offset the total quote range ± some value (Positive number increases the distance between the lowest bid and the highest ask, and vice versa)
-
-
-#### Market Maker Settings
-Settings regarding the functionality of the core market making script
-- `base_spread` - Lowest spread you're willing to quote at any given volatility. This may be scaled depending on the short-term volatility, up to 10x it's value.
-- `min_order_size` - The minimum order size of the closest order to mid-price. 
-- `max_order_size` - The maximum order size of the further order from mid-price. 
--  `inventory_extreme` - A value between 0 <-> 1, defining the maximum limit at which the system quotes normally. If inventory delta exceeds this value, it will stop quoting the opposite side and go into a reduce-only mode.
+Key sections in the TOML file:
+- `core` for venue, symbol, and trader selection
+- `volatility` for EWMA settings and spread clamps
+- `pricing` for levels, base spread, inventory limits, and spread ladder
+- `risk` for max inventory and distance limits
+- `oms` for create/amend/cancel rate budgets
+- `plain` or `stinky` for trader-specific overrides
 
 #### Running the bot
 
-To run the the bot, once your `.env` and `parameters.yaml` file are configured, simply run:
+To run the bot, once your `.env` and `smm/config.toml` file are configured, simply run:
 ```console
-(venv) $ python3 -m main
+(venv) $ python3 -m smm
 ```
 
 __NOTE: If you are using MacOS, you may run into the following error__:
@@ -107,7 +75,6 @@ The fix is [simple](https://stackoverflow.com/questions/52805115/certificate-ver
 
 
 # Strategy Design/Overview
-
 1. Prices from Bybit (and optionally Binance) are streamed using websockets into a common shared class.
 2. Features are calculated from the updated market data, and a market maker class generates optimal quotes
   * Multiple features work on comparing different mid-prices to each other (trying to predict where price is likely to go).
@@ -118,18 +85,35 @@ The fix is [simple](https://stackoverflow.com/questions/52805115/certificate-ver
 3. Orders are sent via a Order Management System (currently disabled), which transitions between current and new states, and tries to do so in the most ratelimit-efficient way possible.
   
 
-## Contributions
+## Roadmap
 
+### Upcoming Applications
+
+#### napalm
+A specialized execution algorithm designed for large order placement across multiple exchanges. Napalm will handle the complexity of coordinating large positions across different venues, optimizing execution timing and exchange selection based on real-time market conditions.
+
+#### cmm (Complex Market Maker)
+A sophisticated market making framework that complements the simple market maker (smm). CMM removes the single-instrument and single-venue restrictions of SMM, enabling multi-venue, multi-instrument market making strategies under a unified strategy framework. This allows traders to run more complex market making operations with interconnected orders across multiple markets simultaneously.
+
+#### glasses
+A comprehensive monitoring and analytics platform that collects massive amounts of data from multiple exchanges via public streams. Glasses provides an interactive GUI for real-time visualization and interaction with live order books and market data. It optionally integrates with private data streams from smm and cmm instances, enabling extensive monitoring of trading operations, performance metrics, and market conditions all in one place.
+
+
+## Contributions
 Please create [issues](https://github.com/beatzxbt/bybit-smm/issues) to flag bugs or suggest new features and feel free to create a [pull request](https://github.com/beatzxbt/bybit-smm/pulls) with any improvements.
 
-## Contact
 
+## Future ideas
+- Data ingestion services to DB w/Dashboard, customized monitoring for markouts, risk limits, fills etc.
+- Execution algorithms to enter large positions on single/combined exchanges (eg $1M BTC Long HL, $1M BTC Short Extended)
+
+## Contact
 If you have any questions or suggestions regarding the framework/strategies, or just want to have a chat, my handles are below 👇🏼
 
 Twitter: [@BeatzXBT](https://twitter.com/BeatzXBT) | Discord: gamingbeatz
 
 
 ## Donations
-If you want to support my open source work, please reach out to my Twitter (make sure its the correct account) and i will send an address of your preference. 
+If you want to support my open source work, please reach out to my Twitter/Discord (make sure its the correct account) and i will send an address of your preference. 
 
 Others ways of supporting me are sign-up referral links for exchanges. At the moment, i'm a Bybit partner and can get a small part of your fees if you sign up using [this link](https://partner.bybit.com/b/beatz).
