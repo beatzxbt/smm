@@ -113,7 +113,6 @@ class WsClient(ABC):
         """Submit a request."""
         pass
 
-    @final
     async def close(self):
         """Close the client session."""
         if self.is_running:
