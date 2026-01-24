@@ -436,6 +436,18 @@ class TestSecret:
         assert secret.name == ""
         assert secret.value == ""
 
+    def test_is_blank_true_for_blank_secret(self):
+        """Test is_blank() returns True for blank secrets."""
+        secret = Secret.blank()
+
+        assert secret.is_blank() is True
+
+    def test_is_blank_false_for_non_blank_secret(self):
+        """Test is_blank() returns False for non-blank secrets."""
+        secret = Secret(name="API_KEY", value="secret_value")
+
+        assert secret.is_blank() is False
+
     def test_set_creation(self):
         """Test set() classmethod sets environment variable."""
         import os
@@ -467,10 +479,44 @@ class TestSecretLoading:
         # Cleanup
         del os.environ["TEST_API_KEY"]
 
+    def test_maybe_load_existing_variable(self):
+        """Test maybe_load() with existing environment variable."""
+        import os
+
+        os.environ["TEST_MAYBE_API_KEY"] = "secret456"
+
+        secret = Secret.maybe_load("TEST_MAYBE_API_KEY")
+
+        assert secret.name == "TEST_MAYBE_API_KEY"
+        assert secret.value == "secret456"
+        assert secret.is_blank() is False
+
+        # Cleanup
+        del os.environ["TEST_MAYBE_API_KEY"]
+
     def test_load_missing_variable_raises(self):
         """Test load() raises for missing environment variable."""
         with pytest.raises(RuntimeError, match="Failed to load.*from '.env'"):
             Secret.load("NONEXISTENT_VARIABLE_XYZ")
+
+    def test_maybe_load_missing_variable_returns_blank(self):
+        """Test maybe_load() returns blank for missing environment variable."""
+        secret = Secret.maybe_load("NONEXISTENT_VARIABLE_XYZ")
+
+        assert secret.is_blank() is True
+
+    def test_maybe_load_empty_variable_returns_blank(self):
+        """Test maybe_load() returns blank for empty environment variable."""
+        import os
+
+        os.environ["TEST_EMPTY_SECRET"] = ""
+
+        secret = Secret.maybe_load("TEST_EMPTY_SECRET")
+
+        assert secret.is_blank() is True
+
+        # Cleanup
+        del os.environ["TEST_EMPTY_SECRET"]
 
 
 class TestClientResponseSuccess:
