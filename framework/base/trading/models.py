@@ -1,3 +1,12 @@
+"""Trading model primitives and response schemas.
+
+Usage: defines Secret helpers, order actions, and response data models used by
+clients/exchanges. Components: Secret, order actions, response schemas, and
+response unions.
+"""
+
+from __future__ import annotations
+
 import os
 from typing import Literal, Optional, Self
 
@@ -16,25 +25,79 @@ from framework.base.stream.models import (
 
 
 class Secret(Struct, frozen=True):
+    """Stores credential name/value pairs loaded from environment.
+
+    Attributes:
+        name (str): Environment variable name for the secret.
+        value (str): Secret value or empty string for blank secrets.
+    """
+
     name: str
     value: str
 
     @classmethod
     def load(cls, var_name: str) -> Self:
+        """Load a secret from the environment.
+
+        Args:
+            var_name (str): Environment variable name to load.
+
+        Returns:
+            Secret: Loaded secret with the provided name and value.
+
+        Raises:
+            RuntimeError: If the environment variable is missing or empty.
+        """
         dotenv.load_dotenv()
         if not (var_value := os.environ.get(var_name)):
             raise RuntimeError(f"Failed to load {var_name} from '.env';")
         return cls(name=var_name, value=var_value)
 
     @classmethod
+    def maybe_load(cls, var_name: str) -> Self:
+        """Load a secret from the environment or return blank.
+
+        Args:
+            var_name (str): Environment variable name to load.
+
+        Returns:
+            Secret: Loaded secret or a blank secret if missing/empty.
+        """
+        dotenv.load_dotenv()
+        if not (var_value := os.environ.get(var_name)):
+            return cls.blank()
+        return cls(name=var_name, value=var_value)
+
+    @classmethod
     def set(cls, var_name: str, var_value: str) -> Self:
-        """Used if generating new secrets through API"""
+        """Set a secret in the environment and return it.
+
+        Args:
+            var_name (str): Environment variable name to set.
+            var_value (str): Value to store in the environment.
+
+        Returns:
+            Secret: Secret with the provided name and value.
+        """
         os.environ[var_name] = var_value
         return cls(name=var_name, value=var_value)
 
     @classmethod
     def blank(cls) -> Self:
+        """Return a blank secret.
+
+        Returns:
+            Secret: Secret with empty name and value.
+        """
         return cls(name="", value="")
+
+    def is_blank(self) -> bool:
+        """Check whether the secret is blank.
+
+        Returns:
+            bool: True if name and value are empty strings.
+        """
+        return self.name == "" and self.value == ""
 
 
 class CreateOrder(Struct):
