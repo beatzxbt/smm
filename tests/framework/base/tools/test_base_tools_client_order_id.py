@@ -18,10 +18,6 @@ from framework.base.tools.client_order_id import AllowedOrderIdChars, ClientOrde
 from mm_toolbox.time import time_ns
 
 
-# =============================================================================
-# =============================================================================
-
-
 class TestAllowedOrderIdChars:
     """Test AllowedOrderIdChars enum."""
 
