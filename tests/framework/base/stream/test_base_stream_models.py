@@ -39,12 +39,8 @@ from framework.base.stream.models import (
     TickerMsg,
     Trade,
     TradeMsg,
+    Msg
 )
-
-
-# =============================================================================
-# HELPER FIXTURES
-# =============================================================================
 
 
 @pytest.fixture
@@ -69,9 +65,6 @@ def core_kwargs(sample_instrument):
         "instrument": sample_instrument,
     }
 
-
-# =============================================================================
-# =============================================================================
 
 
 class TestMoments:
@@ -422,8 +415,6 @@ class TestExecution:
         assert execution.client_order_id is None
 
 
-# =============================================================================
-# =============================================================================
 
 
 class TestCoreSchema:
@@ -956,6 +947,93 @@ class TestHeartbeatEvent:
             assert msg.venue == venue
 
 
+class TestLifecycleEvents:
+    """Test non-heartbeat DataStreamEventMsg payloads."""
+
+    def test_start_event_with_state(self, core_kwargs):
+        """Test START event preserves state and defaults.
+
+        Args:
+            core_kwargs (dict[str, object]): Core schema fixture values.
+        """
+        instrument = core_kwargs["instrument"]
+        state = {MarketDataStreamType.TICKER: instrument}
+
+        msg = DataStreamEventMsg(
+            time_ms=100,
+            venue=Venue.BINANCE_USDM,
+            event=DataStreamEvent.START,
+            changes={},
+            state=state,
+        )
+
+        assert msg.event == DataStreamEvent.START
+        assert msg.changes == {}
+        assert msg.state == state
+        assert msg.time_next_check_ms is None
+
+    def test_stop_event_with_empty_state(self):
+        """Test STOP event accepts empty state."""
+        msg = DataStreamEventMsg(
+            time_ms=200,
+            venue=Venue.BINANCE_USDM,
+            event=DataStreamEvent.STOP,
+            changes={},
+            state={},
+        )
+
+        assert msg.event == DataStreamEvent.STOP
+        assert msg.state == {}
+        assert msg.time_next_check_ms is None
+
+    def test_subscribe_event_tracks_changes(self, core_kwargs):
+        """Test SUBSCRIBE event tracks changes and state.
+
+        Args:
+            core_kwargs (dict[str, object]): Core schema fixture values.
+        """
+        instrument = core_kwargs["instrument"]
+        changes = {MarketDataStreamType.TRADES: instrument}
+        state = {
+            MarketDataStreamType.TICKER: instrument,
+            MarketDataStreamType.TRADES: instrument,
+        }
+
+        msg = DataStreamEventMsg(
+            time_ms=300,
+            venue=Venue.BINANCE_USDM,
+            event=DataStreamEvent.SUBSCRIBE,
+            changes=changes,
+            state=state,
+        )
+
+        assert msg.event == DataStreamEvent.SUBSCRIBE
+        assert msg.changes == changes
+        assert msg.state == state
+
+    def test_unsubscribe_event_tracks_changes(self, core_kwargs):
+        """Test UNSUBSCRIBE event tracks changes and state.
+
+        Args:
+            core_kwargs (dict[str, object]): Core schema fixture values.
+        """
+        instrument = core_kwargs["instrument"]
+        changes = {MarketDataStreamType.TICKER: instrument}
+        state = {}
+
+        msg = DataStreamEventMsg(
+            time_ms=400,
+            venue=Venue.BINANCE_USDM,
+            event=DataStreamEvent.UNSUBSCRIBE,
+            changes=changes,
+            state=state,
+        )
+
+        assert msg.event == DataStreamEvent.UNSUBSCRIBE
+        assert msg.changes == changes
+        assert msg.state == state
+
+
 class TestTypeUnions:
     """Test type union aliases work correctly."""
 
@@ -1040,22 +1118,58 @@ class TestTypeUnions:
         accept_private_msg(execution_msg)
         accept_private_msg(account_msg)
 
-    def test_heartbeat_event_assignable(self, core_kwargs):
-        """Test heartbeat event is assignable to Msg."""
-        from framework.base.stream.models import Msg
+    def test_event_msgs_assignable(self, core_kwargs):
+        """Test DataStreamEventMsg variants are assignable to Msg.
 
+        Args:
+            core_kwargs (dict[str, object]): Core schema fixture values.
+        """
         def accept_msg(msg: Msg) -> None:
             pass
 
         instrument = core_kwargs["instrument"]
-        heartbeat_msg = DataStreamEventMsg(
-            time_ms=100,
-            venue=Venue.BINANCE_USDM,
-            event=DataStreamEvent.HEARTBEAT,
-            changes={},
-            state={MarketDataStreamType.TICKER: instrument},
-            time_next_check_ms=200,
-        )
+        event_msgs = [
+            DataStreamEventMsg(
+                time_ms=100,
+                venue=Venue.BINANCE_USDM,
+                event=DataStreamEvent.HEARTBEAT,
+                changes={},
+                state={MarketDataStreamType.TICKER: instrument},
+                time_next_check_ms=200,
+            ),
+            DataStreamEventMsg(
+                time_ms=110,
+                venue=Venue.BINANCE_USDM,
+                event=DataStreamEvent.START,
+                changes={},
+                state={MarketDataStreamType.TICKER: instrument},
+            ),
+            DataStreamEventMsg(
+                time_ms=120,
+                venue=Venue.BINANCE_USDM,
+                event=DataStreamEvent.STOP,
+                changes={},
+                state={},
+            ),
+            DataStreamEventMsg(
+                time_ms=130,
+                venue=Venue.BINANCE_USDM,
+                event=DataStreamEvent.SUBSCRIBE,
+                changes={MarketDataStreamType.TRADES: instrument},
+                state={
+                    MarketDataStreamType.TICKER: instrument,
+                    MarketDataStreamType.TRADES: instrument,
+                },
+            ),
+            DataStreamEventMsg(
+                time_ms=140,
+                venue=Venue.BINANCE_USDM,
+                event=DataStreamEvent.UNSUBSCRIBE,
+                changes={MarketDataStreamType.TICKER: instrument},
+                state={},
+            ),
+        ]
 
         # Should not raise type error
-        accept_msg(heartbeat_msg)
+        for msg in event_msgs:
+            accept_msg(msg)
