@@ -11,7 +11,7 @@ from framework.base.stream.models import (
 
 
 class TestDataStreamEvent:
-    """Layer 1: DataStreamEvent enum values."""
+    """DataStreamEvent enum values."""
 
     def test_event_values(self) -> None:
         """Test DataStreamEvent exposes expected values.
@@ -27,7 +27,7 @@ class TestDataStreamEvent:
 
 
 class TestDataStreamEventMsg:
-    """Layer 2: DataStreamEventMsg construction."""
+    """DataStreamEventMsg construction."""
 
     def test_event_msg_fields(self) -> None:
         """Test DataStreamEventMsg preserves input fields.

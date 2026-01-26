@@ -279,7 +279,7 @@ class DummyMarketManager(MarketStreamManager):
 
 
 class TestMarketStreamManagerLifecycle:
-    """Layer 3: MarketStreamManager lifecycle and state tracking."""
+    """MarketStreamManager lifecycle and state tracking."""
 
     @pytest.mark.asyncio
     async def test_start_stop_broadcasts_events(self, monkeypatch) -> None:
@@ -390,7 +390,7 @@ class TestMarketStreamManagerLifecycle:
 
 
 class TestMessageFlowEndToEnd:
-    """Layer 3: End-to-end message flow from handler to consumer queue."""
+    """End-to-end message flow from handler to consumer queue."""
 
     @pytest.mark.asyncio
     async def test_message_flow(self, monkeypatch) -> None:

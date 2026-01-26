@@ -203,7 +203,7 @@ class DummyHandler(TickerStreamHandler):
 
 
 class TestBaseStreamHandler:
-    """Layer 2: BaseStreamHandler lifecycle and subscription helpers."""
+    """BaseStreamHandler lifecycle and subscription helpers."""
 
     @pytest.mark.asyncio
     async def test_subscribe_and_unsubscribe(self) -> None:

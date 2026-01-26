@@ -304,7 +304,7 @@ class DummyExchange(Exchange):
 
 
 class TestExchangeGuards:
-    """Layer 1: Guard helpers."""
+    """Guard helpers."""
 
     def test_ensure_secrets_loaded_raises(self, test_logger: Logger) -> None:
         """Test ensure_secrets_loaded raises when secrets are disabled.
@@ -340,7 +340,7 @@ class TestExchangeGuards:
 
 
 class TestExchangeSessions:
-    """Layer 2: Session lifecycle behavior."""
+    """Session lifecycle behavior."""
 
     @pytest.mark.asyncio
     async def test_unauth_session_is_cached(self, test_logger: Logger) -> None:
@@ -371,7 +371,7 @@ class TestExchangeSessions:
 
 
 class TestExchangeCloid:
-    """Layer 1: Client order ID generation."""
+    """Client order ID generation."""
 
     def test_generate_cloid_with_padding(
         self, monkeypatch, test_logger: Logger
