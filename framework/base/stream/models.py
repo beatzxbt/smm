@@ -54,6 +54,36 @@ ALL_PRIVATE_DATA_STREAM_TYPES: set[PrivateDataStreamType] = {
 type StreamType = MarketDataStreamType | PrivateDataStreamType
 
 
+class DataStreamEvent(StrEnum):
+    """Lifecycle event types emitted by data streams."""
+
+    START = "START"
+    STOP = "STOP"
+    SUBSCRIBE = "SUBSCRIBE"
+    UNSUBSCRIBE = "UNSUBSCRIBE"
+    HEARTBEAT = "HEARTBEAT"
+
+
+class DataStreamEventMsg(Struct, frozen=True, tag=True):
+    """Represents a lifecycle event emitted by a data stream.
+
+    Args:
+        time_ms (int): Event timestamp in milliseconds.
+        venue (Venue): The exchange venue this event applies to.
+        event (DataStreamEvent): The lifecycle event type.
+        changes (dict[StreamType, Instrument]): Stream changes for the event.
+        state (dict[StreamType, Instrument]): Current subscription state snapshot.
+        time_next_check_ms (int | None): Next heartbeat check timestamp in milliseconds.
+    """
+
+    time_ms: int
+    venue: Venue
+    event: DataStreamEvent
+    changes: dict[StreamType, Instrument]
+    state: dict[StreamType, Instrument]
+    time_next_check_ms: int | None = None
+
+
 class Moments(Struct, frozen=True):
     """Timing information for a message.
 
@@ -111,6 +141,13 @@ class TradeMsg(CoreSchema, frozen=True, tag=True):
     trades: list[Trade]
 
     def __post_init__(self):
+        """Validates and orders trade messages.
+
+        Raises:
+            ValueError: If trades is empty.
+        """
+        if not self.trades:
+            raise ValueError("Invalid trades; expected non-empty list")
         self.trades.sort(key=lambda x: x.time_ms)
 
 
@@ -146,6 +183,13 @@ class OrderbookMsg(CoreSchema, frozen=True, tag=True):
     is_snapshot: bool
 
     def __post_init__(self):
+        """Validates and orders orderbook messages.
+
+        Raises:
+            ValueError: If bids and asks are both empty.
+        """
+        if not self.bids and not self.asks:
+            raise ValueError("Invalid orderbook; expected bids or asks")
         self.bids.sort(key=lambda x: x.price)
         self.asks.sort(key=lambda x: x.price)
 
@@ -235,6 +279,15 @@ class OrderMsg(CoreSchema, frozen=True, tag=True):
 
     orders: list[Order]
 
+    def __post_init__(self):
+        """Validates order messages.
+
+        Raises:
+            ValueError: If orders is empty.
+        """
+        if not self.orders:
+            raise ValueError("Invalid orders; expected non-empty list")
+
 
 class Execution(Struct):
     """Represents an execution (fill) of an order."""
@@ -259,6 +312,15 @@ class ExecutionMsg(CoreSchema, frozen=True, tag=True):
 
     executions: list[Execution]
 
+    def __post_init__(self):
+        """Validates execution messages.
+
+        Raises:
+            ValueError: If executions is empty.
+        """
+        if not self.executions:
+            raise ValueError("Invalid executions; expected non-empty list")
+
 
 class AccountMsg(CoreSchema, frozen=True, tag=True):
     """Represents account information."""
@@ -269,23 +331,7 @@ class AccountMsg(CoreSchema, frozen=True, tag=True):
     unrealized_pnl: float
 
 
-class HeartbeatMsg(Struct, frozen=True, tag=True):
-    """Represents a heartbeat message.
-
-    Args:
-        venue: The exchange venue this heartbeat is from.
-        stream_type: The type of stream this heartbeat is from.
-        time_now_ms: Current timestamp in milliseconds.
-        time_next_check_ms: Expected next heartbeat timestamp in milliseconds.
-    """
-
-    venue: Venue
-    stream_type: StreamType
-    time_now_ms: int
-    time_next_check_ms: int
-
-
 type MarketDataMsg = TradeMsg | OrderbookMsg | TickerMsg
 type PrivateDataMsg = PositionMsg | OrderMsg | ExecutionMsg | AccountMsg
 type DataMsg = MarketDataMsg | PrivateDataMsg
-type Msg = DataMsg | HeartbeatMsg
+type Msg = DataMsg | DataStreamEventMsg

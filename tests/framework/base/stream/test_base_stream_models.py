@@ -12,7 +12,7 @@ Tests cover:
 
 Tests are organized by dependency layer:
 1. Primitives: Moments, Trade, OrderbookLevel, Order, Execution, OrderTimeInForce, StreamType enums
-2. Composites: CoreSchema, TradeMsg, OrderbookMsg, TickerMsg, PositionMsg, OrderMsg, ExecutionMsg, AccountMsg, HeartbeatMsg
+2. Composites: CoreSchema, TradeMsg, OrderbookMsg, TickerMsg, PositionMsg, OrderMsg, ExecutionMsg, AccountMsg, DataStreamEventMsg
 """
 
 from __future__ import annotations
@@ -24,9 +24,10 @@ from framework.base.stream.models import (
     AccountMsg,
     CoreSchema,
     DataMsg,
+    DataStreamEvent,
+    DataStreamEventMsg,
     Execution,
     ExecutionMsg,
-    HeartbeatMsg,
     MarketDataStreamType,
     Moments,
     Order,
@@ -70,7 +71,6 @@ def core_kwargs(sample_instrument):
 
 
 # =============================================================================
-# LAYER 1: PRIMITIVES
 # =============================================================================
 
 
@@ -423,7 +423,6 @@ class TestExecution:
 
 
 # =============================================================================
-# LAYER 2: COMPOSITES
 # =============================================================================
 
 
@@ -487,10 +486,14 @@ class TestTradeMsg:
         assert msg.trades[1].time_ms == 150
         assert msg.trades[2].time_ms == 200
 
-    def test_empty_trades_list(self, core_kwargs):
-        """Test TradeMsg with empty trades list."""
-        msg = TradeMsg(trades=[], **core_kwargs)
-        assert len(msg.trades) == 0
+    def test_empty_trades_list_raises(self, core_kwargs):
+        """Test empty trades list raises ValueError.
+
+        Args:
+            core_kwargs: Core schema fixture values.
+        """
+        with pytest.raises(ValueError, match="Invalid trades"):
+            TradeMsg(trades=[], **core_kwargs)
 
     def test_single_trade(self, core_kwargs):
         """Test TradeMsg with single trade."""
@@ -569,16 +572,35 @@ class TestOrderbookMsg:
         assert bbo_msg.is_bbo is True
 
     def test_snapshot_flag(self, core_kwargs):
-        """Test is_snapshot flag."""
+        """Test is_snapshot flag.
+
+        Args:
+            core_kwargs: Core schema fixture values.
+        """
         snapshot_msg = OrderbookMsg(
-            bids=[],
-            asks=[],
+            bids=[OrderbookLevel(price=99.0, size=1.0)],
+            asks=[OrderbookLevel(price=101.0, size=1.0)],
             is_bbo=False,
             is_snapshot=True,
             **core_kwargs,
         )
 
         assert snapshot_msg.is_snapshot is True
+
+    def test_empty_orderbook_raises(self, core_kwargs):
+        """Test empty orderbook raises ValueError.
+
+        Args:
+            core_kwargs: Core schema fixture values.
+        """
+        with pytest.raises(ValueError, match="Invalid orderbook"):
+            OrderbookMsg(
+                bids=[],
+                asks=[],
+                is_bbo=False,
+                is_snapshot=True,
+                **core_kwargs,
+            )
 
 
 class TestTickerMsg:
@@ -803,10 +825,14 @@ class TestOrderMsg:
         assert msg.orders[0].order_id == "order1"
         assert msg.orders[1].order_id == "order2"
 
-    def test_empty_orders_list(self, core_kwargs):
-        """Test OrderMsg with empty orders list."""
-        msg = OrderMsg(orders=[], **core_kwargs)
-        assert len(msg.orders) == 0
+    def test_empty_orders_list_raises(self, core_kwargs):
+        """Test empty orders list raises ValueError.
+
+        Args:
+            core_kwargs: Core schema fixture values.
+        """
+        with pytest.raises(ValueError, match="Invalid orders"):
+            OrderMsg(orders=[], **core_kwargs)
 
 
 class TestExecutionMsg:
@@ -839,10 +865,14 @@ class TestExecutionMsg:
         assert msg.executions[0].fee_paid == 0.01
         assert msg.executions[1].fee_paid == 0.02
 
-    def test_empty_executions_list(self, core_kwargs):
-        """Test ExecutionMsg with empty executions list."""
-        msg = ExecutionMsg(executions=[], **core_kwargs)
-        assert len(msg.executions) == 0
+    def test_empty_executions_list_raises(self, core_kwargs):
+        """Test empty executions list raises ValueError.
+
+        Args:
+            core_kwargs: Core schema fixture values.
+        """
+        with pytest.raises(ValueError, match="Invalid executions"):
+            ExecutionMsg(executions=[], **core_kwargs)
 
 
 class TestAccountMsg:
@@ -876,41 +906,51 @@ class TestAccountMsg:
         assert msg.unrealized_pnl == -25.0
 
 
-class TestHeartbeatMsg:
-    """Test HeartbeatMsg composite struct."""
+class TestHeartbeatEvent:
+    """Test heartbeat DataStreamEventMsg payloads."""
 
-    def test_creation_with_all_fields(self):
-        """Test creating HeartbeatMsg with all fields."""
-        msg = HeartbeatMsg(
+    def test_creation_with_all_fields(self, core_kwargs):
+        """Test creating heartbeat event with all fields."""
+        instrument = core_kwargs["instrument"]
+        msg = DataStreamEventMsg(
+            time_ms=123456,
             venue=Venue.BINANCE_USDM,
-            stream_type=MarketDataStreamType.TICKER,
-            time_now_ms=123456,
+            event=DataStreamEvent.HEARTBEAT,
+            changes={},
+            state={MarketDataStreamType.TICKER: instrument},
             time_next_check_ms=123556,
         )
 
         assert msg.venue == Venue.BINANCE_USDM
-        assert msg.stream_type == MarketDataStreamType.TICKER
-        assert msg.time_now_ms == 123456
+        assert msg.event == DataStreamEvent.HEARTBEAT
+        assert msg.time_ms == 123456
         assert msg.time_next_check_ms == 123556
 
-    def test_time_next_greater_than_time_now(self):
-        """Test that time_next_check_ms > time_now_ms."""
-        msg = HeartbeatMsg(
+    def test_time_next_greater_than_time_now(self, core_kwargs):
+        """Test that time_next_check_ms > time_ms."""
+        instrument = core_kwargs["instrument"]
+        msg = DataStreamEventMsg(
+            time_ms=100,
             venue=Venue.BINANCE_USDM,
-            stream_type=MarketDataStreamType.TICKER,
-            time_now_ms=100,
+            event=DataStreamEvent.HEARTBEAT,
+            changes={},
+            state={MarketDataStreamType.TICKER: instrument},
             time_next_check_ms=200,
         )
 
-        assert msg.time_next_check_ms > msg.time_now_ms
+        assert msg.time_next_check_ms is not None
+        assert msg.time_next_check_ms > msg.time_ms
 
-    def test_different_venues(self):
-        """Test HeartbeatMsg with different venues."""
+    def test_different_venues(self, core_kwargs):
+        """Test heartbeat events with different venues."""
+        instrument = core_kwargs["instrument"]
         for venue in [Venue.BINANCE_USDM, Venue.BYBIT, Venue.OKX]:
-            msg = HeartbeatMsg(
+            msg = DataStreamEventMsg(
+                time_ms=100,
                 venue=venue,
-                stream_type=MarketDataStreamType.TICKER,
-                time_now_ms=100,
+                event=DataStreamEvent.HEARTBEAT,
+                changes={},
+                state={MarketDataStreamType.TICKER: instrument},
                 time_next_check_ms=200,
             )
             assert msg.venue == venue
@@ -920,14 +960,23 @@ class TestTypeUnions:
     """Test type union aliases work correctly."""
 
     def test_market_data_msg_types_assignable(self, core_kwargs):
-        """Test MarketDataMsg types are assignable."""
+        """Test MarketDataMsg types are assignable.
+
+        Args:
+            core_kwargs: Core schema fixture values.
+        """
 
         def accept_market_msg(msg: DataMsg) -> None:
             pass
 
-        trade_msg = TradeMsg(trades=[], **core_kwargs)
+        trade = Trade(time_ms=100, price=100.0, is_buy=True, size=1.0)
+        trade_msg = TradeMsg(trades=[trade], **core_kwargs)
         orderbook_msg = OrderbookMsg(
-            bids=[], asks=[], is_bbo=True, is_snapshot=True, **core_kwargs
+            bids=[OrderbookLevel(price=99.0, size=1.0)],
+            asks=[OrderbookLevel(price=101.0, size=1.0)],
+            is_bbo=True,
+            is_snapshot=True,
+            **core_kwargs,
         )
         ticker_msg = TickerMsg(
             mark_price=0.0,
@@ -946,14 +995,37 @@ class TestTypeUnions:
         accept_market_msg(ticker_msg)
 
     def test_private_data_msg_types_assignable(self, core_kwargs):
-        """Test PrivateDataMsg types are assignable."""
+        """Test PrivateDataMsg types are assignable.
+
+        Args:
+            core_kwargs: Core schema fixture values.
+        """
 
         def accept_private_msg(msg: DataMsg) -> None:
             pass
 
         position_msg = PositionMsg(price=100.0, is_long=True, size=1.0, **core_kwargs)
-        order_msg = OrderMsg(orders=[], **core_kwargs)
-        execution_msg = ExecutionMsg(executions=[], **core_kwargs)
+        order = Order(
+            create_time_ms=123.0,
+            order_id="order1",
+            price=100.0,
+            is_buy=True,
+            size=1.0,
+            size_remaining=0.0,
+            tif=OrderTimeInForce.GTC,
+            is_cancelled=False,
+            is_reduce_only=False,
+        )
+        execution = Execution(
+            exec_time_ms=123.0,
+            order_id="order1",
+            price=100.0,
+            is_buy=True,
+            size=1.0,
+            is_maker=True,
+        )
+        order_msg = OrderMsg(orders=[order], **core_kwargs)
+        execution_msg = ExecutionMsg(executions=[execution], **core_kwargs)
         account_msg = AccountMsg(
             balance=1000.0,
             initial_margin=100.0,
@@ -968,17 +1040,20 @@ class TestTypeUnions:
         accept_private_msg(execution_msg)
         accept_private_msg(account_msg)
 
-    def test_heartbeat_msg_assignable(self):
-        """Test HeartbeatMsg is assignable to Msg."""
+    def test_heartbeat_event_assignable(self, core_kwargs):
+        """Test heartbeat event is assignable to Msg."""
         from framework.base.stream.models import Msg
 
         def accept_msg(msg: Msg) -> None:
             pass
 
-        heartbeat_msg = HeartbeatMsg(
+        instrument = core_kwargs["instrument"]
+        heartbeat_msg = DataStreamEventMsg(
+            time_ms=100,
             venue=Venue.BINANCE_USDM,
-            stream_type=MarketDataStreamType.TICKER,
-            time_now_ms=100,
+            event=DataStreamEvent.HEARTBEAT,
+            changes={},
+            state={MarketDataStreamType.TICKER: instrument},
             time_next_check_ms=200,
         )
 
