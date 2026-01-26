@@ -50,11 +50,6 @@ from framework.base.trading.models import (
 )
 
 
-# =============================================================================
-# HELPER FIXTURES
-# =============================================================================
-
-
 @pytest.fixture
 def sample_instrument():
     """Reusable instrument for tests."""
@@ -72,11 +67,6 @@ def sample_instrument():
 def sample_moments():
     """Reusable Moments for CoreSchema."""
     return Moments(exch_time_ns=1000, recv_time_ns=2000)
-
-
-# =============================================================================
-# LAYER 1: PRIMITIVES
-# =============================================================================
 
 
 class TestCreateOrder:
@@ -573,11 +563,6 @@ class TestClientResponseFailure:
 
         assert resp.is_successful is False
         assert resp.data == "partial_data"
-
-
-# =============================================================================
-# LAYER 2: COMPOSITES (Response Structs)
-# =============================================================================
 
 
 class TestCreateOrderResponse:

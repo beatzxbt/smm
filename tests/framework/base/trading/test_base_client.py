@@ -107,7 +107,7 @@ class DummyWsClient(WsClient):
 
 
 class TestHttpClientEnsureRunning:
-    """Layer 1: HttpClient running checks."""
+    """HttpClient running checks."""
 
     def test_ensure_running_returns_true(self, test_logger: Logger) -> None:
         """Test ensure_running returns True for running client.
@@ -141,7 +141,7 @@ class TestHttpClientEnsureRunning:
 
 
 class TestHttpClientSession:
-    """Layer 2: HttpClient session lifecycle."""
+    """HttpClient session lifecycle."""
 
     @pytest.mark.asyncio
     async def test_session_is_cached(self, test_logger: Logger) -> None:
@@ -172,7 +172,7 @@ class TestHttpClientSession:
 
 
 class TestWsClientClose:
-    """Layer 2: WsClient close behavior."""
+    """WsClient close behavior."""
 
     @pytest.mark.asyncio
     async def test_close_marks_not_running(self, test_logger: Logger) -> None:

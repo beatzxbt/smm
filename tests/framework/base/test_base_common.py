@@ -25,11 +25,6 @@ from framework.base.common import (
 )
 
 
-# =============================================================================
-# LAYER 1: PRIMITIVES
-# =============================================================================
-
-
 class TestVenue:
     """Test Venue enum."""
 
@@ -327,19 +322,25 @@ class TestSimpleMapEdgeCases:
         with pytest.raises(KeyError, match="Key.*not found"):
             del smap["missing"]
 
-    # TODO: Add deletion tests once SimpleMap.__delitem__ properly maintains bidirectional consistency
-    # Currently __delitem__ only deletes from one map, leaving orphaned entries in the other
-
-    @pytest.mark.xfail(
-        reason="SimpleMap.__delitem__ does not remove reverse mapping yet",
-        strict=True,
-    )
     def test_delitem_removes_reverse_mapping(self):
         """Test deleting by key removes reverse mapping."""
         smap = SimpleMap({"a": 1})
         del smap["a"]
 
         assert 1 not in smap
+        assert "a" not in smap
+        assert len(smap) == 0
+
+    def test_delitem_by_value_removes_forward_mapping(self):
+        """Test deleting by value removes forward mapping."""
+        smap: SimpleMap[str, int] = SimpleMap({"a": 1, "b": 2})
+        del smap[1]
+
+        assert "a" not in smap
+        assert 1 not in smap
+        assert "b" in smap
+        assert 2 in smap
+        assert len(smap) == 1
 
     def test_with_different_types_str_int(self):
         """Test SimpleMap with str -> int mapping."""
@@ -353,13 +354,6 @@ class TestSimpleMapEdgeCases:
         assert smap[1] == "one"
         assert smap["one"] == 1
 
-    # TODO: Add update tests once SimpleMap.__setitem__ properly cleans up old values
-    # Currently __setitem__ doesn't remove old values from _v_to_k_map when updating
-
-    @pytest.mark.xfail(
-        reason="SimpleMap.__setitem__ does not remove prior reverse mapping yet",
-        strict=True,
-    )
     def test_setitem_updates_reverse_mapping(self):
         """Test updating key removes old reverse mapping."""
         smap: SimpleMap[str, int] = SimpleMap({"a": 1})
@@ -367,11 +361,17 @@ class TestSimpleMapEdgeCases:
 
         assert 1 not in smap
         assert smap[2] == "a"
+        assert len(smap) == 1
 
+    def test_setitem_overwrites_existing_value(self):
+        """Test setting a value already used removes old key mapping."""
+        smap: SimpleMap[str, int] = SimpleMap({"a": 1, "b": 2})
+        smap["c"] = 2
 
-# =============================================================================
-# LAYER 2: COMPOSITES
-# =============================================================================
+        assert "b" not in smap
+        assert smap[2] == "c"
+        assert smap["c"] == 2
+        assert len(smap) == 2
 
 
 class TestInstrumentCollection:
@@ -408,6 +408,26 @@ class TestInstrumentCollection:
         assert len(collection) == 2
         assert inst1 in collection
         assert inst2 in collection
+
+    def test_is_empty(self):
+        """Test is_empty reflects collection state."""
+        collection = InstrumentCollection()
+        assert collection.is_empty()
+
+        inst = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+        )
+
+        collection.add(inst)
+        assert not collection.is_empty()
+
+        collection.remove(inst)
+        assert collection.is_empty()
 
     def test_add_normal(self):
         """Test adding instrument to collection."""

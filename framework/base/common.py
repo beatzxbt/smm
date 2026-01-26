@@ -1,3 +1,11 @@
+"""Core common types and utilities.
+
+Defines exchange primitives (Venue, InstrumentType, Instrument), the
+InstrumentCollection container, and the SimpleMap bi-directional mapping.
+"""
+
+from __future__ import annotations
+
 from collections import defaultdict
 from enum import StrEnum
 from typing import Self, Iterable, Iterator, TypeVar, Generic, cast
@@ -139,6 +147,14 @@ class InstrumentCollection:
             result.append(i)
         return result
 
+    def is_empty(self) -> bool:
+        """Return whether the collection is empty.
+
+        Returns:
+            bool: True if the collection has no instruments, otherwise False.
+        """
+        return not self._instruments
+
     def __iter__(self) -> Iterator[Instrument]:
         return iter(self._instruments)
 
@@ -189,6 +205,22 @@ class SimpleMap(Generic[K, V]):
             raise KeyError(f"Key {key} not found in map")
 
     def __setitem__(self, key: K, value: V) -> None:
+        """Set a key/value pair while keeping both maps consistent.
+
+        Args:
+            key (K): Key to associate with the value.
+            value (V): Value to associate with the key.
+        """
+        if key in self._k_to_v_map:
+            old_value = self._k_to_v_map[key]
+            if self._v_to_k_map.get(old_value) == key:
+                del self._v_to_k_map[old_value]
+
+        if value in self._v_to_k_map:
+            old_key = self._v_to_k_map[value]
+            if self._k_to_v_map.get(old_key) == value:
+                del self._k_to_v_map[old_key]
+
         self._k_to_v_map[key] = value
         self._v_to_k_map[value] = key
 
@@ -196,12 +228,29 @@ class SimpleMap(Generic[K, V]):
         return key in self._k_to_v_map or key in self._v_to_k_map
 
     def __delitem__(self, key: K | V) -> None:
+        """Delete a key or value and its corresponding pair.
+
+        Args:
+            key (K | V): Key or value to remove from the mapping.
+
+        Raises:
+            KeyError: If the key/value does not exist in the map.
+        """
         if key in self._k_to_v_map:
-            del self._k_to_v_map[cast(K, key)]
-        elif key in self._v_to_k_map:
-            del self._v_to_k_map[cast(V, key)]
-        else:
-            raise KeyError(f"Key {key} not found in map")
+            cast_key = cast(K, key)
+            value = self._k_to_v_map[cast_key]
+            del self._k_to_v_map[cast_key]
+            if self._v_to_k_map.get(value) == key:
+                del self._v_to_k_map[value]
+            return
+        if key in self._v_to_k_map:
+            cast_key = cast(V, key)
+            paired_key = self._v_to_k_map[cast_key]
+            del self._v_to_k_map[cast_key]
+            if self._k_to_v_map.get(paired_key) == key:
+                del self._k_to_v_map[paired_key]
+            return
+        raise KeyError(f"Key {key} not found in map")
 
     def __len__(self) -> int:
         return len(self._k_to_v_map)
