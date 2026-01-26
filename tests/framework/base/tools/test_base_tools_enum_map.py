@@ -17,10 +17,6 @@ from framework.base.stream.models import OrderTimeInForce
 from framework.base.tools import EnumMap
 
 
-# =============================================================================
-# =============================================================================
-
-
 class TestEnumMap:
     """Test EnumMap bidirectional enum<->string mapping."""
 

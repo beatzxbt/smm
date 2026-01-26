@@ -17,10 +17,6 @@ import pytest
 from framework.base.tools import SimpleCache
 
 
-# =============================================================================
-# =============================================================================
-
-
 class TestSimpleCache:
     """Test SimpleCache basic operations."""
 
