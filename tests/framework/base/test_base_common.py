@@ -25,11 +25,6 @@ from framework.base.common import (
 )
 
 
-# =============================================================================
-# LAYER 1: PRIMITIVES
-# =============================================================================
-
-
 class TestVenue:
     """Test Venue enum."""
 
@@ -370,7 +365,6 @@ class TestSimpleMapEdgeCases:
 
 
 # =============================================================================
-# LAYER 2: COMPOSITES
 # =============================================================================
 
 
@@ -408,6 +402,26 @@ class TestInstrumentCollection:
         assert len(collection) == 2
         assert inst1 in collection
         assert inst2 in collection
+
+    def test_is_empty(self):
+        """Test is_empty reflects collection state."""
+        collection = InstrumentCollection()
+        assert collection.is_empty()
+
+        inst = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+        )
+
+        collection.add(inst)
+        assert not collection.is_empty()
+
+        collection.remove(inst)
+        assert collection.is_empty()
 
     def test_add_normal(self):
         """Test adding instrument to collection."""
