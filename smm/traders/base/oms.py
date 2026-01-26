@@ -60,40 +60,49 @@ class BaseOrderManagementSystem(ABC):
 
         Returns:
             RateLimiter: Token bucket rate limiter.
+
+        Raises:
+            ValueError: If per-minute rate would be less than 1 req/sec.
         """
         if budget.per == RateWindow.SEC:
-            rate_per_sec = float(budget.limit)
+            rate_per_sec = budget.limit
         else:
-            rate_per_sec = float(budget.limit) / 60.0
+            # Per-minute: validate that rate is >= 1 req/sec
+            if budget.limit < 60:
+                raise ValueError(
+                    f"Per-minute rate limit must be >= 60 (got {budget.limit}). "
+                    f"This would result in < 1 req/sec."
+                )
+            rate_per_sec = budget.limit // 60
         return RateLimiter(rate_per_sec=rate_per_sec, capacity=rate_per_sec)
 
-    def try_acquire_create(self, tokens: float = 1.0) -> bool:
+    def try_acquire_create(self, tokens: int = 1) -> bool:
         """Attempt to consume create order budget tokens.
 
         Args:
-            tokens (float): Token count to acquire.
+            tokens (int): Token count to acquire.
 
         Returns:
             bool: True if tokens were acquired, False otherwise.
         """
         return self._create_limiter.try_acquire(tokens)
 
-    def try_acquire_amend(self, tokens: float = 1.0) -> bool:
+    def try_acquire_amend(self, tokens: int = 1) -> bool:
         """Attempt to consume amend order budget tokens.
 
         Args:
-            tokens (float): Token count to acquire.
+            tokens (int): Token count to acquire.
 
         Returns:
             bool: True if tokens were acquired, False otherwise.
         """
         return self._amend_limiter.try_acquire(tokens)
 
-    def try_acquire_cancel(self, tokens: float = 1.0) -> bool:
+    def try_acquire_cancel(self, tokens: int = 1) -> bool:
         """Attempt to consume cancel order budget tokens.
 
         Args:
-            tokens (float): Token count to acquire.
+            tokens (int): Token count to acquire.
 
         Returns:
             bool: True if tokens were acquired, False otherwise.

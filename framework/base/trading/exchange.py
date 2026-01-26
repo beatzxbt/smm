@@ -164,6 +164,7 @@ class Exchange(ABC):
                 raise RuntimeError(
                     f"Failed to load instruments for {self.venue}; {response.err_msg}"
                 )
+            assert response.data is not None
             self._instrument_collection = response.data
         return self._instrument_collection
 
