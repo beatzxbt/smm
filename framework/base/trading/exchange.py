@@ -132,8 +132,7 @@ class Exchange(ABC):
 
     @final
     async def connect_ws_client(self) -> None:
-        """Connect the WebSocket client if it exists.
-        """
+        """Connect the WebSocket client if it exists."""
         try:
             if self.ws_client is not None:
                 await self.ws_client.connect()
@@ -204,8 +203,7 @@ class Exchange(ABC):
 
     @final
     async def close_clients(self) -> None:
-        """Close all client connections if they exist.
-        """
+        """Close all client connections if they exist."""
         if self.ws_client is not None:
             await self.ws_client.close()
         if self.http_client is not None:

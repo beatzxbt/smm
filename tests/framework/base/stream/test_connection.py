@@ -261,9 +261,7 @@ class TestWebSocketConnection:
         Returns:
             None.
         """
-        ws = FakeWebSocket(
-            messages=[FakeWSMessage(aiohttp.WSMsgType.TEXT, "payload")]
-        )
+        ws = FakeWebSocket(messages=[FakeWSMessage(aiohttp.WSMsgType.TEXT, "payload")])
         session = FakeSession(ws)
         monkeypatch.setattr(
             "framework.base.stream.connection.aiohttp.ClientSession",

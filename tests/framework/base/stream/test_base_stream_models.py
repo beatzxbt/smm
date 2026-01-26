@@ -39,7 +39,7 @@ from framework.base.stream.models import (
     TickerMsg,
     Trade,
     TradeMsg,
-    Msg
+    Msg,
 )
 
 
@@ -64,7 +64,6 @@ def core_kwargs(sample_instrument):
         "venue": Venue.BINANCE_USDM,
         "instrument": sample_instrument,
     }
-
 
 
 class TestMoments:
@@ -413,8 +412,6 @@ class TestExecution:
             client_order_id=None,
         )
         assert execution.client_order_id is None
-
-
 
 
 class TestCoreSchema:
@@ -1124,6 +1121,7 @@ class TestTypeUnions:
         Args:
             core_kwargs (dict[str, object]): Core schema fixture values.
         """
+
         def accept_msg(msg: Msg) -> None:
             pass
 

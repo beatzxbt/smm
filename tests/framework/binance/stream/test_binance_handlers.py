@@ -30,19 +30,16 @@ class DummyConnection:
     """Connection stub for handler tests."""
 
     def __init__(self) -> None:
-        """Initialize the dummy connection.
-        """
+        """Initialize the dummy connection."""
         self.sent: list[bytes] = []
         self._callbacks: list[callable] = []
 
     async def connect(self) -> None:
-        """No-op connect.
-        """
+        """No-op connect."""
         return None
 
     async def disconnect(self) -> None:
-        """No-op disconnect.
-        """
+        """No-op disconnect."""
         return None
 
     async def send(self, data: bytes) -> None:
@@ -180,8 +177,7 @@ class TestBinanceOrderbookHandler:
 
     @pytest.mark.asyncio
     async def test_orderbook_decoding(self) -> None:
-        """Test depth updates decode to orderbook messages.
-        """
+        """Test depth updates decode to orderbook messages."""
         queue: asyncio.Queue = asyncio.Queue()
         collection = make_collection()
         handler = BinanceOrderbookHandler(

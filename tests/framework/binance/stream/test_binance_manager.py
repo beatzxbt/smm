@@ -101,8 +101,7 @@ class TestBinanceMarketStreamManager:
     """Layer 2: Binance market manager factory behavior."""
 
     def test_create_builds_handlers(self) -> None:
-        """Test manager create wires all handlers.
-        """
+        """Test manager create wires all handlers."""
         exchange = FakeBinanceExchange(make_collection())
         manager = asyncio.run(
             BinanceMarketStreamManager.create(
@@ -122,8 +121,7 @@ class TestBinancePrivateStreamManager:
 
     @pytest.mark.skip(reason="_resolve_stream_types not implemented for Binance")
     def test_resolves_stream_types(self) -> None:
-        """Test private manager resolves stream types from payloads.
-        """
+        """Test private manager resolves stream types from payloads."""
         exchange = FakeBinanceExchange(make_collection())
         manager = asyncio.run(
             BinancePrivateStreamManager.create(

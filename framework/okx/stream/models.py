@@ -104,12 +104,10 @@ class OkxTickerMsg(Struct, frozen=True):
         self,
         venue: Venue,
         instrument_collection: InstrumentCollection,
-        symbol_override: str | None = None,
     ) -> TickerMsg:
-        symbol = symbol_override or self.inst_id
-        instrument = instrument_collection.get(venue, symbol)
+        instrument = instrument_collection.get(venue, self.inst_id)
         if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{symbol}")
+            raise KeyError(f"Instrument not found for {venue}:{self.inst_id}")
 
         exch_time_ns = int(self.ts) * 1_000_000
         price_chg_pct = (
@@ -119,10 +117,7 @@ class OkxTickerMsg(Struct, frozen=True):
         )
 
         return TickerMsg(
-            moments=Moments(
-                exch_time_ns=exch_time_ns,
-                recv_time_ns=time_ns(),
-            ),
+            moments=Moments(exch_time_ns=exch_time_ns),
             venue=venue,
             instrument=instrument,
             mark_price=float(self.mark_px),

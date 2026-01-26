@@ -86,8 +86,7 @@ class TestBybitMarketStreamManager:
     """Layer 2: Bybit market manager factory behavior."""
 
     def test_create_builds_handlers(self) -> None:
-        """Test manager create wires all handlers.
-        """
+        """Test manager create wires all handlers."""
         exchange = FakeBybitExchange(make_collection())
         manager = asyncio.run(
             BybitMarketStreamManager.create(
@@ -106,8 +105,7 @@ class TestBybitPrivateStreamManager:
     """Layer 2: Bybit private manager stream resolution."""
 
     def test_resolves_stream_types(self) -> None:
-        """Test private manager resolves stream types from topics.
-        """
+        """Test private manager resolves stream types from topics."""
         exchange = FakeBybitExchange(make_collection())
         manager = asyncio.run(
             BybitPrivateStreamManager.create(

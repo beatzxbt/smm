@@ -31,19 +31,16 @@ class DummyConnection:
     """Connection stub for handler tests."""
 
     def __init__(self) -> None:
-        """Initialize the dummy connection.
-        """
+        """Initialize the dummy connection."""
         self.sent: list[bytes] = []
         self._callbacks: list[callable] = []
 
     async def connect(self) -> None:
-        """No-op connect.
-        """
+        """No-op connect."""
         return None
 
     async def disconnect(self) -> None:
-        """No-op disconnect.
-        """
+        """No-op disconnect."""
         return None
 
     async def send(self, data: bytes) -> None:
@@ -85,8 +82,7 @@ class TestBybitTickerHandler:
 
     @pytest.mark.asyncio
     async def test_partial_cache_uses_previous_values(self) -> None:
-        """Test delta updates merge with cached values.
-        """
+        """Test delta updates merge with cached values."""
         queue: asyncio.Queue = asyncio.Queue()
         handler = BybitTickerHandler(
             connection=DummyConnection(),
@@ -157,8 +153,7 @@ class TestBybitOrderbookHandlers:
 
     @pytest.mark.asyncio
     async def test_bbo_and_orderbook_flags(self) -> None:
-        """Test BBO and orderbook handlers set is_bbo correctly.
-        """
+        """Test BBO and orderbook handlers set is_bbo correctly."""
         queue: asyncio.Queue = asyncio.Queue()
         collection = make_instrument_collection()
         bbo_handler = BybitBBOHandler(
@@ -202,8 +197,7 @@ class TestBybitTradesHandler:
 
     @pytest.mark.asyncio
     async def test_deduplicates_by_sequence(self) -> None:
-        """Test duplicate trades are ignored.
-        """
+        """Test duplicate trades are ignored."""
         queue: asyncio.Queue = asyncio.Queue()
         handler = BybitTradesHandler(
             connection=DummyConnection(),
