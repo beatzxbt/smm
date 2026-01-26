@@ -1,3 +1,11 @@
+"""Base HTTP and WebSocket client abstractions.
+
+Defines shared session management, lifecycle helpers, and JSON encoding utilities
+for exchange clients.
+"""
+
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import final
@@ -26,6 +34,7 @@ class HttpClient(ABC):
         self.logger = logger
         self.load_secrets = load_secrets
 
+        self._json_encoder = msgspec.json.Encoder()
         self._session: aiohttp.ClientSession | None = None
 
         self.is_running = True
@@ -34,7 +43,9 @@ class HttpClient(ABC):
     def ensure_running(self, throw_exc: bool = True) -> bool:
         """Ensure the client is running."""
         if not self.is_running:
-            self.logger.error(f"{self.__class__.__name__} is not running; {self.venue}")
+            self.logger.error(
+                f"{self.__class__.__name__}.ensure_running error; not running; {self.venue}"
+            )
             if throw_exc:
                 raise ConnectionError(
                     f"{self.__class__.__name__} is not running; {self.venue}"
@@ -67,7 +78,7 @@ class HttpClient(ABC):
             if self._session and not self._session.closed:
                 await self._session.close()
             self.logger.info(
-                f"{self.__class__.__name__} connection closed; {self.venue}"
+                f"{self.__class__.__name__}.close connection closed; {self.venue}"
             )
             self.is_running = False
 
@@ -87,6 +98,7 @@ class WsClient(ABC):
         self.logger = logger
         self.load_secrets = load_secrets
 
+        self._json_encoder = msgspec.json.Encoder()
         self._session: aiohttp.ClientSession | None = None
 
         self.is_running = False
@@ -119,7 +131,7 @@ class WsClient(ABC):
             if self._session and not self._session.closed:
                 await self._session.close()
             self.logger.info(
-                f"{self.__class__.__name__} connection closed; {self.venue}"
+                f"{self.__class__.__name__}.close connection closed; {self.venue}"
             )
             self.is_running = False
 

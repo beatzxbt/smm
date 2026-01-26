@@ -302,9 +302,9 @@ class ClientResponseFailure[T](Struct):
     """Represents a failed response from a client."""
 
     is_successful: Literal[False] = False
+    data: Optional[T] = None
     err_no: int = 0
     err_msg: str = ""
-    data: Optional[T] = None
 
 
 # Union type helps with type inference for the ClientResponse[T] type

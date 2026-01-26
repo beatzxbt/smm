@@ -7,7 +7,7 @@ Components: connection helpers, instrument caching, and abstract API.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional, final, cast
+from typing import Optional, final
 
 import aiohttp
 
@@ -67,9 +67,6 @@ class Exchange(ABC):
             http_client (HttpClient): HTTP client implementation.
             ws_client (WsClient): WebSocket client implementation.
             max_cloid_length (int): Maximum length for generated order ids.
-
-        Returns:
-            None.
         """
         self.venue = venue
         self.logger = logger
@@ -95,9 +92,6 @@ class Exchange(ABC):
     @final
     def ensure_secrets_loaded(self) -> None:
         """Ensure required secrets are loaded for authenticated calls.
-
-        Returns:
-            None.
 
         Raises:
             RuntimeError: If secrets were not loaded.
@@ -139,9 +133,6 @@ class Exchange(ABC):
     @final
     async def connect_ws_client(self) -> None:
         """Connect the WebSocket client if it exists.
-
-        Returns:
-            None.
         """
         try:
             if self.ws_client is not None:
@@ -169,11 +160,11 @@ class Exchange(ABC):
         """
         if self._instrument_collection is None or refresh:
             response = await self.get_instrument_collection()
-            if not response.is_successful:
+            if response.is_successful is False:
                 raise RuntimeError(
                     f"Failed to load instruments for {self.venue}; {response.err_msg}"
                 )
-            self._instrument_collection = cast(InstrumentCollection, response.data)
+            self._instrument_collection = response.data
         return self._instrument_collection
 
     @final
@@ -213,9 +204,6 @@ class Exchange(ABC):
     @final
     async def close_clients(self) -> None:
         """Close all client connections if they exist.
-
-        Returns:
-            None.
         """
         if self.ws_client is not None:
             await self.ws_client.close()
