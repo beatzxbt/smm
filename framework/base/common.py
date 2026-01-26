@@ -208,8 +208,8 @@ class SimpleMap(Generic[K, V]):
         """Set a key/value pair while keeping both maps consistent.
 
         Args:
-            key: Key to associate with the value.
-            value: Value to associate with the key.
+            key (K): Key to associate with the value.
+            value (V): Value to associate with the key.
         """
         if key in self._k_to_v_map:
             old_value = self._k_to_v_map[key]
@@ -231,7 +231,7 @@ class SimpleMap(Generic[K, V]):
         """Delete a key or value and its corresponding pair.
 
         Args:
-            key: Key or value to remove from the mapping.
+            key (K | V): Key or value to remove from the mapping.
 
         Raises:
             KeyError: If the key/value does not exist in the map.
