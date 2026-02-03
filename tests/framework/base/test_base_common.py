@@ -84,6 +84,8 @@ class TestInstrument:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert inst.venue == Venue.BINANCE_USDM
@@ -102,6 +104,8 @@ class TestInstrument:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         with pytest.raises(AttributeError):
@@ -116,6 +120,8 @@ class TestInstrument:
             symbol="BTCUSDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert str(inst) == "BINANCEUSDM:BTC/USDT:PERPETUAL"
@@ -129,6 +135,8 @@ class TestInstrument:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert str(bybit_inst) == "BYBIT:ETH/USDC:FUTURE"
@@ -142,6 +150,8 @@ class TestInstrument:
             symbol="SOLUSDT",
             code=3,
             instrument_type=InstrumentType.SPOT,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert str(spot_inst) == "BINANCEUSDM:SOL/USDT:SPOT"
@@ -160,6 +170,8 @@ class TestInstrumentEdgeCases:
         assert inst.symbol == ""
         assert inst.code == 0
         assert inst.instrument_type == InstrumentType.NULL
+        assert inst.tick_size == 0.0
+        assert inst.lot_size == 0.0
 
     def test_null_venue_handling(self):
         """Test instrument with NULL venue."""
@@ -170,6 +182,8 @@ class TestInstrumentEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert inst.venue == Venue.NULL
@@ -184,6 +198,8 @@ class TestInstrumentEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.NULL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert inst.instrument_type == InstrumentType.NULL
@@ -198,6 +214,8 @@ class TestInstrumentEdgeCases:
             symbol="",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert inst.symbol == ""
@@ -211,6 +229,8 @@ class TestInstrumentEdgeCases:
             symbol="BTCUSDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         assert inst.code == 0
@@ -285,6 +305,8 @@ class TestSimpleMap:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -293,6 +315,8 @@ class TestSimpleMap:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         imap: SimpleMap[str, Instrument] = SimpleMap({})
@@ -393,6 +417,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -401,6 +427,8 @@ class TestInstrumentCollection:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2])
@@ -421,6 +449,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection.add(inst)
@@ -439,6 +469,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection.add(inst)
@@ -456,6 +488,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection.add(inst)
@@ -472,6 +506,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst])
@@ -495,6 +531,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -503,6 +541,8 @@ class TestInstrumentCollection:
             symbol="ETHUSDT",
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BYBIT,
@@ -511,6 +551,8 @@ class TestInstrumentCollection:
             symbol="SOLUSDC",
             code=3,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -530,6 +572,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst])
@@ -547,6 +591,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection()
@@ -563,6 +609,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -571,6 +619,8 @@ class TestInstrumentCollection:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection1 = InstrumentCollection([inst1])
@@ -591,6 +641,8 @@ class TestInstrumentCollection:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection1 = InstrumentCollection([inst])
@@ -613,6 +665,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -621,6 +675,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.OKX,
@@ -629,6 +685,8 @@ class TestInstrumentCollectionFiltering:
             symbol="SOLUSDT",
             code=3,
             instrument_type=InstrumentType.SPOT,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -648,6 +706,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -656,6 +716,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDT",
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -664,6 +726,8 @@ class TestInstrumentCollectionFiltering:
             symbol="SOLUSDT",
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -683,6 +747,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -691,6 +757,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -699,6 +767,8 @@ class TestInstrumentCollectionFiltering:
             symbol="SOLBTC",
             code=3,
             instrument_type=InstrumentType.SPOT,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -718,6 +788,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -726,6 +798,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -734,6 +808,8 @@ class TestInstrumentCollectionFiltering:
             symbol="SOLUSDT",
             code=3,
             instrument_type=InstrumentType.SPOT,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -755,6 +831,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -763,6 +841,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDT",
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -771,6 +851,8 @@ class TestInstrumentCollectionFiltering:
             symbol="DOGEUSDT",
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -790,6 +872,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -798,6 +882,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -806,6 +892,8 @@ class TestInstrumentCollectionFiltering:
             symbol="SOLBTC",
             code=3,
             instrument_type=InstrumentType.SPOT,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -825,6 +913,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -833,6 +923,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDT",
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BYBIT,
@@ -841,6 +933,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst4 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -849,6 +943,8 @@ class TestInstrumentCollectionFiltering:
             symbol="SOLUSDT",
             code=4,
             instrument_type=InstrumentType.SPOT,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3, inst4])
@@ -876,6 +972,8 @@ class TestInstrumentCollectionFiltering:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -884,6 +982,8 @@ class TestInstrumentCollectionFiltering:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2])
@@ -906,6 +1006,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -914,6 +1016,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2])
@@ -935,6 +1039,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection.add(inst)
@@ -949,6 +1055,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
@@ -957,6 +1065,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="ETHUSDC",
             code=2,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1])
@@ -973,6 +1083,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1])
@@ -991,6 +1103,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
@@ -999,6 +1113,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="ETHUSDT",
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         inst3 = Instrument(
             venue=Venue.BYBIT,
@@ -1007,6 +1123,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="SOLUSDC",
             code=3,
             instrument_type=InstrumentType.FUTURE,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
@@ -1026,6 +1144,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst])
@@ -1042,6 +1162,8 @@ class TestInstrumentCollectionEdgeCases:
             symbol="BTCUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst])

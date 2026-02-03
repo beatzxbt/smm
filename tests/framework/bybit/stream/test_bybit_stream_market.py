@@ -83,6 +83,8 @@ def test_bybit_instrument_to_symbol():
         quote="USDT",
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
 
     symbol = stream.instrument_to_symbol(instrument)

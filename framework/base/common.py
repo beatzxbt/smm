@@ -47,6 +47,8 @@ class Instrument(Struct, frozen=True):
     symbol: str  # Exchange specific (eg "BTCUSDT", "BTC-USDT", "BTC/USDT")
     code: int  # Some exchanges use market ids alongside a symbol
     instrument_type: InstrumentType
+    tick_size: float  # Minimum price increment
+    lot_size: float  # Minimum size increment
 
     @classmethod
     def empty(cls) -> Self:
@@ -58,6 +60,8 @@ class Instrument(Struct, frozen=True):
             symbol="",
             code=0,
             instrument_type=InstrumentType.NULL,
+            tick_size=0.0,
+            lot_size=0.0,
         )
 
     def __str__(self):

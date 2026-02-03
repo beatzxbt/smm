@@ -159,6 +159,8 @@ class TestBinancePrivateStreamRouting:
                 quote="USDT",
                 code=0,
                 instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.01,
+                lot_size=0.001,
             )
         ]
 

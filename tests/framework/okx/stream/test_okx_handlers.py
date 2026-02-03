@@ -91,6 +91,8 @@ def make_collection() -> InstrumentCollection:
         symbol="BTC-USDT-SWAP",
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
     return InstrumentCollection([instrument])
 

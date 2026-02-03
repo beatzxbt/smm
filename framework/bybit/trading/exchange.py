@@ -452,6 +452,8 @@ class BybitExchange(Exchange):
                     symbol=f"{s.get('baseCoin', '')}{s.get('quoteCoin', '')}".upper(),
                     code=0,
                     instrument_type=InstrumentType.PERPETUAL,
+                    tick_size=tick_size,
+                    lot_size=lot_size,
                 ),
                 tick_size=tick_size,
                 lot_size=lot_size,

@@ -845,6 +845,8 @@ class BinanceExchange(Exchange):
                     symbol=f"{symbol.base_asset}{symbol.quote_asset}",
                     code=0,
                     instrument_type=InstrumentType.PERPETUAL,
+                    tick_size=tick_size,
+                    lot_size=lot_size,
                 ),
                 tick_size=tick_size,
                 lot_size=lot_size,

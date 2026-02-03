@@ -60,6 +60,8 @@ def sample_instrument():
         symbol="BTCUSDT",
         code=1,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
 
 

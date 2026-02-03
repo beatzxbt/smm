@@ -299,6 +299,8 @@ class TestMarketStreamManagerLifecycle:
             symbol="BTCUSDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         instrument_collection = InstrumentCollection([instrument])
         handler = NoopHandler()
@@ -354,6 +356,8 @@ class TestMarketStreamManagerLifecycle:
             symbol="ETHUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         instrument_collection = InstrumentCollection([instrument])
         handler = NoopHandler()
@@ -410,6 +414,8 @@ class TestMessageFlowEndToEnd:
             symbol="BTCUSDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         instrument_collection = InstrumentCollection([instrument])
         connection = PushConnection()

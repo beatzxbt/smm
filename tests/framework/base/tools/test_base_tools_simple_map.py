@@ -14,6 +14,8 @@ def test_simple_map_add_and_get():
         quote="USDT",
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
 
     # Add by symbol
@@ -38,6 +40,8 @@ def test_simple_map_multiple_instruments():
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         ),
         Instrument(
             venue=Venue.BYBIT,
@@ -46,6 +50,8 @@ def test_simple_map_multiple_instruments():
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         ),
         Instrument(
             venue=Venue.BYBIT,
@@ -54,6 +60,8 @@ def test_simple_map_multiple_instruments():
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         ),
     ]
 
@@ -80,6 +88,8 @@ def test_simple_map_contains():
         quote="USDT",
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
 
     smap["BTCUSDT"] = instrument
@@ -109,6 +119,8 @@ def test_simple_map_symbol_case_handling():
         quote="USDT",
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
 
     # Bybit uses uppercase
@@ -119,6 +131,8 @@ def test_simple_map_symbol_case_handling():
         quote="USDT",
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
 
     smap["btcusdt"] = btc_binance

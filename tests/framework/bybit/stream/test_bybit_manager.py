@@ -78,6 +78,8 @@ def make_collection() -> InstrumentCollection:
         symbol="BTCUSDT",
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
+        tick_size=0.01,
+        lot_size=0.001,
     )
     return InstrumentCollection([instrument])
 

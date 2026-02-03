@@ -616,6 +616,8 @@ class OkxExchange(Exchange):
                     symbol=f"{base}{quote}".upper(),
                     code=0,
                     instrument_type=InstrumentType.PERPETUAL,
+                    tick_size=tick_size,
+                    lot_size=lot_size,
                 ),
                 tick_size=tick_size,
                 lot_size=lot_size,

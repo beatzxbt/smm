@@ -220,6 +220,8 @@ class TestBaseStreamHandler:
             symbol="BTCUSDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         handler = DummyHandler(
             connection=connection,
@@ -251,6 +253,8 @@ class TestBaseStreamHandler:
             symbol="ETHUSDT",
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         queue: asyncio.Queue[Msg] = asyncio.Queue()
         handler = DummyHandler(
@@ -285,6 +289,8 @@ class TestBaseStreamHandler:
             symbol="BTCUSDT",
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         queue: asyncio.Queue[Msg] = asyncio.Queue()
         handler = DummyHandler(
@@ -313,6 +319,8 @@ class TestBaseStreamHandler:
             symbol="BTCUSDT",
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         handler = DummyHandler(
             connection=connection,

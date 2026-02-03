@@ -503,6 +503,8 @@ class TestBybitTickerConversion:
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         collection = InstrumentCollection([instrument])
         ticker = BybitTickerMsg(
@@ -547,6 +549,8 @@ class TestBybitOrderbookConversion:
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         collection = InstrumentCollection([instrument])
 
@@ -588,6 +592,8 @@ class TestBybitTradeConversion:
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         collection = InstrumentCollection([instrument])
         cache = SimpleCache()
@@ -636,6 +642,8 @@ class TestBybitTradeConversion:
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         collection = InstrumentCollection([instrument])
         cache = SimpleCache()
@@ -679,6 +687,8 @@ class TestBybitPositionConversion:
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         collection = InstrumentCollection([instrument])
 
@@ -740,6 +750,8 @@ class TestBybitPositionConversion:
             quote="USDT",
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
         )
         collection = InstrumentCollection([instrument])
 
