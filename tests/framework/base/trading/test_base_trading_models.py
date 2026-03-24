@@ -9,7 +9,7 @@ Tests cover:
 
 Tests are organized by dependency layer:
 1. Primitives: CreateOrder, AmendOrder, CancelOrder, CancelAllOrders, Secret, ClientResponse
-2. Composites: All *Response classes with CoreSchema
+2. Composites: All *Response classes with EnvelopeSchema
 """
 
 from __future__ import annotations
@@ -18,10 +18,16 @@ from typing import Any
 
 import pytest
 
-from framework.base.common import Instrument, InstrumentType, Venue
+from framework.base.common import (
+    ClientOrderId,
+    Instrument,
+    InstrumentType,
+    OrderId,
+    Venue,
+)
+from framework.base.schema import MessageId, Moments
 from framework.base.stream.models import (
     Execution,
-    Moments,
     Order,
     OrderbookLevel,
     OrderTimeInForce,
@@ -35,8 +41,11 @@ from framework.base.trading.models import (
     CancelAllOrdersResponse,
     CancelOrder,
     CancelOrderResponse,
+    ClientResponse,
     ClientResponseFailure,
+    ClientResponseMeta,
     ClientResponseSuccess,
+    ClientResponseTransport,
     CreateOrder,
     CreateOrderResponse,
     ExecutionResponse,
@@ -47,6 +56,7 @@ from framework.base.trading.models import (
     Secret,
     TickerResponse,
     TradesResponse,
+    is_success,
 )
 
 
@@ -67,8 +77,25 @@ def sample_instrument():
 
 @pytest.fixture
 def sample_moments():
-    """Reusable Moments for CoreSchema."""
+    """Reusable Moments for envelope-backed responses."""
     return Moments(exch_time_ns=1000, recv_time_ns=2000)
+
+
+@pytest.fixture
+def sample_message_id(sample_moments):
+    """Reusable message identifier aligned with sample moments."""
+    return MessageId(recv_time_ns=sample_moments.recv_time_ns)
+
+
+@pytest.fixture
+def envelope_kwargs(sample_instrument, sample_moments, sample_message_id):
+    """Reusable envelope kwargs for trading responses."""
+    return {
+        "id": sample_message_id,
+        "origin_id": sample_message_id,
+        "moments": sample_moments,
+        "instrument": sample_instrument,
+    }
 
 
 class TestCreateOrder:
@@ -84,7 +111,7 @@ class TestCreateOrder:
             is_maker=True,
             tif=OrderTimeInForce.PO,
             reduce_only=False,
-            client_order_id="client123",
+            client_order_id=ClientOrderId("client123"),
         )
 
         assert order.size == 1.0
@@ -94,6 +121,7 @@ class TestCreateOrder:
         assert order.tif == OrderTimeInForce.PO
         assert order.reduce_only is False
         assert order.client_order_id == "client123"
+        assert order.origin_id == order.id
 
     def test_creation_with_valid_taker_order(self, sample_instrument):
         """Test creating valid taker order without price."""
@@ -112,6 +140,7 @@ class TestCreateOrder:
         assert order.price is None
         assert order.is_maker is False
         assert order.reduce_only is True
+        assert order.origin_id == order.id
 
 
 class TestCreateOrderValidation:
@@ -222,7 +251,7 @@ class TestAmendOrder:
             instrument=sample_instrument,
             size=2.0,
             price=101.0,
-            order_id="order123",
+            order_id=OrderId("order123"),
             client_order_id=None,
         )
 
@@ -238,7 +267,7 @@ class TestAmendOrder:
             size=2.0,
             price=101.0,
             order_id=None,
-            client_order_id="client123",
+            client_order_id=ClientOrderId("client123"),
         )
 
         assert order.client_order_id == "client123"
@@ -255,7 +284,7 @@ class TestAmendOrderValidation:
                 instrument=sample_instrument,
                 size=0.0,
                 price=100.0,
-                order_id="order123",
+                order_id=OrderId("order123"),
             )
 
     def test_price_must_be_positive_when_provided(self, sample_instrument):
@@ -265,7 +294,7 @@ class TestAmendOrderValidation:
                 instrument=sample_instrument,
                 size=1.0,
                 price=0.0,
-                order_id="order123",
+                order_id=OrderId("order123"),
             )
 
     def test_must_have_order_id_or_client_order_id(self, sample_instrument):
@@ -299,22 +328,26 @@ class TestAmendOrderValidation:
         self, sample_instrument, size, price, order_id, client_order_id, should_raise
     ):
         """Test validation across multiple parameter combinations."""
+        typed_order_id = OrderId(str(order_id)) if order_id is not None else None
+        typed_client_order_id = (
+            ClientOrderId(str(client_order_id)) if client_order_id is not None else None
+        )
         if should_raise:
             with pytest.raises(ValueError):
                 AmendOrder(
                     instrument=sample_instrument,
                     size=size,
                     price=price,
-                    order_id=order_id,
-                    client_order_id=client_order_id,
+                    order_id=typed_order_id,
+                    client_order_id=typed_client_order_id,
                 )
         else:
             order = AmendOrder(
                 instrument=sample_instrument,
                 size=size,
                 price=price,
-                order_id=order_id,
-                client_order_id=client_order_id,
+                order_id=typed_order_id,
+                client_order_id=typed_client_order_id,
             )
             assert order.size == size
 
@@ -326,7 +359,7 @@ class TestCancelOrder:
         """Test creating CancelOrder with order_id."""
         order = CancelOrder(
             instrument=sample_instrument,
-            order_id="order123",
+            order_id=OrderId("order123"),
             client_order_id=None,
         )
 
@@ -338,7 +371,7 @@ class TestCancelOrder:
         order = CancelOrder(
             instrument=sample_instrument,
             order_id=None,
-            client_order_id="client123",
+            client_order_id=ClientOrderId("client123"),
         )
 
         assert order.order_id is None
@@ -374,7 +407,7 @@ class TestCancelAllOrders:
         """Test creating CancelAllOrders with order_ids list."""
         order = CancelAllOrders(
             instrument=sample_instrument,
-            order_ids=["order1", "order2"],
+            order_ids=[OrderId("order1"), OrderId("order2")],
             client_order_ids=None,
         )
 
@@ -386,7 +419,10 @@ class TestCancelAllOrders:
         order = CancelAllOrders(
             instrument=sample_instrument,
             order_ids=None,
-            client_order_ids=["client1", "client2"],
+            client_order_ids=[
+                ClientOrderId("client1"),
+                ClientOrderId("client2"),
+            ],
         )
 
         assert order.order_ids is None
@@ -396,8 +432,8 @@ class TestCancelAllOrders:
         """Test creating CancelAllOrders with both ID lists."""
         order = CancelAllOrders(
             instrument=sample_instrument,
-            order_ids=["order1"],
-            client_order_ids=["client1"],
+            order_ids=[OrderId("order1")],
+            client_order_ids=[ClientOrderId("client1")],
         )
 
         assert order.order_ids == ["order1"]
@@ -527,6 +563,9 @@ class TestClientResponseSuccess:
         assert resp.data == 42
         assert resp.err_no == 0
         assert resp.err_msg == ""
+        assert resp.meta.operation == "unknown"
+        assert resp.meta.started_ns > 0
+        assert resp.meta.finished_ns >= resp.meta.started_ns
 
     def test_type_parameter_works(self):
         """Test generic type parameter works correctly."""
@@ -535,6 +574,44 @@ class TestClientResponseSuccess:
 
         assert str_resp.data == "success"
         assert int_resp.data == 100
+        assert str_resp.meta.venue == Venue.NULL
+        assert int_resp.meta.transport == ClientResponseTransport.INTERNAL
+
+    def test_allows_explicit_metadata(self):
+        """Test success response can carry explicit metadata."""
+        meta = ClientResponseMeta.immediate(
+            venue=Venue.BYBIT,
+            transport=ClientResponseTransport.WS,
+            operation="order.create",
+            request_id="123",
+            status_code=0,
+        )
+        resp = ClientResponseSuccess[int](data=1, meta=meta)
+
+        assert resp.meta.venue == Venue.BYBIT
+        assert resp.meta.transport == ClientResponseTransport.WS
+        assert resp.meta.operation == "order.create"
+        assert resp.meta.request_id == "123"
+
+    def test_rejects_non_zero_error_code(self):
+        """Test success response rejects non-zero error code."""
+        if __debug__:
+            with pytest.raises(
+                ValueError, match="ClientResponseSuccess err_no must be 0"
+            ):
+                ClientResponseSuccess[int](data=1, err_no=1)
+        else:
+            ClientResponseSuccess[int](data=1, err_no=1)
+
+    def test_rejects_non_empty_error_message(self):
+        """Test success response rejects non-empty error message."""
+        if __debug__:
+            with pytest.raises(
+                ValueError, match="ClientResponseSuccess err_msg must be empty"
+            ):
+                ClientResponseSuccess[int](data=1, err_msg="unexpected")
+        else:
+            ClientResponseSuccess[int](data=1, err_msg="unexpected")
 
 
 class TestClientResponseFailure:
@@ -553,26 +630,111 @@ class TestClientResponseFailure:
         assert resp.err_no == 1001
         assert resp.err_msg == "Invalid request"
         assert resp.data is None
+        assert resp.meta.operation == "unknown"
+        assert resp.meta.started_ns > 0
+        assert resp.meta.finished_ns >= resp.meta.started_ns
 
-    def test_can_include_partial_data(self):
-        """Test failure response can include partial data."""
-        resp = ClientResponseFailure[str](
+    def test_rejects_non_none_data(self):
+        """Test failure response rejects non-None payload data."""
+        if __debug__:
+            with pytest.raises(
+                ValueError, match="ClientResponseFailure data must be None"
+            ):
+                ClientResponseFailure[str](
+                    is_successful=False,
+                    err_no=500,
+                    err_msg="Partial failure",
+                    data="partial_data",  # type: ignore[arg-type]
+                )
+        else:
+            ClientResponseFailure[str](
+                is_successful=False,
+                err_no=500,
+                err_msg="Partial failure",
+                data="partial_data",  # type: ignore[arg-type]
+            )
+
+    def test_rejects_missing_error_details(self):
+        """Test failure response requires error code or message."""
+        if __debug__:
+            with pytest.raises(
+                ValueError,
+                match="ClientResponseFailure requires err_no or err_msg",
+            ):
+                ClientResponseFailure[int](is_successful=False)
+        else:
+            ClientResponseFailure[int](is_successful=False)
+
+
+class TestIsSuccess:
+    """Test the is_success type guard helper."""
+
+    def test_returns_true_for_success_response(self):
+        """Test is_success returns True for success variant."""
+        response: ClientResponse[int] = ClientResponseSuccess[int](data=123)
+
+        assert is_success(response) is True
+
+    def test_returns_false_for_failure_response(self):
+        """Test is_success returns False for failure variant."""
+        response: ClientResponse[int] = ClientResponseFailure[int](
             is_successful=False,
-            err_no=500,
-            err_msg="Partial failure",
-            data="partial_data",
+            err_no=400,
+            err_msg="bad request",
         )
 
-        assert resp.is_successful is False
-        assert resp.data == "partial_data"
+        assert is_success(response) is False
+
+
+class TestClientResponseMeta:
+    """Test ClientResponseMeta behavior."""
+
+    def test_immediate_metadata_defaults(self):
+        """Test immediate metadata creation with explicit values."""
+        meta = ClientResponseMeta.immediate(
+            venue=Venue.OKX,
+            transport=ClientResponseTransport.HTTP,
+            operation="/api/v5/market/ticker",
+            status_code=200,
+        )
+
+        assert meta.venue == Venue.OKX
+        assert meta.transport == ClientResponseTransport.HTTP
+        assert meta.operation == "/api/v5/market/ticker"
+        assert meta.status_code == 200
+        assert meta.latency_ns == 0
+        assert meta.latency_ms == 0.0
+
+    def test_rejects_invalid_timestamps(self):
+        """Test metadata rejects finish times earlier than start."""
+        if __debug__:
+            with pytest.raises(
+                ValueError,
+                match="ClientResponseMeta.finished_ns must be >= started_ns",
+            ):
+                ClientResponseMeta(
+                    started_ns=2,
+                    finished_ns=1,
+                    venue=Venue.BYBIT,
+                    transport=ClientResponseTransport.HTTP,
+                    operation="/v5/market/tickers",
+                )
+        else:
+            ClientResponseMeta(
+                started_ns=2,
+                finished_ns=1,
+                venue=Venue.BYBIT,
+                transport=ClientResponseTransport.HTTP,
+                operation="/v5/market/tickers",
+            )
 
 
 class TestCreateOrderResponse:
     """Test CreateOrderResponse composite struct."""
 
-    def test_creation_with_all_fields(self, sample_instrument, sample_moments):
+    def test_creation_with_all_fields(self, sample_instrument, envelope_kwargs):
         """Test creating CreateOrderResponse."""
-        trigger = CreateOrder(
+        action = CreateOrder(
             instrument=sample_instrument,
             size=1.0,
             is_buy=True,
@@ -580,18 +742,15 @@ class TestCreateOrderResponse:
             is_maker=True,
             tif=OrderTimeInForce.PO,
             reduce_only=False,
-            client_order_id="client123",
+            client_order_id=ClientOrderId("client123"),
         )
         resp = CreateOrderResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
-            trigger=trigger,
-            order_id="order123",
-            client_order_id="client123",
+            **{**envelope_kwargs, "origin_id": action.origin_id},
+            order_id=OrderId("order123"),
+            client_order_id=ClientOrderId("client123"),
         )
 
-        assert resp.trigger == trigger
+        assert resp.origin_id == action.origin_id
         assert resp.order_id == "order123"
         assert resp.client_order_id == "client123"
 
@@ -599,24 +758,21 @@ class TestCreateOrderResponse:
 class TestAmendOrderResponse:
     """Test AmendOrderResponse composite struct."""
 
-    def test_creation_with_all_fields(self, sample_instrument, sample_moments):
+    def test_creation_with_all_fields(self, sample_instrument, envelope_kwargs):
         """Test creating AmendOrderResponse."""
-        trigger = AmendOrder(
+        action = AmendOrder(
             instrument=sample_instrument,
             size=2.0,
             price=101.0,
-            order_id="order123",
+            order_id=OrderId("order123"),
         )
         resp = AmendOrderResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
-            trigger=trigger,
-            order_id="order123",
-            client_order_id="client123",
+            **{**envelope_kwargs, "origin_id": action.origin_id},
+            order_id=OrderId("order123"),
+            client_order_id=ClientOrderId("client123"),
         )
 
-        assert resp.trigger == trigger
+        assert resp.origin_id == action.origin_id
         assert resp.order_id == "order123"
         assert resp.client_order_id == "client123"
 
@@ -624,22 +780,19 @@ class TestAmendOrderResponse:
 class TestCancelOrderResponse:
     """Test CancelOrderResponse composite struct."""
 
-    def test_creation_with_all_fields(self, sample_instrument, sample_moments):
+    def test_creation_with_all_fields(self, sample_instrument, envelope_kwargs):
         """Test creating CancelOrderResponse."""
-        trigger = CancelOrder(
+        action = CancelOrder(
             instrument=sample_instrument,
-            order_id="order123",
+            order_id=OrderId("order123"),
         )
         resp = CancelOrderResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
-            trigger=trigger,
-            order_id="order123",
-            client_order_id="client123",
+            **{**envelope_kwargs, "origin_id": action.origin_id},
+            order_id=OrderId("order123"),
+            client_order_id=ClientOrderId("client123"),
         )
 
-        assert resp.trigger == trigger
+        assert resp.origin_id == action.origin_id
         assert resp.order_id == "order123"
         assert resp.client_order_id == "client123"
 
@@ -647,22 +800,22 @@ class TestCancelOrderResponse:
 class TestCancelAllOrdersResponse:
     """Test CancelAllOrdersResponse composite struct."""
 
-    def test_creation_with_order_ids(self, sample_instrument, sample_moments):
+    def test_creation_with_order_ids(self, sample_instrument, envelope_kwargs):
         """Test creating CancelAllOrdersResponse with order IDs."""
-        trigger = CancelAllOrders(
+        action = CancelAllOrders(
             instrument=sample_instrument,
-            order_ids=["order1", "order2"],
+            order_ids=[OrderId("order1"), OrderId("order2")],
         )
         resp = CancelAllOrdersResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
-            trigger=trigger,
-            order_ids=["order1", "order2"],
-            client_order_ids=["client1", "client2"],
+            **{**envelope_kwargs, "origin_id": action.origin_id},
+            order_ids=[OrderId("order1"), OrderId("order2")],
+            client_order_ids=[
+                ClientOrderId("client1"),
+                ClientOrderId("client2"),
+            ],
         )
 
-        assert resp.trigger == trigger
+        assert resp.origin_id == action.origin_id
         assert resp.order_ids == ["order1", "order2"]
         assert resp.client_order_ids == ["client1", "client2"]
 
@@ -670,41 +823,45 @@ class TestCancelAllOrdersResponse:
 class TestTradesResponse:
     """Test TradesResponse composite struct."""
 
-    def test_creation_with_trades(self, sample_instrument, sample_moments):
+    def test_creation_with_trades(self, envelope_kwargs):
         """Test creating TradesResponse."""
         trades = [
             Trade(time_ms=100, price=100.0, is_buy=True, size=1.0),
             Trade(time_ms=200, price=101.0, is_buy=False, size=2.0),
         ]
         resp = TradesResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             trades=trades,
         )
 
         assert len(resp.trades) == 2
 
-    def test_post_init_sorting_by_time(self, sample_instrument, sample_moments):
+    def test_post_init_sorting_by_time(self, envelope_kwargs):
         """Test __post_init__ sorts trades by time_ms."""
         t1 = Trade(time_ms=200, price=100.0, is_buy=True, size=1.0)
         t2 = Trade(time_ms=100, price=101.0, is_buy=False, size=2.0)
 
         resp = TradesResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             trades=[t1, t2],
         )
 
         assert resp.trades[0].time_ms == 100
         assert resp.trades[1].time_ms == 200
 
+    def test_zero_size_trade_raises(self, envelope_kwargs):
+        """Test zero-size trades are rejected."""
+        with pytest.raises(ValueError, match="Invalid size"):
+            TradesResponse(
+                **envelope_kwargs,
+                trades=[Trade(time_ms=100, price=100.0, is_buy=True, size=0.0)],
+            )
+
 
 class TestOrderbookResponse:
     """Test OrderbookResponse composite struct."""
 
-    def test_creation_with_bids_and_asks(self, sample_instrument, sample_moments):
+    def test_creation_with_bids_and_asks(self, envelope_kwargs):
         """Test creating OrderbookResponse."""
         bids = [
             OrderbookLevel(price=99.0, size=1.0),
@@ -716,21 +873,17 @@ class TestOrderbookResponse:
         ]
 
         resp = OrderbookResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             bids=bids,
             asks=asks,
             is_bbo=True,
-            is_snapshot=True,
         )
 
         assert len(resp.bids) == 2
         assert len(resp.asks) == 2
         assert resp.is_bbo is True
-        assert resp.is_snapshot is True
 
-    def test_post_init_sorting(self, sample_instrument, sample_moments):
+    def test_post_init_sorting(self, envelope_kwargs):
         """Test __post_init__ sorts bids and asks by price."""
         b1 = OrderbookLevel(price=100.0, size=1.0)
         b2 = OrderbookLevel(price=99.0, size=2.0)
@@ -738,13 +891,10 @@ class TestOrderbookResponse:
         a2 = OrderbookLevel(price=101.0, size=2.0)
 
         resp = OrderbookResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             bids=[b1, b2],
             asks=[a1, a2],
             is_bbo=False,
-            is_snapshot=True,
         )
 
         assert resp.bids[0].price == 99.0
@@ -753,15 +903,27 @@ class TestOrderbookResponse:
         assert resp.asks[1].price == 102.0
 
 
+class TestOrderbookResponseValidation:
+    """Test OrderbookResponse validation behavior."""
+
+    def test_empty_bids_and_asks_raise(self, envelope_kwargs):
+        """Test empty orderbook responses raise a ValueError."""
+        with pytest.raises(ValueError, match="Invalid OrderbookResponse"):
+            OrderbookResponse(
+                **envelope_kwargs,
+                bids=[],
+                asks=[],
+                is_bbo=False,
+            )
+
+
 class TestTickerResponse:
     """Test TickerResponse composite struct."""
 
-    def test_creation_with_all_fields(self, sample_instrument, sample_moments):
+    def test_creation_with_all_fields(self, envelope_kwargs):
         """Test creating TickerResponse with all fields."""
         resp = TickerResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             mark_price=100.0,
             index_price=99.0,
             funding_rate=0.01,
@@ -780,15 +942,44 @@ class TestTickerResponse:
         assert resp.price_chg_24h == 5.0
 
 
+class TestTickerResponseValidation:
+    """Test TickerResponse validation behavior."""
+
+    @pytest.mark.parametrize(
+        "field,value,match",
+        [
+            ("mark_price", -1.0, "Invalid mark_price"),
+            ("index_price", -1.0, "Invalid index_price"),
+            ("next_funding_time_ms", -1.0, "Invalid next_funding_time_ms"),
+            ("open_interest", -1.0, "Invalid open_interest"),
+            ("avg_volume_24h", -1.0, "Invalid avg_volume_24h"),
+        ],
+    )
+    def test_negative_values_raise(self, envelope_kwargs, field, value, match):
+        """Test negative ticker fields raise ValueError."""
+        payload = dict(
+            **envelope_kwargs,
+            mark_price=100.0,
+            index_price=99.0,
+            funding_rate=0.01,
+            next_funding_time_ms=123456789.0,
+            open_interest=10000.0,
+            avg_volume_24h=5000.0,
+            price_chg_24h=5.0,
+        )
+        payload[field] = value
+
+        with pytest.raises(ValueError, match=match):
+            TickerResponse(**payload)
+
+
 class TestInstrumentInfoResponse:
     """Test InstrumentInfoResponse composite struct."""
 
-    def test_creation_with_all_fields(self, sample_instrument, sample_moments):
+    def test_creation_with_all_fields(self, envelope_kwargs):
         """Test creating InstrumentInfoResponse."""
         resp = InstrumentInfoResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             tick_size=0.1,
             lot_size=0.01,
             max_taker_size=100.0,
@@ -801,15 +992,44 @@ class TestInstrumentInfoResponse:
         assert resp.max_maker_size == 200.0
 
 
+class TestInstrumentInfoResponseValidation:
+    """Test InstrumentInfoResponse validation behavior."""
+
+    @pytest.mark.parametrize(
+        "field,value,match",
+        [
+            ("tick_size", 0.0, "Invalid tick_size"),
+            ("tick_size", -1.0, "Invalid tick_size"),
+            ("lot_size", 0.0, "Invalid lot_size"),
+            ("lot_size", -1.0, "Invalid lot_size"),
+            ("max_taker_size", -1.0, "Invalid max_taker_size"),
+            ("max_maker_size", -1.0, "Invalid max_maker_size"),
+        ],
+    )
+    def test_invalid_values_raise(self, envelope_kwargs, field, value, match):
+        """Test instrument info validation for invalid sizes."""
+        payload = dict(
+            **envelope_kwargs,
+            tick_size=0.1,
+            lot_size=0.01,
+            max_taker_size=100.0,
+            max_maker_size=200.0,
+        )
+        payload[field] = value
+
+        with pytest.raises(ValueError, match=match):
+            InstrumentInfoResponse(**payload)
+
+
 class TestOrdersResponse:
     """Test OrdersResponse composite struct."""
 
-    def test_creation_with_orders(self, sample_instrument, sample_moments):
+    def test_creation_with_orders(self, envelope_kwargs):
         """Test creating OrdersResponse."""
         orders = [
             Order(
                 create_time_ms=123.0,
-                order_id="order1",
+                order_id=OrderId("order1"),
                 price=100.0,
                 is_buy=True,
                 size=1.0,
@@ -820,7 +1040,7 @@ class TestOrdersResponse:
             ),
             Order(
                 create_time_ms=124.0,
-                order_id="order2",
+                order_id=OrderId("order2"),
                 price=101.0,
                 is_buy=False,
                 size=2.0,
@@ -832,9 +1052,7 @@ class TestOrdersResponse:
         ]
 
         resp = OrdersResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             orders=orders,
         )
 
@@ -846,12 +1064,10 @@ class TestOrdersResponse:
 class TestPositionResponse:
     """Test PositionResponse composite struct."""
 
-    def test_creation_with_all_fields(self, sample_instrument, sample_moments):
+    def test_creation_with_all_fields(self, envelope_kwargs):
         """Test creating PositionResponse."""
         resp = PositionResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             price=100.0,
             is_long=True,
             size=1.5,
@@ -863,15 +1079,36 @@ class TestPositionResponse:
         assert resp.value == 150.0  # price * size
 
 
+class TestPositionResponseValidation:
+    """Test PositionResponse validation behavior."""
+
+    @pytest.mark.parametrize(
+        "price,size,match",
+        [
+            (-1.0, 1.0, "Invalid price"),
+            (100.0, -1.0, "Invalid size"),
+        ],
+    )
+    def test_negative_values_raise(self, envelope_kwargs, price, size, match):
+        """Test negative position values raise ValueError."""
+        with pytest.raises(ValueError, match=match):
+            PositionResponse(
+                **envelope_kwargs,
+                price=price,
+                is_long=True,
+                size=size,
+            )
+
+
 class TestExecutionResponse:
     """Test ExecutionResponse composite struct."""
 
-    def test_creation_with_executions(self, sample_instrument, sample_moments):
+    def test_creation_with_executions(self, envelope_kwargs):
         """Test creating ExecutionResponse."""
         executions = [
             Execution(
                 exec_time_ms=123.0,
-                order_id="order1",
+                order_id=OrderId("order1"),
                 price=100.0,
                 is_buy=True,
                 size=1.0,
@@ -880,7 +1117,7 @@ class TestExecutionResponse:
             ),
             Execution(
                 exec_time_ms=124.0,
-                order_id="order2",
+                order_id=OrderId("order2"),
                 price=101.0,
                 is_buy=False,
                 size=2.0,
@@ -890,9 +1127,7 @@ class TestExecutionResponse:
         ]
 
         resp = ExecutionResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             executions=executions,
         )
 
@@ -904,12 +1139,10 @@ class TestExecutionResponse:
 class TestAccountResponse:
     """Test AccountResponse composite struct."""
 
-    def test_creation_with_all_fields(self, sample_instrument, sample_moments):
+    def test_creation_with_all_fields(self, envelope_kwargs):
         """Test creating AccountResponse."""
         resp = AccountResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             balance=1000.0,
             initial_margin=100.0,
             maintenance_margin=50.0,
@@ -922,36 +1155,58 @@ class TestAccountResponse:
         assert resp.unrealized_pnl == 10.0
 
 
+class TestAccountResponseValidation:
+    """Test AccountResponse validation behavior."""
+
+    @pytest.mark.parametrize(
+        "field,value,match",
+        [
+            ("balance", -1.0, "Invalid balance"),
+            ("initial_margin", -1.0, "Invalid initial_margin"),
+            ("maintenance_margin", -1.0, "Invalid maintenance_margin"),
+        ],
+    )
+    def test_negative_values_raise(self, envelope_kwargs, field, value, match):
+        """Test negative account values raise ValueError."""
+        payload = dict(
+            **envelope_kwargs,
+            balance=1000.0,
+            initial_margin=100.0,
+            maintenance_margin=50.0,
+            unrealized_pnl=10.0,
+        )
+        payload[field] = value
+
+        with pytest.raises(ValueError, match=match):
+            AccountResponse(**payload)
+
+
 class TestTypeUnions:
     """Test type union aliases work correctly."""
 
-    def test_order_action_response_types(self, sample_instrument, sample_moments):
+    def test_order_action_response_types(self, sample_instrument, envelope_kwargs):
         """Test AnyOrderActionResponse types."""
-        create_resp = CreateOrderResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
+        action = CreateOrder(
             instrument=sample_instrument,
-            trigger=CreateOrder(
-                instrument=sample_instrument,
-                size=1.0,
-                is_buy=True,
-                price=100.0,
-                is_maker=True,
-                tif=OrderTimeInForce.PO,
-                reduce_only=False,
-            ),
-            order_id="order123",
+            size=1.0,
+            is_buy=True,
+            price=100.0,
+            is_maker=True,
+            tif=OrderTimeInForce.PO,
+            reduce_only=False,
+        )
+        create_resp = CreateOrderResponse(
+            **{**envelope_kwargs, "origin_id": action.origin_id},
+            order_id=OrderId("order123"),
         )
 
         # Type should be valid
         assert isinstance(create_resp, CreateOrderResponse)
 
-    def test_client_response_types(self, sample_instrument, sample_moments):
+    def test_client_response_types(self, envelope_kwargs):
         """Test AnyClientResponse types."""
         trades_resp = TradesResponse(
-            moments=sample_moments,
-            venue=Venue.BINANCE_USDM,
-            instrument=sample_instrument,
+            **envelope_kwargs,
             trades=[Trade(time_ms=100, price=100.0, is_buy=True, size=1.0)],
         )
 
