@@ -31,4 +31,4 @@ dev = [
 ]
 
 [tool.ty.src]
-include = ["framework", "smm", "cmm", "napalm", "glasses", "tests"]
+include = ["framework", "smm", "cmm", "napalm", "glasses"]
