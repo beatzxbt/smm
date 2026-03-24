@@ -14,8 +14,29 @@ import aiohttp
 import msgspec
 
 from framework.base.common import Venue
+from framework.base.trading.models import (
+    ClientResponse,
+    ClientResponseFailure,
+    ClientResponseMeta,
+    ClientResponseSuccess,
+    ClientResponseTransport,
+)
 from mm_toolbox.logging.standard import Logger
-from framework.base.trading.models import ClientResponse
+
+
+def _coerce_failure_error(err_no: int, err_msg: str) -> tuple[int, str]:
+    """Normalize failure error details to satisfy response invariants.
+
+    Args:
+        err_no: Error code for the failure.
+        err_msg: Error message for the failure.
+
+    Returns:
+        tuple[int, str]: Normalized error code and message.
+    """
+    if err_no == 0 and err_msg == "":
+        return 1, "Unknown error"
+    return err_no, err_msg
 
 
 class HttpMethod(StrEnum):
@@ -72,6 +93,87 @@ class HttpClient(ABC):
         pass
 
     @final
+    def make_meta(
+        self,
+        *,
+        transport: ClientResponseTransport,
+        operation: str,
+        started_ns: int,
+        finished_ns: int | None = None,
+        request_id: str | None = None,
+        status_code: int | None = None,
+        attempt: int = 1,
+        timeout: bool = False,
+    ) -> ClientResponseMeta:
+        """Create metadata for a request/response lifecycle.
+
+        Args:
+            transport: Transport type used for the request.
+            operation: Full endpoint or operation name.
+            started_ns: Request start timestamp in nanoseconds.
+            finished_ns: Request finish timestamp in nanoseconds.
+            request_id: Optional transport-specific request identifier.
+            status_code: Optional transport/application status code.
+            attempt: One-based retry attempt counter.
+            timeout: Whether the result was produced by a timeout.
+
+        Returns:
+            ClientResponseMeta: Metadata attached to the client response.
+        """
+        end_ns = started_ns if finished_ns is None else finished_ns
+        return ClientResponseMeta(
+            started_ns=started_ns,
+            finished_ns=end_ns,
+            venue=self.venue,
+            transport=transport,
+            operation=operation,
+            request_id=request_id,
+            status_code=status_code,
+            attempt=attempt,
+            timeout=timeout,
+        )
+
+    @final
+    def make_success[T](
+        self, *, data: T, meta: ClientResponseMeta
+    ) -> ClientResponse[T]:
+        """Create a successful client response.
+
+        Args:
+            data: Typed payload returned by the request.
+            meta: Metadata envelope for the request lifecycle.
+
+        Returns:
+            ClientResponse[T]: Successful response variant.
+        """
+        return ClientResponseSuccess(data=data, meta=meta)
+
+    @final
+    def make_failure[T](
+        self,
+        *,
+        meta: ClientResponseMeta,
+        err_no: int = 1,
+        err_msg: str = "",
+    ) -> ClientResponse[T]:
+        """Create a failed client response.
+
+        Args:
+            meta: Metadata envelope for the request lifecycle.
+            err_no: Numeric error code for the failure.
+            err_msg: Human-readable failure message.
+
+        Returns:
+            ClientResponse[T]: Failed response variant.
+        """
+        normalized_err_no, normalized_err_msg = _coerce_failure_error(err_no, err_msg)
+        return ClientResponseFailure(
+            meta=meta,
+            err_no=normalized_err_no,
+            err_msg=normalized_err_msg,
+        )
+
+    @final
     async def close(self):
         """Close the client session."""
         if self.is_running:
@@ -124,6 +226,87 @@ class WsClient(ABC):
     ) -> ClientResponse[T]:
         """Submit a request."""
         pass
+
+    @final
+    def make_meta(
+        self,
+        *,
+        transport: ClientResponseTransport,
+        operation: str,
+        started_ns: int,
+        finished_ns: int | None = None,
+        request_id: str | None = None,
+        status_code: int | None = None,
+        attempt: int = 1,
+        timeout: bool = False,
+    ) -> ClientResponseMeta:
+        """Create metadata for a request/response lifecycle.
+
+        Args:
+            transport: Transport type used for the request.
+            operation: Full endpoint or operation name.
+            started_ns: Request start timestamp in nanoseconds.
+            finished_ns: Request finish timestamp in nanoseconds.
+            request_id: Optional transport-specific request identifier.
+            status_code: Optional transport/application status code.
+            attempt: One-based retry attempt counter.
+            timeout: Whether the result was produced by a timeout.
+
+        Returns:
+            ClientResponseMeta: Metadata attached to the client response.
+        """
+        end_ns = started_ns if finished_ns is None else finished_ns
+        return ClientResponseMeta(
+            started_ns=started_ns,
+            finished_ns=end_ns,
+            venue=self.venue,
+            transport=transport,
+            operation=operation,
+            request_id=request_id,
+            status_code=status_code,
+            attempt=attempt,
+            timeout=timeout,
+        )
+
+    @final
+    def make_success[T](
+        self, *, data: T, meta: ClientResponseMeta
+    ) -> ClientResponse[T]:
+        """Create a successful client response.
+
+        Args:
+            data: Typed payload returned by the request.
+            meta: Metadata envelope for the request lifecycle.
+
+        Returns:
+            ClientResponse[T]: Successful response variant.
+        """
+        return ClientResponseSuccess(data=data, meta=meta)
+
+    @final
+    def make_failure[T](
+        self,
+        *,
+        meta: ClientResponseMeta,
+        err_no: int = 1,
+        err_msg: str = "",
+    ) -> ClientResponse[T]:
+        """Create a failed client response.
+
+        Args:
+            meta: Metadata envelope for the request lifecycle.
+            err_no: Numeric error code for the failure.
+            err_msg: Human-readable failure message.
+
+        Returns:
+            ClientResponse[T]: Failed response variant.
+        """
+        normalized_err_no, normalized_err_msg = _coerce_failure_error(err_no, err_msg)
+        return ClientResponseFailure(
+            meta=meta,
+            err_no=normalized_err_no,
+            err_msg=normalized_err_msg,
+        )
 
     async def close(self):
         """Close the client session."""

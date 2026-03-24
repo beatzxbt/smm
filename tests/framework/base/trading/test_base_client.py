@@ -12,7 +12,12 @@ import pytest
 
 from framework.base.common import Venue
 from framework.base.trading.client import HttpClient, HttpMethod, WsClient
-from framework.base.trading.models import ClientResponseSuccess
+from framework.base.trading.models import (
+    ClientResponseFailure,
+    ClientResponseMeta,
+    ClientResponseSuccess,
+    ClientResponseTransport,
+)
 from mm_toolbox.logging.standard import Logger
 
 
@@ -186,3 +191,151 @@ class TestWsClientClose:
         await client.close()
 
         assert client.is_running is False
+
+
+class TestHttpClientResponseHelpers:
+    """HttpClient response helper methods."""
+
+    def test_make_meta_defaults_finished_ns(self, test_logger: Logger) -> None:
+        """Test make_meta defaults finished_ns to started_ns.
+
+        Args:
+            test_logger: Logger fixture for the client.
+        """
+        client = DummyHttpClient(logger=test_logger)
+        meta = client.make_meta(
+            transport=ClientResponseTransport.HTTP,
+            operation="/v1/test",
+            started_ns=100,
+        )
+
+        assert meta.started_ns == 100
+        assert meta.finished_ns == 100
+        assert meta.venue == Venue.BINANCE_USDM
+        assert meta.transport == ClientResponseTransport.HTTP
+        assert meta.operation == "/v1/test"
+
+    def test_make_meta_propagates_optional_fields(self, test_logger: Logger) -> None:
+        """Test make_meta propagates optional metadata fields.
+
+        Args:
+            test_logger: Logger fixture for the client.
+        """
+        client = DummyHttpClient(logger=test_logger)
+        meta = client.make_meta(
+            transport=ClientResponseTransport.HTTP,
+            operation="/v1/test",
+            started_ns=100,
+            finished_ns=200,
+            request_id="abc",
+            status_code=418,
+            attempt=2,
+            timeout=True,
+        )
+
+        assert meta.finished_ns == 200
+        assert meta.request_id == "abc"
+        assert meta.status_code == 418
+        assert meta.attempt == 2
+        assert meta.timeout is True
+
+    def test_make_success_attaches_meta(self, test_logger: Logger) -> None:
+        """Test make_success returns success response with provided metadata.
+
+        Args:
+            test_logger: Logger fixture for the client.
+        """
+        client = DummyHttpClient(logger=test_logger)
+        meta = ClientResponseMeta.immediate(
+            venue=client.venue,
+            transport=ClientResponseTransport.HTTP,
+            operation="/v1/test",
+        )
+
+        response = client.make_success(data={"ok": True}, meta=meta)
+
+        assert isinstance(response, ClientResponseSuccess)
+        assert response.data == {"ok": True}
+        assert response.meta == meta
+
+    def test_make_failure_normalizes_blank_error(self, test_logger: Logger) -> None:
+        """Test make_failure normalizes blank error details.
+
+        Args:
+            test_logger: Logger fixture for the client.
+        """
+        client = DummyHttpClient(logger=test_logger)
+        meta = client.make_meta(
+            transport=ClientResponseTransport.HTTP,
+            operation="/v1/test",
+            started_ns=100,
+        )
+
+        response = client.make_failure(meta=meta, err_no=0, err_msg="")
+
+        assert isinstance(response, ClientResponseFailure)
+        assert response.err_no == 1
+        assert response.err_msg == "Unknown error"
+        assert response.meta == meta
+
+    def test_make_failure_preserves_error_details(self, test_logger: Logger) -> None:
+        """Test make_failure preserves provided error details.
+
+        Args:
+            test_logger: Logger fixture for the client.
+        """
+        client = DummyHttpClient(logger=test_logger)
+        meta = client.make_meta(
+            transport=ClientResponseTransport.HTTP,
+            operation="/v1/test",
+            started_ns=100,
+        )
+
+        response = client.make_failure(meta=meta, err_no=123, err_msg="bad")
+
+        assert isinstance(response, ClientResponseFailure)
+        assert response.err_no == 123
+        assert response.err_msg == "bad"
+
+
+class TestWsClientResponseHelpers:
+    """WsClient response helper methods."""
+
+    def test_make_meta_defaults_finished_ns(self, test_logger: Logger) -> None:
+        """Test make_meta defaults finished_ns to started_ns.
+
+        Args:
+            test_logger: Logger fixture for the client.
+        """
+        client = DummyWsClient(logger=test_logger)
+        meta = client.make_meta(
+            transport=ClientResponseTransport.WS,
+            operation="op.test",
+            started_ns=100,
+        )
+
+        assert meta.started_ns == 100
+        assert meta.finished_ns == 100
+        assert meta.venue == Venue.BINANCE_USDM
+        assert meta.transport == ClientResponseTransport.WS
+        assert meta.operation == "op.test"
+
+    def test_make_failure_normalizes_blank_error(self, test_logger: Logger) -> None:
+        """Test make_failure normalizes blank error details.
+
+        Args:
+            test_logger: Logger fixture for the client.
+        """
+        client = DummyWsClient(logger=test_logger)
+        meta = client.make_meta(
+            transport=ClientResponseTransport.WS,
+            operation="op.test",
+            started_ns=100,
+        )
+
+        response = client.make_failure(meta=meta, err_no=0, err_msg="")
+
+        assert isinstance(response, ClientResponseFailure)
+        assert response.err_no == 1
+        assert response.err_msg == "Unknown error"
+        assert response.meta == meta

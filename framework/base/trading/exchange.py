@@ -14,7 +14,7 @@ import aiohttp
 from mm_toolbox.logging.standard import Logger
 from mm_toolbox.time import time_ns
 
-from framework.base.common import Instrument, InstrumentCollection, Venue
+from framework.base.common import Instrument, InstrumentCollection, Symbol, Venue
 from framework.base.trading.client import HttpClient, WsClient
 from framework.base.trading.models import (
     AccountResponse,
@@ -25,6 +25,10 @@ from framework.base.trading.models import (
     CancelOrder,
     CancelOrderResponse,
     ClientResponse,
+    ClientResponseFailure,
+    ClientResponseMeta,
+    ClientResponseSuccess,
+    ClientResponseTransport,
     CreateOrder,
     CreateOrderResponse,
     ExecutionResponse,
@@ -34,6 +38,7 @@ from framework.base.trading.models import (
     PositionResponse,
     TickerResponse,
     TradesResponse,
+    is_success,
 )
 
 
@@ -131,6 +136,89 @@ class Exchange(ABC):
         return True
 
     @final
+    def make_meta(
+        self,
+        *,
+        operation: str,
+        started_ns: int,
+        finished_ns: int | None = None,
+        request_id: str | None = None,
+        status_code: int | None = None,
+        attempt: int = 1,
+        timeout: bool = False,
+    ) -> ClientResponseMeta:
+        """Create metadata for an exchange method response.
+
+        Args:
+            operation: Fully-qualified exchange operation name.
+            started_ns: Start timestamp in nanoseconds.
+            finished_ns: Optional finish timestamp in nanoseconds.
+            request_id: Optional request identifier.
+            status_code: Optional status code associated with the operation.
+            attempt: One-based retry attempt counter.
+            timeout: Whether the response was produced by timeout.
+
+        Returns:
+            ClientResponseMeta: Metadata envelope for the exchange response.
+        """
+        end_ns = started_ns if finished_ns is None else finished_ns
+        return ClientResponseMeta(
+            started_ns=started_ns,
+            finished_ns=end_ns,
+            venue=self.venue,
+            transport=ClientResponseTransport.INTERNAL,
+            operation=operation,
+            request_id=request_id,
+            status_code=status_code,
+            attempt=attempt,
+            timeout=timeout,
+        )
+
+    @final
+    def make_success[T](
+        self, *, data: T, meta: ClientResponseMeta
+    ) -> ClientResponse[T]:
+        """Create a successful exchange response.
+
+        Args:
+            data: Response payload.
+            meta: Response metadata envelope.
+
+        Returns:
+            ClientResponse[T]: Successful response variant.
+        """
+        return ClientResponseSuccess(data=data, meta=meta)
+
+    @final
+    def make_failure[T](
+        self,
+        *,
+        meta: ClientResponseMeta,
+        err_no: int = 1,
+        err_msg: str = "",
+    ) -> ClientResponse[T]:
+        """Create a failed exchange response.
+
+        Args:
+            meta: Response metadata envelope.
+            err_no: Numeric error code.
+            err_msg: Human-readable error message.
+
+        Returns:
+            ClientResponse[T]: Failed response variant.
+        """
+        normalized_err_no = err_no
+        normalized_err_msg = err_msg
+        if normalized_err_no == 0 and normalized_err_msg == "":
+            normalized_err_no = 1
+            normalized_err_msg = "Unknown error"
+        return ClientResponseFailure(
+            meta=meta,
+            err_no=normalized_err_no,
+            err_msg=normalized_err_msg,
+        )
+
+    @final
     async def connect_ws_client(self) -> None:
         """Connect the WebSocket client if it exists."""
         try:
@@ -159,20 +247,19 @@ class Exchange(ABC):
         """
         if self._instrument_collection is None or refresh:
             response = await self.get_instrument_collection()
-            if response.is_successful is False:
+            if not is_success(response):
                 raise RuntimeError(
                     f"Failed to load instruments for {self.venue}; {response.err_msg}"
                 )
-            assert response.data is not None
             self._instrument_collection = response.data
         return self._instrument_collection
 
     @final
-    async def resolve_instrument(self, symbol: str) -> Instrument:
+    async def resolve_instrument(self, symbol: Symbol) -> Instrument:
         """Resolve a symbol to a concrete Instrument using the cached collection.
 
         Args:
-            symbol (str): Exchange-specific symbol to resolve.
+            symbol (Symbol): Exchange-specific symbol to resolve.
 
         Returns:
             Instrument: Resolved instrument for the current venue.
@@ -183,15 +270,15 @@ class Exchange(ABC):
         collection = await self.get_instrument_collection_cached()
 
         lookup = symbol.strip()
-        if instrument := collection.get(self.venue, lookup):
+        if instrument := collection.get(lookup):
             return instrument
 
         upper = lookup.upper()
-        if instrument := collection.get(self.venue, upper):
+        if instrument := collection.get(upper):
             return instrument
 
         lower = lookup.lower()
-        if instrument := collection.get(self.venue, lower):
+        if instrument := collection.get(lower):
             return instrument
 
         # Fallback: case-insensitive search

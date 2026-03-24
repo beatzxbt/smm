@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from framework.base.common import Instrument, InstrumentCollection, Venue
+from framework.base.schema import Moments, MessageId
 from framework.base.trading.client import HttpClient, HttpMethod, WsClient
 from framework.base.trading.exchange import Exchange
 from framework.base.trading.models import (
@@ -22,7 +23,9 @@ from framework.base.trading.models import (
     CancelOrder,
     CancelOrderResponse,
     ClientResponseFailure,
+    ClientResponseMeta,
     ClientResponseSuccess,
+    ClientResponseTransport,
     CreateOrder,
     CreateOrderResponse,
 )
@@ -143,7 +146,7 @@ class DummyExchange(Exchange):
         Returns:
             ClientResponseSuccess: Empty collection.
         """
-        return ClientResponseSuccess(data=InstrumentCollection())
+        return ClientResponseSuccess(data=InstrumentCollection([]))
 
     async def create_order(self, create_order: CreateOrder):
         """Return empty create order response for tests.
@@ -154,12 +157,14 @@ class DummyExchange(Exchange):
         Returns:
             ClientResponseSuccess: Empty response.
         """
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         return ClientResponseSuccess(
             data=CreateOrderResponse(
-                moments=None,  # type: ignore[arg-type]
-                venue=self.venue,
+                id=response_id,
+                origin_id=create_order.origin_id or create_order.id,
+                moments=moments,
                 instrument=create_order.instrument,
-                trigger=create_order,
             )
         )
 
@@ -172,12 +177,14 @@ class DummyExchange(Exchange):
         Returns:
             ClientResponseSuccess: Empty response.
         """
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         return ClientResponseSuccess(
             data=AmendOrderResponse(
-                moments=None,  # type: ignore[arg-type]
-                venue=self.venue,
+                id=response_id,
+                origin_id=amend_order.origin_id or amend_order.id,
+                moments=moments,
                 instrument=amend_order.instrument,
-                trigger=amend_order,
             )
         )
 
@@ -190,12 +197,14 @@ class DummyExchange(Exchange):
         Returns:
             ClientResponseSuccess: Empty response.
         """
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         return ClientResponseSuccess(
             data=CancelOrderResponse(
-                moments=None,  # type: ignore[arg-type]
-                venue=self.venue,
+                id=response_id,
+                origin_id=cancel_order.origin_id or cancel_order.id,
+                moments=moments,
                 instrument=cancel_order.instrument,
-                trigger=cancel_order,
             )
         )
 
@@ -208,12 +217,14 @@ class DummyExchange(Exchange):
         Returns:
             ClientResponseSuccess: Empty response.
         """
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         return ClientResponseSuccess(
             data=CancelAllOrdersResponse(
-                moments=None,  # type: ignore[arg-type]
-                venue=self.venue,
+                id=response_id,
+                origin_id=cancel_all_orders.origin_id or cancel_all_orders.id,
+                moments=moments,
                 instrument=cancel_all_orders.instrument,
-                trigger=cancel_all_orders,
             )
         )
 
@@ -418,3 +429,104 @@ class TestExchangeCloid:
 
         with pytest.raises(ValueError, match="Invalid cloid length"):
             exchange.generate_cloid(start="AB", end="CD")
+
+
+class TestExchangeResponseHelpers:
+    """Exchange response helper methods."""
+
+    def test_make_meta_defaults_finished_ns(self, test_logger: Logger) -> None:
+        """Test make_meta defaults finished_ns to started_ns.
+
+        Args:
+            test_logger: Logger fixture for the exchange.
+        """
+        exchange = DummyExchange(logger=test_logger)
+        meta = exchange.make_meta(
+            operation="exchange.test",
+            started_ns=100,
+        )
+
+        assert meta.started_ns == 100
+        assert meta.finished_ns == 100
+        assert meta.venue == Venue.BINANCE_USDM
+        assert meta.transport == ClientResponseTransport.INTERNAL
+        assert meta.operation == "exchange.test"
+
+    def test_make_meta_propagates_optional_fields(self, test_logger: Logger) -> None:
+        """Test make_meta propagates optional metadata fields.
+
+        Args:
+            test_logger: Logger fixture for the exchange.
+        """
+        exchange = DummyExchange(logger=test_logger)
+        meta = exchange.make_meta(
+            operation="exchange.test",
+            started_ns=100,
+            finished_ns=200,
+            request_id="abc",
+            status_code=500,
+            attempt=3,
+            timeout=True,
+        )
+
+        assert meta.finished_ns == 200
+        assert meta.request_id == "abc"
+        assert meta.status_code == 500
+        assert meta.attempt == 3
+        assert meta.timeout is True
+
+    def test_make_success_attaches_meta(self, test_logger: Logger) -> None:
+        """Test make_success returns success response with provided metadata.
+
+        Args:
+            test_logger: Logger fixture for the exchange.
+        """
+        exchange = DummyExchange(logger=test_logger)
+        meta = ClientResponseMeta.immediate(
+            venue=exchange.venue,
+            transport=ClientResponseTransport.INTERNAL,
+            operation="exchange.test",
+        )
+
+        response = exchange.make_success(data={"ok": True}, meta=meta)
+
+        assert isinstance(response, ClientResponseSuccess)
+        assert response.data == {"ok": True}
+        assert response.meta == meta
+
+    def test_make_failure_normalizes_blank_error(self, test_logger: Logger) -> None:
+        """Test make_failure normalizes blank error details.
+
+        Args:
+            test_logger: Logger fixture for the exchange.
+        """
+        exchange = DummyExchange(logger=test_logger)
+        meta = exchange.make_meta(
+            operation="exchange.test",
+            started_ns=100,
+        )
+
+        response = exchange.make_failure(meta=meta, err_no=0, err_msg="")
+
+        assert isinstance(response, ClientResponseFailure)
+        assert response.err_no == 1
+        assert response.err_msg == "Unknown error"
+        assert response.meta == meta
+
+    def test_make_failure_preserves_error_details(self, test_logger: Logger) -> None:
+        """Test make_failure preserves provided error details.
+
+        Args:
+            test_logger: Logger fixture for the exchange.
+        """
+        exchange = DummyExchange(logger=test_logger)
+        meta = exchange.make_meta(
+            operation="exchange.test",
+            started_ns=100,
+        )
+
+        response = exchange.make_failure(meta=meta, err_no=7, err_msg="bad")
+
+        assert isinstance(response, ClientResponseFailure)
+        assert response.err_no == 7
+        assert response.err_msg == "bad"
