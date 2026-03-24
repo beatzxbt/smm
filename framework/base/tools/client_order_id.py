@@ -1,6 +1,16 @@
+"""Client order identifier generator utilities.
+
+Usage: generate typed client order identifiers that satisfy venue length and
+character constraints. Components: allowed-character enum and generator class.
+"""
+
+from __future__ import annotations
+
 from enum import IntEnum
 
-from mm_toolbox.time import time_ns
+from mm_toolbox.time import time_monotonic_ns
+
+from framework.base.common import ClientOrderId as ClientOrderIdValue
 
 
 class AllowedOrderIdChars(IntEnum):
@@ -12,7 +22,9 @@ class AllowedOrderIdChars(IntEnum):
 
 
 class ClientOrderId:
-    """Generate an ID as <prefix><time_ns><suffix>, left-truncating time if needed."""
+    """Generate an ID as <prefix><monotonic_ns><suffix>, left-truncating time if needed."""
+
+    _last_time_ns: int = 0
 
     def __call__(
         self,
@@ -20,16 +32,42 @@ class ClientOrderId:
         prefix: int | str = "",
         suffix: int | str = "",
         allowed_chars: AllowedOrderIdChars = AllowedOrderIdChars.ALPHANUMERIC,
-    ) -> str:
+    ) -> ClientOrderIdValue:
+        """Generate a typed client order identifier.
+
+        Args:
+            length (int): Target total identifier length.
+            prefix (int | str): Prefix inserted ahead of the timestamp segment.
+            suffix (int | str): Suffix appended after the timestamp segment.
+            allowed_chars (AllowedOrderIdChars): Character constraints for affixes.
+
+        Returns:
+            ClientOrderIdValue: Generated client order identifier.
+        """
         return self.generate(length, prefix, suffix, allowed_chars)
 
-    @staticmethod
+    @classmethod
     def generate(
+        cls,
         length: int = 36,
         prefix: int | str = "",
         suffix: int | str = "",
         allowed_chars: AllowedOrderIdChars = AllowedOrderIdChars.ALPHANUMERIC,
-    ) -> str:
+    ) -> ClientOrderIdValue:
+        """Generate a typed client order identifier string.
+
+        Args:
+            length (int): Target total identifier length.
+            prefix (int | str): Prefix inserted ahead of the timestamp segment.
+            suffix (int | str): Suffix appended after the timestamp segment.
+            allowed_chars (AllowedOrderIdChars): Character constraints for affixes.
+
+        Returns:
+            ClientOrderIdValue: Generated client order identifier.
+
+        Raises:
+            ValueError: If length or affix constraints are invalid.
+        """
         if length <= 0:
             raise ValueError("Length must be >0")
 
@@ -54,11 +92,15 @@ class ClientOrderId:
             raise ValueError("Prefix + suffix length must be less than total length")
 
         available_time_len = length - len(prefix_str) - len(suffix_str)
-        time_str = str(time_ns())
+        curr_time_ns = time_monotonic_ns()
+        if curr_time_ns <= cls._last_time_ns:
+            curr_time_ns = cls._last_time_ns + 1
+        cls._last_time_ns = curr_time_ns
+        time_str = str(curr_time_ns)
         time_part = (
             time_str[-available_time_len:]
             if len(time_str) > available_time_len
             else time_str
         )
 
-        return f"{prefix_str}{time_part}{suffix_str}"
+        return ClientOrderIdValue(f"{prefix_str}{time_part}{suffix_str}")

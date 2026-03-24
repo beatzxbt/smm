@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import pytest
 
+import framework.base.tools.client_order_id as client_order_id_module
 from framework.base.tools.client_order_id import AllowedOrderIdChars, ClientOrderId
-from mm_toolbox.time import time_ns
+from mm_toolbox.time import time_monotonic_ns
 
 
 class TestAllowedOrderIdChars:
@@ -33,7 +34,7 @@ class TestClientOrderIdGeneration:
 
     def test_generate_basic_default_length(self):
         """Test basic generation with default length."""
-        expected_len = min(36, len(str(time_ns())))
+        expected_len = min(36, len(str(time_monotonic_ns())))
         cloid = ClientOrderId.generate()
 
         assert isinstance(cloid, str)
@@ -42,7 +43,7 @@ class TestClientOrderIdGeneration:
 
     def test_generate_with_custom_length(self):
         """Test generation with custom length."""
-        expected_len = min(20, len(str(time_ns())))
+        expected_len = min(20, len(str(time_monotonic_ns())))
         cloid = ClientOrderId.generate(length=20)
 
         assert len(cloid) == expected_len
@@ -50,7 +51,7 @@ class TestClientOrderIdGeneration:
 
     def test_generate_with_prefix(self):
         """Test generation with prefix."""
-        expected_len = min(36, len("ABC") + len(str(time_ns())))
+        expected_len = min(36, len("ABC") + len(str(time_monotonic_ns())))
         cloid = ClientOrderId.generate(length=36, prefix="ABC")
 
         assert len(cloid) == expected_len
@@ -58,7 +59,7 @@ class TestClientOrderIdGeneration:
 
     def test_generate_with_suffix(self):
         """Test generation with suffix."""
-        expected_len = min(36, len(str(time_ns())) + len("XYZ"))
+        expected_len = min(36, len(str(time_monotonic_ns())) + len("XYZ"))
         cloid = ClientOrderId.generate(length=36, suffix="XYZ")
 
         assert len(cloid) == expected_len
@@ -66,7 +67,7 @@ class TestClientOrderIdGeneration:
 
     def test_generate_with_prefix_and_suffix(self):
         """Test generation with both prefix and suffix."""
-        expected_len = min(36, len("A") + len(str(time_ns())) + len("Z"))
+        expected_len = min(36, len("A") + len(str(time_monotonic_ns())) + len("Z"))
         cloid = ClientOrderId.generate(length=36, prefix="A", suffix="Z")
 
         assert len(cloid) == expected_len
@@ -80,9 +81,23 @@ class TestClientOrderIdGeneration:
 
         assert cloid1 != cloid2
 
+    def test_generate_uniqueness_with_equal_clock_reads(self, monkeypatch):
+        """Test uniqueness is preserved even when monotonic reads repeat."""
+        last_time_ns = ClientOrderId._last_time_ns
+        try:
+            ClientOrderId._last_time_ns = 0
+            monkeypatch.setattr(client_order_id_module, "time_monotonic_ns", lambda: 123)
+            cloid1 = ClientOrderId.generate()
+            cloid2 = ClientOrderId.generate()
+        finally:
+            ClientOrderId._last_time_ns = last_time_ns
+
+        assert cloid1 != cloid2
+        assert int(cloid2) == int(cloid1) + 1
+
     def test_callable_instance(self):
         """Test ClientOrderId instance is callable."""
-        expected_len = min(36, len(str(time_ns())))
+        expected_len = min(36, len(str(time_monotonic_ns())))
         gen = ClientOrderId()
         cloid = gen()
 
@@ -156,17 +171,17 @@ class TestClientOrderIdEdgeCases:
         assert len(cloid) == 3
         assert cloid[0] == "A"
         assert cloid[2] == "Z"
-        assert cloid[1].isdigit()  # Middle character should be from time_ns
+        assert cloid[1].isdigit()  # Middle character should be from monotonic time
 
     def test_time_truncation_for_short_length(self):
-        """Test time_ns is truncated when available space is limited."""
+        """Test monotonic time is truncated when available space is limited."""
         cloid = ClientOrderId.generate(length=10, prefix="ABC", suffix="XYZ")
 
         # Length 10: ABC(3) + time(4) + XYZ(3)
         assert len(cloid) == 10
         assert cloid.startswith("ABC")
         assert cloid.endswith("XYZ")
-        # Middle 4 chars should be the last 4 digits of time_ns
+        # Middle 4 chars should be the last 4 digits of monotonic time
         middle = cloid[3:7]
         assert middle.isdigit()
         assert len(middle) == 4
