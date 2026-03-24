@@ -178,7 +178,6 @@ class InstrumentCollection:
     def venue(self) -> Venue | None:
         return self._venue
 
-    @lru_cache(maxsize=4096)
     def get(self, symbol: Symbol) -> Instrument | None:
         """Fast lookup for an instrument by symbol.
 
