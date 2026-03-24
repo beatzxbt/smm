@@ -157,3 +157,5 @@ CLAUDE.md
 
 test.ipynb
 testing.ipynb
+.vscode/settings.json
+.DS_Store
