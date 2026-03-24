@@ -4,11 +4,10 @@ Tests cover:
 - Venue enum (exchange identifiers)
 - InstrumentType enum (instrument classifications)
 - Instrument struct validation and operations
-- SimpleMap bidirectional mapping
 - InstrumentCollection filtering and grouping
 
 Tests are organized by dependency layer:
-1. Primitives: Venue, InstrumentType, Instrument, SimpleMap
+1. Primitives: Venue, InstrumentType, Instrument
 2. Composites: InstrumentCollection
 """
 
@@ -17,10 +16,11 @@ from __future__ import annotations
 import pytest
 
 from framework.base.common import (
+    ClientOrderId,
     Instrument,
     InstrumentCollection,
     InstrumentType,
-    SimpleMap,
+    OrderId,
     Venue,
 )
 
@@ -30,23 +30,14 @@ class TestVenue:
 
     def test_enum_values_exist(self):
         """Test all expected venue values exist."""
-        assert Venue.NULL == "NULL"
-        assert Venue.BINANCE_USDM == "BinanceUSDM"
-        assert Venue.BINANCE_COINM == "BinanceCOINM"
+        assert Venue.NULL == "Null"
+        assert Venue.BINANCE_USDM == "BinanceUsdM"
+        assert Venue.BINANCE_COINM == "BinanceCoinM"
         assert Venue.BYBIT == "Bybit"
-        assert Venue.OKX == "OKX"
-
-    def test_str_representation(self):
-        """Test venue string representation."""
-        assert str(Venue.BINANCE_USDM) == "BinanceUSDM"
-        assert str(Venue.BYBIT) == "Bybit"
-        assert str(Venue.NULL) == "NULL"
-
-    def test_enum_membership(self):
-        """Test enum membership checks."""
-        assert Venue.BINANCE_USDM in Venue
-        assert Venue.BYBIT in Venue
-        assert "InvalidVenue" not in [v.value for v in Venue]
+        assert Venue.OKX == "Okx"
+        assert Venue.ZERO_ONE == "01"
+        assert Venue.DECIBEL == "Decibel"
+        assert Venue.HOTSTUFF == "Hotstuff"
 
 
 class TestInstrumentType:
@@ -56,20 +47,23 @@ class TestInstrumentType:
         """Test all expected instrument type values exist."""
         assert InstrumentType.NULL == "NULL"
         assert InstrumentType.SPOT == "Spot"
-        assert InstrumentType.FUTURE == "Future"
         assert InstrumentType.PERPETUAL == "Perpetual"
 
-    def test_str_representation(self):
-        """Test instrument type string representation."""
-        assert str(InstrumentType.SPOT) == "Spot"
-        assert str(InstrumentType.PERPETUAL) == "Perpetual"
-        assert str(InstrumentType.NULL) == "NULL"
 
-    def test_enum_membership(self):
-        """Test enum membership checks."""
-        assert InstrumentType.PERPETUAL in InstrumentType
-        assert InstrumentType.SPOT in InstrumentType
-        assert "Invalid" not in [t.value for t in InstrumentType]
+class TestOrderIdentifiers:
+    """Test typed order identifier aliases."""
+
+    def test_order_id_constructor_returns_string_value(self):
+        """Test OrderId preserves the provided string value."""
+        order_id = OrderId("order-123")
+        assert order_id == "order-123"
+        assert isinstance(order_id, str)
+
+    def test_client_order_id_constructor_returns_string_value(self):
+        """Test ClientOrderId preserves the provided string value."""
+        client_order_id = ClientOrderId("client-abc")
+        assert client_order_id == "client-abc"
+        assert isinstance(client_order_id, str)
 
 
 class TestInstrument:
@@ -94,6 +88,8 @@ class TestInstrument:
         assert inst.symbol == "BTCUSDT"
         assert inst.code == 1
         assert inst.instrument_type == InstrumentType.PERPETUAL
+        assert inst.tick_size == 0.01
+        assert inst.lot_size == 0.001
 
     def test_frozen_immutability(self):
         """Test that Instrument is immutable (frozen=True)."""
@@ -134,12 +130,12 @@ class TestInstrument:
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
 
-        assert str(bybit_inst) == "BYBIT:ETH/USDC:FUTURE"
+        assert str(bybit_inst) == "BYBIT:ETH/USDC:PERPETUAL"
 
     def test_different_instrument_types(self):
         """Test creating instruments with different types."""
@@ -173,6 +169,19 @@ class TestInstrumentEdgeCases:
         assert inst.tick_size == 0.0
         assert inst.lot_size == 0.0
 
+    def test_empty_with_overrides(self):
+        """Test creating a blank instrument with selected overrides."""
+        inst = Instrument.empty_with(venue=Venue.BYBIT)
+
+        assert inst.venue == Venue.BYBIT
+        assert inst.base == ""
+        assert inst.quote == ""
+        assert inst.symbol == ""
+        assert inst.code == 0
+        assert inst.instrument_type == InstrumentType.NULL
+        assert inst.tick_size == 0.0
+        assert inst.lot_size == 0.0
+
     def test_null_venue_handling(self):
         """Test instrument with NULL venue."""
         inst = Instrument(
@@ -190,35 +199,175 @@ class TestInstrumentEdgeCases:
         assert str(inst) == "NULL:BTC/USDT:PERPETUAL"
 
     def test_null_instrument_type_handling(self):
-        """Test instrument with NULL instrument type."""
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.NULL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        assert inst.instrument_type == InstrumentType.NULL
-        assert str(inst) == "BINANCEUSDM:BTC/USDT:NULL"
+        """Test invalid generic instrument payload raises ValueError."""
+        with pytest.raises(
+            ValueError, match="symbol must be empty when instrument_type is NULL"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="BTC",
+                quote="USDT",
+                symbol="BTCUSDT",
+                code=1,
+                instrument_type=InstrumentType.NULL,
+                tick_size=0.01,
+                lot_size=0.001,
+            )
 
     def test_empty_symbol_string(self):
-        """Test instrument with empty symbol string."""
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
+        """Test missing symbol for non-NULL instrument raises ValueError."""
+        with pytest.raises(
+            ValueError, match="symbol must be non-empty for non-NULL instruments"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="BTC",
+                quote="USDT",
+                symbol="",
+                code=1,
+                instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.01,
+                lot_size=0.001,
+            )
 
-        assert inst.symbol == ""
+    def test_base_must_be_present_in_symbol(self):
+        """Test non-NULL instruments enforce base presence in symbol."""
+        with pytest.raises(
+            ValueError, match="base must be present in symbol for non-NULL instruments"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="ETH",
+                quote="USDT",
+                symbol="BTCUSDT",
+                code=1,
+                instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.01,
+                lot_size=0.001,
+            )
+
+    def test_quote_must_be_present_in_symbol(self):
+        """Test non-NULL instruments enforce quote presence in symbol."""
+        with pytest.raises(
+            ValueError,
+            match="quote must be present in symbol for non-NULL instruments",
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="BTC",
+                quote="USDC",
+                symbol="BTCUSDT",
+                code=1,
+                instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.01,
+                lot_size=0.001,
+            )
+
+    def test_empty_base_rejected_for_non_null_instrument(self):
+        """Test empty base is rejected for non-NULL instruments."""
+        with pytest.raises(
+            ValueError, match="base must be present in symbol for non-NULL instruments"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="",
+                quote="USDT",
+                symbol="BTCUSDT",
+                code=1,
+                instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.01,
+                lot_size=0.001,
+            )
+
+    def test_empty_quote_rejected_for_non_null_instrument(self):
+        """Test empty quote is rejected for non-NULL instruments."""
+        with pytest.raises(
+            ValueError,
+            match="quote must be present in symbol for non-NULL instruments",
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="BTC",
+                quote="",
+                symbol="BTCUSDT",
+                code=1,
+                instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.01,
+                lot_size=0.001,
+            )
+
+    def test_tick_size_must_be_positive_for_non_null_instrument(self):
+        """Test non-positive tick size raises ValueError."""
+        with pytest.raises(
+            ValueError, match="tick_size must be > 0 for non-NULL instruments"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="BTC",
+                quote="USDT",
+                symbol="BTCUSDT",
+                code=1,
+                instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.0,
+                lot_size=0.001,
+            )
+
+    def test_lot_size_must_be_positive_for_non_null_instrument(self):
+        """Test non-positive lot size raises ValueError."""
+        with pytest.raises(
+            ValueError, match="lot_size must be > 0 for non-NULL instruments"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="BTC",
+                quote="USDT",
+                symbol="BTCUSDT",
+                code=1,
+                instrument_type=InstrumentType.PERPETUAL,
+                tick_size=0.01,
+                lot_size=0.0,
+            )
+
+    def test_null_instrument_type_rejects_non_empty_base(self):
+        """Test generic instrument payload rejects non-empty base."""
+        with pytest.raises(
+            ValueError, match="base must be empty when instrument_type is NULL"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="BTC",
+                quote="",
+                symbol="",
+                code=1,
+                instrument_type=InstrumentType.NULL,
+                tick_size=0.0,
+                lot_size=0.0,
+            )
+
+    def test_null_instrument_type_rejects_non_empty_quote(self):
+        """Test generic instrument payload rejects non-empty quote."""
+        with pytest.raises(
+            ValueError, match="quote must be empty when instrument_type is NULL"
+        ):
+            Instrument(
+                venue=Venue.BINANCE_USDM,
+                base="",
+                quote="USDT",
+                symbol="",
+                code=1,
+                instrument_type=InstrumentType.NULL,
+                tick_size=0.0,
+                lot_size=0.0,
+            )
+
+    def test_empty_with_repeated_call_value_equivalence(self):
+        """Test repeated empty_with calls return equivalent values."""
+        first = Instrument.empty_with(venue=Venue.BYBIT, code=7)
+        second = Instrument.empty_with(venue=Venue.BYBIT, code=7)
+
+        assert first == second
+        assert first.venue == Venue.BYBIT
+        assert first.code == 7
 
     def test_zero_code(self):
         """Test instrument with code=0."""
@@ -236,177 +385,15 @@ class TestInstrumentEdgeCases:
         assert inst.code == 0
 
 
-class TestSimpleMap:
-    """Test SimpleMap bidirectional mapping."""
-
-    def test_initialization_empty(self):
-        """Test creating empty SimpleMap."""
-        smap = SimpleMap({})
-        assert len(smap) == 0
-
-    def test_initialization_with_data(self):
-        """Test creating SimpleMap with initial data."""
-        smap = SimpleMap({"a": 1, "b": 2})
-        assert len(smap) == 2
-
-    def test_forward_access(self):
-        """Test accessing value by key (forward direction)."""
-        smap = SimpleMap({"a": 1, "b": 2})
-        assert smap["a"] == 1
-        assert smap["b"] == 2
-
-    def test_reverse_access(self):
-        """Test accessing key by value (reverse direction)."""
-        smap = SimpleMap({"a": 1, "b": 2})
-        assert smap[1] == "a"
-        assert smap[2] == "b"
-
-    def test_setitem_bidirectional(self):
-        """Test setting item creates bidirectional mapping."""
-        smap: SimpleMap[str, int] = SimpleMap({})
-        smap["x"] = 10
-
-        assert smap["x"] == 10
-        assert smap[10] == "x"
-        assert len(smap) == 1
-
-    def test_contains_forward(self):
-        """Test __contains__ for forward direction."""
-        smap = SimpleMap({"a": 1, "b": 2})
-        assert "a" in smap
-        assert "b" in smap
-        assert "c" not in smap
-
-    def test_contains_reverse(self):
-        """Test __contains__ for reverse direction."""
-        smap = SimpleMap({"a": 1, "b": 2})
-        assert 1 in smap
-        assert 2 in smap
-        assert 3 not in smap
-
-    def test_get_with_existing_key(self):
-        """Test get() method with existing key."""
-        smap = SimpleMap({"a": 1, "b": 2})
-        assert smap.get("a") == 1
-        assert smap.get(1) == "a"
-
-    def test_get_with_missing_key_returns_none(self):
-        """Test get() method with missing key returns None."""
-        smap = SimpleMap({"a": 1})
-        assert smap.get("missing") is None
-        assert smap.get(999) is None
-
-    def test_with_instrument_mapping(self):
-        """Test SimpleMap with Instrument objects (real-world usage)."""
-        inst1 = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-        inst2 = Instrument(
-            venue=Venue.BYBIT,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
-            code=2,
-            instrument_type=InstrumentType.FUTURE,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        imap: SimpleMap[str, Instrument] = SimpleMap({})
-        imap[inst1.symbol] = inst1
-        imap[inst2.symbol] = inst2
-
-        assert len(imap) == 2
-        assert imap["BTCUSDT"] == inst1
-        assert imap["ETHUSDC"] == inst2
-        assert imap.get("BTCUSDT") == inst1
-
-
-class TestSimpleMapEdgeCases:
-    """Test SimpleMap edge cases."""
-
-    def test_keyerror_on_missing_key_getitem(self):
-        """Test __getitem__ raises KeyError for missing key."""
-        smap = SimpleMap({"a": 1})
-
-        with pytest.raises(KeyError, match="Key.*not found"):
-            _ = smap["missing"]
-
-    def test_keyerror_on_missing_key_delitem(self):
-        """Test __delitem__ raises KeyError for missing key."""
-        smap = SimpleMap({"a": 1})
-
-        with pytest.raises(KeyError, match="Key.*not found"):
-            del smap["missing"]
-
-    def test_delitem_removes_reverse_mapping(self):
-        """Test deleting by key removes reverse mapping."""
-        smap = SimpleMap({"a": 1})
-        del smap["a"]
-
-        assert 1 not in smap
-        assert "a" not in smap
-        assert len(smap) == 0
-
-    def test_delitem_by_value_removes_forward_mapping(self):
-        """Test deleting by value removes forward mapping."""
-        smap: SimpleMap[str, int] = SimpleMap({"a": 1, "b": 2})
-        del smap[1]
-
-        assert "a" not in smap
-        assert 1 not in smap
-        assert "b" in smap
-        assert 2 in smap
-        assert len(smap) == 1
-
-    def test_with_different_types_str_int(self):
-        """Test SimpleMap with str -> int mapping."""
-        smap: SimpleMap[str, int] = SimpleMap({"x": 100, "y": 200})
-        assert smap["x"] == 100
-        assert smap[100] == "x"
-
-    def test_with_different_types_int_str(self):
-        """Test SimpleMap with int -> str mapping."""
-        smap: SimpleMap[int, str] = SimpleMap({1: "one", 2: "two"})
-        assert smap[1] == "one"
-        assert smap["one"] == 1
-
-    def test_setitem_updates_reverse_mapping(self):
-        """Test updating key removes old reverse mapping."""
-        smap: SimpleMap[str, int] = SimpleMap({"a": 1})
-        smap["a"] = 2
-
-        assert 1 not in smap
-        assert smap[2] == "a"
-        assert len(smap) == 1
-
-    def test_setitem_overwrites_existing_value(self):
-        """Test setting a value already used removes old key mapping."""
-        smap: SimpleMap[str, int] = SimpleMap({"a": 1, "b": 2})
-        smap["c"] = 2
-
-        assert "b" not in smap
-        assert smap[2] == "c"
-        assert smap["c"] == 2
-        assert len(smap) == 2
-
-
 class TestInstrumentCollection:
     """Test InstrumentCollection operations."""
 
     def test_initialization_empty(self):
         """Test creating empty collection."""
-        collection = InstrumentCollection()
+        collection = InstrumentCollection([])
         assert len(collection) == 0
         assert collection.instruments == []
-        assert collection.venues == set()
+        assert collection.venue is None
 
     def test_initialization_with_instruments(self):
         """Test creating collection with instruments."""
@@ -421,12 +408,12 @@ class TestInstrumentCollection:
             lot_size=0.001,
         )
         inst2 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="ETH",
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
@@ -437,68 +424,8 @@ class TestInstrumentCollection:
         assert inst1 in collection
         assert inst2 in collection
 
-    def test_is_empty(self):
-        """Test is_empty reflects collection state."""
-        collection = InstrumentCollection()
-        assert collection.is_empty()
-
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection.add(inst)
-        assert not collection.is_empty()
-
-        collection.remove(inst)
-        assert collection.is_empty()
-
-    def test_add_normal(self):
-        """Test adding instrument to collection."""
-        collection = InstrumentCollection()
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection.add(inst)
-
-        assert len(collection) == 1
-        assert inst in collection
-
-    def test_add_duplicate_does_nothing(self):
-        """Test adding duplicate instrument doesn't increase size."""
-        collection = InstrumentCollection()
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection.add(inst)
-        collection.add(inst)
-
-        assert len(collection) == 1
-
-    def test_get_by_venue_and_symbol(self):
-        """Test fast lookup by venue and symbol."""
+    def test_initialization_single_instrument(self):
+        """Test creating collection with a single instrument."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
             base="BTC",
@@ -511,19 +438,106 @@ class TestInstrumentCollection:
         )
 
         collection = InstrumentCollection([inst])
-        result = collection.get(Venue.BINANCE_USDM, "BTCUSDT")
+
+        assert len(collection) == 1
+        assert inst in collection
+
+    def test_initialization_deduplicates(self):
+        """Test duplicate instruments are deduplicated at initialization."""
+        inst = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+
+        collection = InstrumentCollection([inst, inst])
+
+        assert len(collection) == 1
+
+    def test_initialization_duplicate_symbol_conflict_raises(self):
+        """Test same symbol with different payload is rejected."""
+        inst1 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+        inst2 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=2,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+
+        with pytest.raises(ValueError, match="duplicate symbol"):
+            InstrumentCollection([inst1, inst2])
+
+    def test_get_by_symbol(self):
+        """Test fast lookup by symbol for single-venue collections."""
+        inst = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+
+        collection = InstrumentCollection([inst])
+        result = collection.get("BTCUSDT")
 
         assert result == inst
 
     def test_get_missing_returns_none(self):
         """Test get() returns None for missing instrument."""
-        collection = InstrumentCollection()
-        result = collection.get(Venue.BINANCE_USDM, "BTCUSDT")
+        collection = InstrumentCollection([])
+        result = collection.get("BTCUSDT")
 
         assert result is None
 
-    def test_get_by_venue(self):
-        """Test getting all instruments for a venue."""
+    def test_initialization_multi_venue_raises(self):
+        """Test collection creation fails when venues are mixed."""
+        inst1 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+        inst2 = Instrument(
+            venue=Venue.BYBIT,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=2,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+
+        with pytest.raises(ValueError, match="single venue only"):
+            InstrumentCollection([inst1, inst2])
+
+    def test_venue_property(self):
+        """Test venue property for non-empty collections."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
             base="BTC",
@@ -545,119 +559,25 @@ class TestInstrumentCollection:
             lot_size=0.001,
         )
         inst3 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="SOL",
             quote="USDC",
             symbol="SOLUSDC",
             code=3,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
-        binance_instruments = collection.get_by_venue(Venue.BINANCE_USDM)
-
-        assert len(binance_instruments) == 2
-        assert inst1 in binance_instruments
-        assert inst2 in binance_instruments
-        assert inst3 not in binance_instruments
-
-    def test_remove_existing(self):
-        """Test removing instrument from collection."""
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection = InstrumentCollection([inst])
-        collection.remove(inst)
-
-        assert len(collection) == 0
-        assert inst not in collection
-
-    def test_remove_nonexistent_does_nothing(self):
-        """Test removing non-existent instrument does nothing."""
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection = InstrumentCollection()
-        collection.remove(inst)  # Should not raise
-
-        assert len(collection) == 0
-
-    def test_merge(self):
-        """Test merging two collections."""
-        inst1 = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-        inst2 = Instrument(
-            venue=Venue.BYBIT,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
-            code=2,
-            instrument_type=InstrumentType.FUTURE,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection1 = InstrumentCollection([inst1])
-        collection2 = InstrumentCollection([inst2])
-
-        collection1.merge(collection2)
-
-        assert len(collection1) == 2
-        assert inst1 in collection1
-        assert inst2 in collection1
-
-    def test_merge_with_duplicates(self):
-        """Test merging collections with duplicate instruments."""
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
-            instrument_type=InstrumentType.PERPETUAL,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection1 = InstrumentCollection([inst])
-        collection2 = InstrumentCollection([inst])
-
-        collection1.merge(collection2)
-
-        assert len(collection1) == 1  # Duplicate not added
+        assert collection.venue == Venue.BINANCE_USDM
 
 
 class TestInstrumentCollectionFiltering:
     """Test InstrumentCollection filtering comprehensively."""
 
-    def test_filter_by_venues(self):
-        """Test filtering by venue list."""
+    def test_filter_with_type_criteria(self):
+        """Test filtering by instrument type criteria."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
             base="BTC",
@@ -669,17 +589,17 @@ class TestInstrumentCollectionFiltering:
             lot_size=0.001,
         )
         inst2 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="ETH",
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
         inst3 = Instrument(
-            venue=Venue.OKX,
+            venue=Venue.BINANCE_USDM,
             base="SOL",
             quote="USDT",
             symbol="SOLUSDT",
@@ -690,12 +610,18 @@ class TestInstrumentCollectionFiltering:
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
-        result = collection.filter(venues=[Venue.BINANCE_USDM, Venue.BYBIT])
+        result = collection.filter(
+            instrument_types=[
+                InstrumentType.PERPETUAL,
+                InstrumentType.PERPETUAL,
+                InstrumentType.SPOT,
+            ]
+        )
 
-        assert len(result) == 2
+        assert len(result) == 3
         assert inst1 in result
         assert inst2 in result
-        assert inst3 not in result
+        assert inst3 in result
 
     def test_filter_by_bases(self):
         """Test filtering by base asset list."""
@@ -751,12 +677,12 @@ class TestInstrumentCollectionFiltering:
             lot_size=0.001,
         )
         inst2 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="ETH",
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
@@ -792,12 +718,12 @@ class TestInstrumentCollectionFiltering:
             lot_size=0.001,
         )
         inst2 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="ETH",
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
@@ -814,7 +740,7 @@ class TestInstrumentCollectionFiltering:
 
         collection = InstrumentCollection([inst1, inst2, inst3])
         result = collection.filter(
-            instrument_types=[InstrumentType.PERPETUAL, InstrumentType.FUTURE]
+            instrument_types=[InstrumentType.PERPETUAL, InstrumentType.PERPETUAL]
         )
 
         assert len(result) == 2
@@ -927,10 +853,10 @@ class TestInstrumentCollectionFiltering:
             lot_size=0.001,
         )
         inst3 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            quote="USDC",
+            symbol="BTCUSDC",
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -949,9 +875,8 @@ class TestInstrumentCollectionFiltering:
 
         collection = InstrumentCollection([inst1, inst2, inst3, inst4])
 
-        # Filter: Binance USDM, quote=USDT, type=PERPETUAL, base not SOL
+        # Filter: quote=USDT, type=PERPETUAL, base not SOL
         result = collection.filter(
-            venues=[Venue.BINANCE_USDM],
             quotes=["USDT"],
             instrument_types=[InstrumentType.PERPETUAL],
             base_blacklist=["SOL"],
@@ -960,7 +885,7 @@ class TestInstrumentCollectionFiltering:
         assert len(result) == 2
         assert inst1 in result
         assert inst2 in result
-        assert inst3 not in result  # Wrong venue
+        assert inst3 not in result  # Wrong quote
         assert inst4 not in result  # Wrong type
 
     def test_filter_no_criteria_returns_all(self):
@@ -976,18 +901,77 @@ class TestInstrumentCollectionFiltering:
             lot_size=0.001,
         )
         inst2 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="ETH",
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
 
         collection = InstrumentCollection([inst1, inst2])
         result = collection.filter()
+
+        assert len(result) == 2
+        assert inst1 in result
+        assert inst2 in result
+
+    def test_filter_blacklist_takes_precedence_over_whitelist(self):
+        """Test blacklist exclusion wins when also explicitly whitelisted."""
+        inst1 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+        inst2 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="ETH",
+            quote="USDT",
+            symbol="ETHUSDT",
+            code=2,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+
+        collection = InstrumentCollection([inst1, inst2])
+        result = collection.filter(bases=["BTC", "ETH"], base_blacklist=["BTC"])
+
+        assert inst1 not in result
+        assert inst2 in result
+
+    def test_filter_with_empty_iterables_behaves_like_no_filter(self):
+        """Test empty filter iterables do not exclude instruments."""
+        inst1 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+        inst2 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="ETH",
+            quote="USDC",
+            symbol="ETHUSDC",
+            code=2,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+
+        collection = InstrumentCollection([inst1, inst2])
+        result = collection.filter(bases=[], quotes=[], instrument_types=[])
 
         assert len(result) == 2
         assert inst1 in result
@@ -1010,12 +994,12 @@ class TestInstrumentCollectionEdgeCases:
             lot_size=0.001,
         )
         inst2 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="ETH",
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
@@ -1029,7 +1013,7 @@ class TestInstrumentCollectionEdgeCases:
 
     def test_len(self):
         """Test __len__ method."""
-        collection = InstrumentCollection()
+        collection = InstrumentCollection([])
         assert len(collection) == 0
 
         inst = Instrument(
@@ -1043,8 +1027,8 @@ class TestInstrumentCollectionEdgeCases:
             lot_size=0.001,
         )
 
-        collection.add(inst)
-        assert len(collection) == 1
+        collection_with_one = InstrumentCollection([inst])
+        assert len(collection_with_one) == 1
 
     def test_contains(self):
         """Test __contains__ method."""
@@ -1064,7 +1048,7 @@ class TestInstrumentCollectionEdgeCases:
             quote="USDC",
             symbol="ETHUSDC",
             code=2,
-            instrument_type=InstrumentType.FUTURE,
+            instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
@@ -1094,8 +1078,39 @@ class TestInstrumentCollectionEdgeCases:
         assert len(instruments) == 1
         assert inst1 in instruments
 
-    def test_venues_property(self):
-        """Test venues property returns set."""
+    def test_instruments_property_returns_copy(self):
+        """Test mutating returned list does not affect collection state."""
+        inst1 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="BTC",
+            quote="USDT",
+            symbol="BTCUSDT",
+            code=1,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+        inst2 = Instrument(
+            venue=Venue.BINANCE_USDM,
+            base="ETH",
+            quote="USDC",
+            symbol="ETHUSDC",
+            code=2,
+            instrument_type=InstrumentType.PERPETUAL,
+            tick_size=0.01,
+            lot_size=0.001,
+        )
+
+        collection = InstrumentCollection([inst1, inst2])
+        instruments = collection.instruments
+        instruments.clear()
+
+        assert len(instruments) == 0
+        assert len(collection) == 2
+        assert collection.instruments == [inst1, inst2]
+
+    def test_venue_property_edge_case(self):
+        """Test venue property returns the single collection venue."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
             base="BTC",
@@ -1117,41 +1132,18 @@ class TestInstrumentCollectionEdgeCases:
             lot_size=0.001,
         )
         inst3 = Instrument(
-            venue=Venue.BYBIT,
+            venue=Venue.BINANCE_USDM,
             base="SOL",
             quote="USDC",
             symbol="SOLUSDC",
             code=3,
-            instrument_type=InstrumentType.FUTURE,
-            tick_size=0.01,
-            lot_size=0.001,
-        )
-
-        collection = InstrumentCollection([inst1, inst2, inst3])
-        venues = collection.venues
-
-        assert isinstance(venues, set)
-        assert len(venues) == 2
-        assert Venue.BINANCE_USDM in venues
-        assert Venue.BYBIT in venues
-
-    def test_get_by_venue_empty_venue(self):
-        """Test get_by_venue for venue with no instruments."""
-        inst = Instrument(
-            venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
-            code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
             lot_size=0.001,
         )
 
-        collection = InstrumentCollection([inst])
-        result = collection.get_by_venue(Venue.BYBIT)
-
-        assert result == []
+        collection = InstrumentCollection([inst1, inst2, inst3])
+        assert collection.venue == Venue.BINANCE_USDM
 
     def test_filter_returns_empty_when_no_match(self):
         """Test filter returns empty list when no instruments match."""
@@ -1167,6 +1159,6 @@ class TestInstrumentCollectionEdgeCases:
         )
 
         collection = InstrumentCollection([inst])
-        result = collection.filter(venues=[Venue.BYBIT])
+        result = collection.filter(bases=["ETH"])
 
         assert result == []

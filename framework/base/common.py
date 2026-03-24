@@ -1,32 +1,29 @@
 """Core common types and utilities.
 
-Defines exchange primitives (Venue, InstrumentType, Instrument), the
-InstrumentCollection container, and the SimpleMap bi-directional mapping.
+Defines exchange primitives (Venue, InstrumentType, Instrument) and the
+InstrumentCollection container.
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
 from enum import StrEnum
-from typing import Self, Iterable, Iterator, TypeVar, Generic, cast
+from functools import lru_cache
+from typing import Iterable, Iterator, NewType, Self
 
 from msgspec import Struct
-
-
-Symbol = str  # Type alias for venue-specific symbol strings
-
-K = TypeVar("K")
-V = TypeVar("V")
 
 
 class Venue(StrEnum):
     """Represents a venue (exchange)."""
 
-    NULL = "NULL"  # Used when value is not required/known
-    BINANCE_USDM = "BinanceUSDM"
-    BINANCE_COINM = "BinanceCOINM"
+    NULL = "Null"  # Used when value is not required/known
+    BINANCE_USDM = "BinanceUsdM"
+    BINANCE_COINM = "BinanceCoinM"
     BYBIT = "Bybit"
-    OKX = "OKX"
+    OKX = "Okx"
+    ZERO_ONE = "01"
+    DECIBEL = "Decibel"
+    HOTSTUFF = "Hotstuff"
 
 
 class InstrumentType(StrEnum):
@@ -34,92 +31,167 @@ class InstrumentType(StrEnum):
 
     NULL = "NULL"  # Used when value is not required/known
     SPOT = "Spot"
-    FUTURE = "Future"
     PERPETUAL = "Perpetual"
+
+
+Asset = str
+Symbol = str
+OrderId = NewType("OrderId", str)
+ClientOrderId = NewType("ClientOrderId", str)
 
 
 class Instrument(Struct, frozen=True):
     """Represents an instrument on an exchange."""
 
     venue: Venue
-    base: str
-    quote: str
-    symbol: str  # Exchange specific (eg "BTCUSDT", "BTC-USDT", "BTC/USDT")
-    code: int  # Some exchanges use market ids alongside a symbol
+    base: Asset
+    quote: Asset
+    symbol: Symbol  # Exchange specific (eg "BTCUSDT", "BTC-USDT", "BTC/USDT")
+    code: int | str  # Some exchanges use market ids alongside/replacing a symbol
     instrument_type: InstrumentType
     tick_size: float  # Minimum price increment
     lot_size: float  # Minimum size increment
 
+    def __post_init__(self) -> None:
+        # Individual instrument case.
+        if self.venue != Venue.NULL and self.instrument_type != InstrumentType.NULL:
+            if not self.symbol:
+                raise ValueError("symbol must be non-empty for non-NULL instruments")
+            if not self.base or self.base not in self.symbol:
+                raise ValueError(
+                    "base must be present in symbol for non-NULL instruments"
+                )
+            if not self.quote or self.quote not in self.symbol:
+                raise ValueError(
+                    "quote must be present in symbol for non-NULL instruments"
+                )
+
+            if self.tick_size <= 0.0:
+                raise ValueError("tick_size must be > 0 for non-NULL instruments")
+            if self.lot_size <= 0.0:
+                raise ValueError("lot_size must be > 0 for non-NULL instruments")
+
+        # Generic Instrument case (filler to provide Venue details)
+        elif self.venue != Venue.NULL and self.instrument_type == InstrumentType.NULL:
+            if self.symbol:
+                raise ValueError("symbol must be empty when instrument_type is NULL")
+            if self.base:
+                raise ValueError("base must be empty when instrument_type is NULL")
+            if self.quote:
+                raise ValueError("quote must be empty when instrument_type is NULL")
+
+        # Totally empty case, all fields must match defaults
+        else:
+            # Fill in.
+            ...
+
+    @classmethod
+    @lru_cache(maxsize=2048)
+    def empty_with(
+        cls,
+        venue: Venue = Venue.NULL,
+        base: str = "",
+        quote: str = "",
+        symbol: str = "",
+        code: int = 0,
+        instrument_type: InstrumentType = InstrumentType.NULL,
+        tick_size: float = 0.0,
+        lot_size: float = 0.0,
+    ) -> Self:
+        """Return an instrument with empty defaults and optional overrides.
+
+        Args:
+            venue: Venue override.
+            base: Base asset override.
+            quote: Quote asset override.
+            symbol: Symbol override.
+            code: Exchange-specific code override.
+            instrument_type: Instrument type override.
+            tick_size: Minimum price increment override.
+            lot_size: Minimum size increment override.
+
+        Returns:
+            Self: Instrument with provided values and empty defaults.
+        """
+        return cls(
+            venue=venue,
+            base=base,
+            quote=quote,
+            symbol=symbol,
+            code=code,
+            instrument_type=instrument_type,
+            tick_size=tick_size,
+            lot_size=lot_size,
+        )
+
     @classmethod
     def empty(cls) -> Self:
         """Returns an empty instrument, when value is not required/known."""
-        return cls(
-            venue=Venue.NULL,
-            base="",
-            quote="",
-            symbol="",
-            code=0,
-            instrument_type=InstrumentType.NULL,
-            tick_size=0.0,
-            lot_size=0.0,
-        )
+        return cls.empty_with()
 
     def __str__(self):
         return f"{self.venue.value}:{self.base}/{self.quote}:{self.instrument_type.value}".upper()
 
 
 class InstrumentCollection:
-    """Collection of instruments with filtering and grouping capabilities."""
+    """Immutable, single-venue collection of instruments."""
 
-    def __init__(self, instruments: Iterable[Instrument] | None = None):
-        self._instruments: set[Instrument] = set(instruments) if instruments else set()
+    def __init__(self, instruments: Iterable[Instrument]):
+        unique_instruments: list[Instrument] = []
+        instrument_set: set[Instrument] = set()
+        for instrument in instruments:
+            if instrument in instrument_set:
+                continue
+            instrument_set.add(instrument)
+            unique_instruments.append(instrument)
 
-        # Map (venue, symbol) -> Instrument (Unique)
-        self._venue_symbol_map: dict[tuple[Venue, str], Instrument] = {
-            (i.venue, i.symbol): i for i in self._instruments
-        }
+        venue: Venue | None = None
+        symbol_map: dict[Symbol, Instrument] = {}
+        for instrument in unique_instruments:
+            if venue is None:
+                venue = instrument.venue
+            elif instrument.venue != venue:
+                raise ValueError(
+                    "InstrumentCollection supports a single venue only; "
+                    f"found '{venue}' and '{instrument.venue}'"
+                )
+            if (
+                instrument.symbol in symbol_map
+                and symbol_map[instrument.symbol] != instrument
+            ):
+                raise ValueError(
+                    "InstrumentCollection requires unique symbols within a venue; "
+                    f"duplicate symbol '{instrument.symbol}'"
+                )
+            symbol_map[instrument.symbol] = instrument
 
-        self._by_venue: dict[Venue, list[Instrument]] = defaultdict(list)
-        for i in self._instruments:
-            self._by_venue[i.venue].append(i)
+        self._venue = venue
+        self._instruments = tuple(unique_instruments)
+        self._instrument_set: frozenset[Instrument] = frozenset(unique_instruments)
+        self._symbol_map = symbol_map
 
     @property
     def instruments(self) -> list[Instrument]:
         return list(self._instruments)
 
     @property
-    def venues(self) -> set[Venue]:
-        return set(self._by_venue.keys())
+    def venue(self) -> Venue | None:
+        return self._venue
 
-    def add(self, instrument: Instrument) -> None:
-        if instrument in self._instruments:
-            return
-        self._instruments.add(instrument)
-        self._venue_symbol_map[(instrument.venue, instrument.symbol)] = instrument
-        self._by_venue[instrument.venue].append(instrument)
+    @lru_cache(maxsize=4096)
+    def get(self, symbol: Symbol) -> Instrument | None:
+        """Fast lookup for an instrument by symbol.
 
-    def get(self, venue: Venue, symbol: str) -> Instrument | None:
-        """Fast lookup for an instrument by venue and symbol."""
-        return self._venue_symbol_map.get((venue, symbol), None)
+        Args:
+            symbol: Venue-specific symbol to resolve.
 
-    def get_by_venue(self, venue: Venue) -> list[Instrument]:
-        return self._by_venue[venue]
-
-    def remove(self, instrument: Instrument) -> None:
-        if instrument not in self._instruments:
-            return
-        self._instruments.remove(instrument)
-        self._venue_symbol_map.pop((instrument.venue, instrument.symbol))
-        self._by_venue[instrument.venue].remove(instrument)
-
-    def merge(self, other: "InstrumentCollection") -> None:
-        """Merges another InstrumentCollection into this one."""
-        for instrument in other.instruments:
-            self.add(instrument)
+        Returns:
+            Instrument | None: Matching instrument, or None if not found.
+        """
+        return self._symbol_map.get(symbol, None)
 
     def filter(
         self,
-        venues: Iterable[Venue] | None = None,
         bases: Iterable[str] | None = None,
         quotes: Iterable[str] | None = None,
         instrument_types: Iterable[InstrumentType] | None = None,
@@ -127,7 +199,6 @@ class InstrumentCollection:
         quote_blacklist: Iterable[str] | None = None,
     ) -> list[Instrument]:
         """Filters instruments based on provided criteria."""
-        venue_set = set(venues) if venues else None
         base_set = set(bases) if bases else None
         quote_set = set(quotes) if quotes else None
         type_set = set(instrument_types) if instrument_types else None
@@ -136,8 +207,6 @@ class InstrumentCollection:
 
         result: list[Instrument] = []
         for i in self._instruments:
-            if venue_set and i.venue not in venue_set:
-                continue
             if base_set and i.base not in base_set:
                 continue
             if quote_set and i.quote not in quote_set:
@@ -151,14 +220,6 @@ class InstrumentCollection:
             result.append(i)
         return result
 
-    def is_empty(self) -> bool:
-        """Return whether the collection is empty.
-
-        Returns:
-            bool: True if the collection has no instruments, otherwise False.
-        """
-        return not self._instruments
-
     def __iter__(self) -> Iterator[Instrument]:
         return iter(self._instruments)
 
@@ -166,95 +227,16 @@ class InstrumentCollection:
         return len(self._instruments)
 
     def __contains__(self, instrument: Instrument) -> bool:
-        return instrument in self._instruments
+        return instrument in self._instrument_set
 
 
-class SimpleMap(Generic[K, V]):
-    """Simple K<->V bi-directional mapping implementation.
-
-    Makes it simpler to use a map with both keys and values.
-
-    Supports (map=SimpleMap()):
-        map[key] or map[value] -> value or key
-        map[key] = value -> map[value] = key
-        map[value] = key -> map[key] = value
-        key in map or value in map -> bool
-        del map[key] or del map[value] -> None
-
-    Args:
-        items: A dictionary of items to initialize the map with.
-
-    Returns:
-        A SimpleMap instance.
-    """
-
-    def __init__(self, items: dict[K, V]) -> None:
-        self._k_to_v_map: dict[K, V] = items
-        self._v_to_k_map: dict[V, K] = {v: k for k, v in items.items()}
-
-    def get(self, key: K | V) -> V | K | None:
-        """Get value by key or value, returning None if not found."""
-        if key in self._k_to_v_map:
-            return self._k_to_v_map[cast(K, key)]
-        elif key in self._v_to_k_map:
-            return self._v_to_k_map[cast(V, key)]
-        return None
-
-    def __getitem__(self, key: K | V) -> V | K:
-        if key in self._k_to_v_map:
-            return self._k_to_v_map[cast(K, key)]
-        elif key in self._v_to_k_map:
-            return self._v_to_k_map[cast(V, key)]
-        else:
-            raise KeyError(f"Key {key} not found in map")
-
-    def __setitem__(self, key: K, value: V) -> None:
-        """Set a key/value pair while keeping both maps consistent.
-
-        Args:
-            key (K): Key to associate with the value.
-            value (V): Value to associate with the key.
-        """
-        if key in self._k_to_v_map:
-            old_value = self._k_to_v_map[key]
-            if self._v_to_k_map.get(old_value) == key:
-                del self._v_to_k_map[old_value]
-
-        if value in self._v_to_k_map:
-            old_key = self._v_to_k_map[value]
-            if self._k_to_v_map.get(old_key) == value:
-                del self._k_to_v_map[old_key]
-
-        self._k_to_v_map[key] = value
-        self._v_to_k_map[value] = key
-
-    def __contains__(self, key: K | V) -> bool:
-        return key in self._k_to_v_map or key in self._v_to_k_map
-
-    def __delitem__(self, key: K | V) -> None:
-        """Delete a key or value and its corresponding pair.
-
-        Args:
-            key (K | V): Key or value to remove from the mapping.
-
-        Raises:
-            KeyError: If the key/value does not exist in the map.
-        """
-        if key in self._k_to_v_map:
-            cast_key = cast(K, key)
-            value = self._k_to_v_map[cast_key]
-            del self._k_to_v_map[cast_key]
-            if self._v_to_k_map.get(value) == key:
-                del self._v_to_k_map[value]
-            return
-        if key in self._v_to_k_map:
-            cast_key = cast(V, key)
-            paired_key = self._v_to_k_map[cast_key]
-            del self._v_to_k_map[cast_key]
-            if self._k_to_v_map.get(paired_key) == key:
-                del self._k_to_v_map[paired_key]
-            return
-        raise KeyError(f"Key {key} not found in map")
-
-    def __len__(self) -> int:
-        return len(self._k_to_v_map)
+__all__ = [
+    "Venue",
+    "InstrumentType",
+    "Asset",
+    "Symbol",
+    "OrderId",
+    "ClientOrderId",
+    "Instrument",
+    "InstrumentCollection",
+]
