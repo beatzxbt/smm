@@ -808,16 +808,16 @@ class TestCancelAllOrdersResponse:
         )
         resp = CancelAllOrdersResponse(
             **{**envelope_kwargs, "origin_id": action.origin_id},
-            order_ids=[OrderId("order1"), OrderId("order2")],
-            client_order_ids=[
+            order_ids=(OrderId("order1"), OrderId("order2")),
+            client_order_ids=(
                 ClientOrderId("client1"),
                 ClientOrderId("client2"),
-            ],
+            ),
         )
 
         assert resp.origin_id == action.origin_id
-        assert resp.order_ids == ["order1", "order2"]
-        assert resp.client_order_ids == ["client1", "client2"]
+        assert resp.order_ids == ("order1", "order2")
+        assert resp.client_order_ids == ("client1", "client2")
 
 
 class TestTradesResponse:
@@ -825,10 +825,10 @@ class TestTradesResponse:
 
     def test_creation_with_trades(self, envelope_kwargs):
         """Test creating TradesResponse."""
-        trades = [
+        trades = (
             Trade(time_ms=100, price=100.0, is_buy=True, size=1.0),
             Trade(time_ms=200, price=101.0, is_buy=False, size=2.0),
-        ]
+        )
         resp = TradesResponse(
             **envelope_kwargs,
             trades=trades,
@@ -836,25 +836,23 @@ class TestTradesResponse:
 
         assert len(resp.trades) == 2
 
-    def test_post_init_sorting_by_time(self, envelope_kwargs):
-        """Test __post_init__ sorts trades by time_ms."""
+    def test_post_init_rejects_unsorted_trades(self, envelope_kwargs):
+        """Test __post_init__ rejects trades out of time order."""
         t1 = Trade(time_ms=200, price=100.0, is_buy=True, size=1.0)
         t2 = Trade(time_ms=100, price=101.0, is_buy=False, size=2.0)
 
-        resp = TradesResponse(
-            **envelope_kwargs,
-            trades=[t1, t2],
-        )
-
-        assert resp.trades[0].time_ms == 100
-        assert resp.trades[1].time_ms == 200
+        with pytest.raises(ValueError, match="Invalid trades"):
+            TradesResponse(
+                **envelope_kwargs,
+                trades=(t1, t2),
+            )
 
     def test_zero_size_trade_raises(self, envelope_kwargs):
         """Test zero-size trades are rejected."""
         with pytest.raises(ValueError, match="Invalid size"):
             TradesResponse(
                 **envelope_kwargs,
-                trades=[Trade(time_ms=100, price=100.0, is_buy=True, size=0.0)],
+                trades=(Trade(time_ms=100, price=100.0, is_buy=True, size=0.0),),
             )
 
 
@@ -863,14 +861,14 @@ class TestOrderbookResponse:
 
     def test_creation_with_bids_and_asks(self, envelope_kwargs):
         """Test creating OrderbookResponse."""
-        bids = [
+        bids = (
             OrderbookLevel(price=99.0, size=1.0),
             OrderbookLevel(price=98.0, size=2.0),
-        ]
-        asks = [
+        )
+        asks = (
             OrderbookLevel(price=101.0, size=1.5),
             OrderbookLevel(price=102.0, size=2.5),
-        ]
+        )
 
         resp = OrderbookResponse(
             **envelope_kwargs,
@@ -883,24 +881,20 @@ class TestOrderbookResponse:
         assert len(resp.asks) == 2
         assert resp.is_bbo is True
 
-    def test_post_init_sorting(self, envelope_kwargs):
-        """Test __post_init__ sorts bids and asks by price."""
+    def test_post_init_rejects_unsorted_levels(self, envelope_kwargs):
+        """Test __post_init__ rejects orderbook levels out of price order."""
         b1 = OrderbookLevel(price=100.0, size=1.0)
         b2 = OrderbookLevel(price=99.0, size=2.0)
         a1 = OrderbookLevel(price=102.0, size=1.0)
         a2 = OrderbookLevel(price=101.0, size=2.0)
 
-        resp = OrderbookResponse(
-            **envelope_kwargs,
-            bids=[b1, b2],
-            asks=[a1, a2],
-            is_bbo=False,
-        )
-
-        assert resp.bids[0].price == 99.0
-        assert resp.bids[1].price == 100.0
-        assert resp.asks[0].price == 101.0
-        assert resp.asks[1].price == 102.0
+        with pytest.raises(ValueError, match="Invalid bids"):
+            OrderbookResponse(
+                **envelope_kwargs,
+                bids=(b1, b2),
+                asks=(a1, a2),
+                is_bbo=False,
+            )
 
 
 class TestOrderbookResponseValidation:
@@ -911,8 +905,8 @@ class TestOrderbookResponseValidation:
         with pytest.raises(ValueError, match="Invalid OrderbookResponse"):
             OrderbookResponse(
                 **envelope_kwargs,
-                bids=[],
-                asks=[],
+                bids=(),
+                asks=(),
                 is_bbo=False,
             )
 
@@ -1026,7 +1020,7 @@ class TestOrdersResponse:
 
     def test_creation_with_orders(self, envelope_kwargs):
         """Test creating OrdersResponse."""
-        orders = [
+        orders = (
             Order(
                 create_time_ms=123.0,
                 order_id=OrderId("order1"),
@@ -1049,7 +1043,7 @@ class TestOrdersResponse:
                 is_cancelled=False,
                 is_reduce_only=True,
             ),
-        ]
+        )
 
         resp = OrdersResponse(
             **envelope_kwargs,
@@ -1105,7 +1099,7 @@ class TestExecutionResponse:
 
     def test_creation_with_executions(self, envelope_kwargs):
         """Test creating ExecutionResponse."""
-        executions = [
+        executions = (
             Execution(
                 exec_time_ms=123.0,
                 order_id=OrderId("order1"),
@@ -1124,7 +1118,7 @@ class TestExecutionResponse:
                 is_maker=True,
                 fee_paid=0.02,
             ),
-        ]
+        )
 
         resp = ExecutionResponse(
             **envelope_kwargs,
@@ -1207,7 +1201,7 @@ class TestTypeUnions:
         """Test AnyClientResponse types."""
         trades_resp = TradesResponse(
             **envelope_kwargs,
-            trades=[Trade(time_ms=100, price=100.0, is_buy=True, size=1.0)],
+            trades=(Trade(time_ms=100, price=100.0, is_buy=True, size=1.0),),
         )
 
         # Type should be valid

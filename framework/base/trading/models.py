@@ -292,63 +292,91 @@ class CancelAllOrdersResponse(EnvelopeSchema):
     # Some exchanges annoyingly do not return which orders were
     # cancelled, merely confirm that they were ALL cancelled. You can
     # check this success with 'response.is_successful'
-    order_ids: Optional[list[OrderId]] = None
-    client_order_ids: Optional[list[ClientOrderId]] = None
+    order_ids: Optional[tuple[OrderId, ...]] = None
+    client_order_ids: Optional[tuple[ClientOrderId, ...]] = None
 
 
 class TradesResponse(EnvelopeSchema):
     """Represents a list of trades.
 
-    Trades are guaranteed to be in ascending order of time.
+    Trades must be provided in ascending order of time.
 
     Attributes:
-        trades: Trades sorted by ascending trade timestamp.
+        trades: Trades ordered by ascending trade timestamp.
     """
 
-    trades: list[Trade]
+    trades: tuple[Trade, ...]
 
     def __post_init__(self) -> None:
-        """Validate and order trade responses.
+        """Validate trade responses.
 
         Raises:
-            ValueError: If any trade timestamp is non-positive.
+            ValueError: If any trade timestamp is non-positive or out of order.
         """
-        for trade in self.trades:
-            if trade.time_ms <= 0:
+        if not self.trades:
+            return None
+
+        prev_trade_time_ms = self.trades[0].time_ms
+        if prev_trade_time_ms <= 0:
+            raise ValueError(
+                f"Invalid trade time_ms; expected >0 but got {prev_trade_time_ms}"
+            )
+        for trade in self.trades[1:]:
+            curr_trade_time_ms = trade.time_ms
+            if curr_trade_time_ms <= 0:
                 raise ValueError(
-                    f"Invalid trade time_ms; expected >0 but got {trade.time_ms}"
+                    f"Invalid trade time_ms; expected >0 but got {curr_trade_time_ms}"
                 )
-        self.trades.sort(key=lambda x: x.time_ms)
+            if curr_trade_time_ms < prev_trade_time_ms:
+                raise ValueError("Invalid trades; expected time_ms in increasing order")
+            prev_trade_time_ms = curr_trade_time_ms
 
 
 class OrderbookResponse(EnvelopeSchema):
     """Represents the current state of the orderbook.
 
-    Orderbook levels are guaranteed to be in ascending order of price.
+    Orderbook levels must be provided in ascending order of price.
 
     Attributes:
-        bids: Bid levels sorted by ascending price when not BBO-only.
-        asks: Ask levels sorted by ascending price when not BBO-only.
+        bids: Bid levels ordered by ascending price when not BBO-only.
+        asks: Ask levels ordered by ascending price when not BBO-only.
         is_bbo: Whether the payload is restricted to best bid and offer.
     """
 
-    bids: list[OrderbookLevel]
-    asks: list[OrderbookLevel]
+    bids: tuple[OrderbookLevel, ...]
+    asks: tuple[OrderbookLevel, ...]
     is_bbo: bool = False
 
     def __post_init__(self) -> None:
-        """Validate and order orderbook responses.
+        """Validate orderbook responses.
 
         Raises:
-            ValueError: If both bids and asks are empty.
+            ValueError: If both sides are empty or prices are out of order.
         """
         if not self.bids and not self.asks:
             raise ValueError(
-                "Invalid OrderbookResponse; expected non-empty bids or asks lists."
+                "Invalid OrderbookResponse; expected non-empty bids or asks collections."
             )
-        if not self.is_bbo:
-            self.bids.sort(key=lambda x: x.price)
-            self.asks.sort(key=lambda x: x.price)
+        if self.is_bbo:
+            return None
+
+        if len(self.bids) > 1:
+            prev_bid_price = self.bids[0].price
+            for level in self.bids[1:]:
+                if level.price <= prev_bid_price:
+                    raise ValueError(
+                        "Invalid bids; expected strictly increasing prices"
+                    )
+                prev_bid_price = level.price
+
+        if len(self.asks) > 1:
+            prev_ask_price = self.asks[0].price
+            for level in self.asks[1:]:
+                if level.price <= prev_ask_price:
+                    raise ValueError(
+                        "Invalid asks; expected strictly increasing prices"
+                    )
+                prev_ask_price = level.price
 
 
 class TickerResponse(EnvelopeSchema):
@@ -442,7 +470,7 @@ class OrdersResponse(EnvelopeSchema):
         orders: Order states returned by the exchange.
     """
 
-    orders: list[Order]
+    orders: tuple[Order, ...]
 
 
 class PositionResponse(EnvelopeSchema):
@@ -486,7 +514,7 @@ class ExecutionResponse(EnvelopeSchema):
         executions: Executions returned by the exchange.
     """
 
-    executions: list[Execution]
+    executions: tuple[Execution, ...]
 
 
 class AccountResponse(EnvelopeSchema):
