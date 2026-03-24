@@ -1,7 +1,7 @@
 [project]
 name = "smm"
 version = "2.0.0"
-description = "Simple crypto market maker application"
+description = "Simple market maker"
 authors = [{ name = "beatzxbt" }]
 requires-python = ">=3.13.9"
 license = "MIT"
@@ -10,7 +10,7 @@ dependencies = [
     "framework",
     "uvloop",
     "dotenv>=0.9.9",
-    "mm-toolbox==1.0.0b0",
+    "mm-toolbox==1.0.0b6",
 ]
 
 [tool.uv.sources]
