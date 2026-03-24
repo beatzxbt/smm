@@ -46,8 +46,6 @@ class WebSocketConnection:
             reconnect_delay_s: Base delay in seconds for exponential backoff.
             max_reconnect_attempts: Maximum reconnect attempts before giving up.
 
-        Returns:
-            None.
         """
         self._url = url
         self._logger = logger
@@ -62,6 +60,15 @@ class WebSocketConnection:
         self._reconnect_callbacks: list[ReconnectCallback] = []
 
     @property
+    def url(self) -> str:
+        """Return the configured websocket endpoint URL.
+
+        Returns:
+            str: Current websocket URL.
+        """
+        return self._url
+
+    @property
     def is_connected(self) -> bool:
         """Return whether the websocket is currently connected.
 
@@ -70,23 +77,30 @@ class WebSocketConnection:
         """
         return self._is_connected and self._ws is not None and not self._ws.closed
 
+    def set_url(self, url: str) -> None:
+        """Update the websocket endpoint URL used for future connections.
+
+        Args:
+            url: New websocket URL.
+
+        Raises:
+            ValueError: If the URL is empty.
+        """
+        if not url:
+            raise ValueError("Invalid url; expected non-empty string.")
+        self._url = url
+
     def add_reconnect_callback(self, callback: ReconnectCallback) -> None:
         """Register a callback to run after a reconnect succeeds.
 
         Args:
             callback: Awaitable callback invoked after reconnection.
 
-        Returns:
-            None.
         """
         self._reconnect_callbacks.append(callback)
 
     async def connect(self) -> None:
-        """Open the websocket connection.
-
-        Returns:
-            None.
-        """
+        """Open the websocket connection."""
         if self.is_connected:
             return
         self._closing = False
@@ -96,11 +110,7 @@ class WebSocketConnection:
         self._is_connected = True
 
     async def disconnect(self) -> None:
-        """Close the websocket connection and session.
-
-        Returns:
-            None.
-        """
+        """Close the websocket connection and session."""
         self._closing = True
         self._is_connected = False
         if self._ws is not None and not self._ws.closed:
@@ -110,27 +120,16 @@ class WebSocketConnection:
             await self._session.close()
         self._session = None
 
-    async def send(self, data: bytes | str, as_binary: bool = False) -> None:
+    async def send(self, data: bytes) -> None:
         """Send a payload over the websocket.
 
         Args:
-            data: Serialized payload bytes or text to send.
-            as_binary: True to send as a binary frame, False for a text frame.
-
-        Returns:
-            None.
+            data: Serialized payload bytes to send.
         """
-        if not self.is_connected or self._ws is None:
+        ws = self._ws
+        if not self.is_connected or ws is None:
             raise ConnectionError("WebSocket is not connected.")
-        if as_binary:
-            payload = data.encode("utf-8") if isinstance(data, str) else data
-            await self._ws.send_bytes(payload)
-        else:
-            if isinstance(data, (bytes, bytearray)):
-                payload = data.decode("utf-8")
-            else:
-                payload = data
-            await self._ws.send_str(payload)
+        await ws.send_frame(data, aiohttp.WSMsgType.TEXT)
 
     async def receive(self) -> bytes | None:
         """Receive a single websocket message payload.
@@ -200,21 +199,15 @@ class WebSocketConnection:
         if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
             self._is_connected = False
             return None
-        if msg.type not in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
+        if msg.type is not aiohttp.WSMsgType.TEXT:
             return None
         data = msg.data
         if isinstance(data, str):
             return data.encode()
-        if isinstance(data, (bytes, bytearray)):
-            return bytes(data)
         return None
 
     async def _notify_reconnect(self) -> None:
-        """Invoke registered reconnect callbacks.
-
-        Returns:
-            None.
-        """
+        """Invoke registered reconnect callbacks."""
         for callback in self._reconnect_callbacks:
             try:
                 await callback()

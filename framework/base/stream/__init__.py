@@ -18,11 +18,13 @@ from framework.base.stream.handlers import (
     TickerStreamHandler,
     TradesStreamHandler,
 )
+from framework.base.stream.shared import StreamSharedContext
 from framework.base.stream.models import *  # noqa: F403
 
 __all__ = [
     "WebSocketConnection",
     "BaseStreamHandler",
+    "StreamSharedContext",
     "TickerStreamHandler",
     "BBOStreamHandler",
     "OrderbookStreamHandler",

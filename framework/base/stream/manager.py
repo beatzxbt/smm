@@ -29,6 +29,7 @@ from framework.base.stream.models import (
 )
 from framework.base.trading.exchange import Exchange
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 from mm_toolbox.time import time_ms
 
 
@@ -39,7 +40,7 @@ class StreamManagerBase(ABC):
         self,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
         instrument_collection: InstrumentCollection,
     ) -> None:
         """Initialize base stream manager state.
@@ -47,12 +48,12 @@ class StreamManagerBase(ABC):
         Args:
             venue: Venue for the manager.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
             instrument_collection: Shared instrument collection.
         """
         self._venue = venue
         self._logger = logger
-        self._consumer_queues = consumer_queues
+        self._consumer_buffer = consumer_buffer
         self._instrument_collection = instrument_collection
         self._subscriptions: dict[StreamType, set[Instrument]] = {}
         self._heartbeat_task: asyncio.Task[None] | None = None
@@ -77,13 +78,12 @@ class StreamManagerBase(ABC):
         return self._is_running
 
     def broadcast(self, msg: Msg) -> None:
-        """Broadcast a message to all consumer queues.
+        """Broadcast a message to the consumer buffer.
 
         Args:
             msg: Message to broadcast.
         """
-        for queue in self._consumer_queues:
-            queue.put_nowait(msg)
+        self._consumer_buffer.insert(msg)
 
     def _broadcast_event(
         self,
@@ -193,7 +193,7 @@ class MarketStreamManager(StreamManagerBase, ABC):
         self,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
         instrument_collection: InstrumentCollection,
         ticker_handler: TickerStreamHandler,
         bbo_handler: BBOStreamHandler,
@@ -205,14 +205,14 @@ class MarketStreamManager(StreamManagerBase, ABC):
         Args:
             venue: Venue for the manager.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
             instrument_collection: Shared instrument collection.
             ticker_handler: Ticker stream handler.
             bbo_handler: Top-of-book stream handler.
             orderbook_handler: Orderbook stream handler.
             trades_handler: Trades stream handler.
         """
-        super().__init__(venue, logger, consumer_queues, instrument_collection)
+        super().__init__(venue, logger, consumer_buffer, instrument_collection)
         self._ticker_handler = ticker_handler
         self._bbo_handler = bbo_handler
         self._orderbook_handler = orderbook_handler
@@ -223,6 +223,7 @@ class MarketStreamManager(StreamManagerBase, ABC):
             MarketDataStreamType.FULL_ORDERBOOK: self._orderbook_handler,
             MarketDataStreamType.TRADES: self._trades_handler,
         }
+        self._active_stream_types: set[MarketDataStreamType] = set()
 
     @classmethod
     @abstractmethod
@@ -230,14 +231,14 @@ class MarketStreamManager(StreamManagerBase, ABC):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> "MarketStreamManager":
         """Create a manager instance using an exchange client.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             MarketStreamManager: Initialized manager instance.
@@ -245,21 +246,19 @@ class MarketStreamManager(StreamManagerBase, ABC):
         ...
 
     async def start(self) -> None:
-        """Start all market stream handlers."""
+        """Start manager lifecycle tasks.
+
+        This starts heartbeat/event lifecycle tracking but defers individual handler
+        startup until the first active subscription for each stream type.
+        """
         if self._is_running:
             return
         self._is_running = True
-        await asyncio.gather(
-            self._ticker_handler.start(),
-            self._bbo_handler.start(),
-            self._orderbook_handler.start(),
-            self._trades_handler.start(),
-        )
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         self._broadcast_event(DataStreamEvent.START, {})
 
     async def stop(self) -> None:
-        """Stop all market stream handlers."""
+        """Stop manager lifecycle tasks and active handlers."""
         if not self._is_running:
             return
         self._is_running = False
@@ -268,11 +267,12 @@ class MarketStreamManager(StreamManagerBase, ABC):
             await asyncio.gather(self._heartbeat_task, return_exceptions=True)
             self._heartbeat_task = None
         await asyncio.gather(
-            self._ticker_handler.stop(),
-            self._bbo_handler.stop(),
-            self._orderbook_handler.stop(),
-            self._trades_handler.stop(),
+            *(
+                self._handlers[stream_type].stop()
+                for stream_type in self._active_stream_types
+            )
         )
+        self._active_stream_types.clear()
         self._subscriptions.clear()
         self._broadcast_event(DataStreamEvent.STOP, {})
 
@@ -286,17 +286,28 @@ class MarketStreamManager(StreamManagerBase, ABC):
         Args:
             instruments: Instruments to subscribe to.
             stream_types: Market data stream types to enable.
+
+        Raises:
+            RuntimeError: If the manager is not running.
         """
+        if not self._is_running:
+            raise RuntimeError(f"{self.__class__.__name__} is not running.")
         resolved = self._resolve_instruments(instruments)
         if not resolved or not stream_types:
             return
         for stream_type in stream_types:
+            new_instruments: list[Instrument] = []
             for instrument in resolved:
-                self._add_subscription(stream_type, instrument)
-        for stream_type in stream_types:
+                if self._add_subscription(stream_type, instrument):
+                    new_instruments.append(instrument)
+            if not new_instruments:
+                continue
             handler = self._handlers[stream_type]
-            await handler.subscribe(resolved)
-            for instrument in resolved:
+            if stream_type not in self._active_stream_types:
+                await handler.start()
+                self._active_stream_types.add(stream_type)
+            await handler.subscribe(new_instruments)
+            for instrument in new_instruments:
                 self._broadcast_event(
                     DataStreamEvent.SUBSCRIBE,
                     {stream_type: instrument},
@@ -312,21 +323,32 @@ class MarketStreamManager(StreamManagerBase, ABC):
         Args:
             instruments: Instruments to unsubscribe from.
             stream_types: Market data stream types to disable.
+
+        Raises:
+            RuntimeError: If the manager is not running.
         """
+        if not self._is_running:
+            raise RuntimeError(f"{self.__class__.__name__} is not running.")
         resolved = self._resolve_instruments(instruments)
         if not resolved or not stream_types:
             return
         for stream_type in stream_types:
+            removed_instruments: list[Instrument] = []
             for instrument in resolved:
-                self._remove_subscription(stream_type, instrument)
-        for stream_type in stream_types:
+                if self._remove_subscription(stream_type, instrument):
+                    removed_instruments.append(instrument)
+            if not removed_instruments:
+                continue
             handler = self._handlers[stream_type]
-            await handler.unsubscribe(resolved)
-            for instrument in resolved:
+            await handler.unsubscribe(removed_instruments)
+            for instrument in removed_instruments:
                 self._broadcast_event(
                     DataStreamEvent.UNSUBSCRIBE,
                     {stream_type: instrument},
                 )
+            if stream_type not in self._subscriptions:
+                await handler.stop()
+                self._active_stream_types.discard(stream_type)
 
     def get_subscribed_instruments(
         self, stream_type: MarketDataStreamType
@@ -367,7 +389,7 @@ class PrivateStreamManager(StreamManagerBase, ABC):
         self,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
         instrument_collection: InstrumentCollection,
         handler: PrivateStreamHandler,
     ) -> None:
@@ -376,11 +398,11 @@ class PrivateStreamManager(StreamManagerBase, ABC):
         Args:
             venue: Venue for the manager.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
             instrument_collection: Shared instrument collection.
             handler: Unified private stream handler.
         """
-        super().__init__(venue, logger, consumer_queues, instrument_collection)
+        super().__init__(venue, logger, consumer_buffer, instrument_collection)
         self._handler = handler
 
     @classmethod
@@ -389,14 +411,14 @@ class PrivateStreamManager(StreamManagerBase, ABC):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> "PrivateStreamManager":
         """Create a manager instance using an exchange client.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             PrivateStreamManager: Initialized manager instance.

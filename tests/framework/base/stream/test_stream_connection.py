@@ -23,9 +23,6 @@ class FakeWSMessage:
         Args:
             msg_type: WebSocket message type.
             data: Message payload data.
-
-        Returns:
-            None.
         """
         self.type = msg_type
         self.data = data
@@ -39,14 +36,10 @@ class FakeWebSocket:
 
         Args:
             messages (list[FakeWSMessage]): Messages to yield.
-
-        Returns:
-            None.
         """
         self._messages = list(messages)
         self.closed = False
-        self.sent_bytes: list[bytes] = []
-        self.sent_str: list[str] = []
+        self.sent_frames: list[tuple[bytes, aiohttp.WSMsgType]] = []
 
     def __aiter__(self):
         """Return the async iterator.
@@ -67,34 +60,17 @@ class FakeWebSocket:
         return self._messages.pop(0)
 
     async def close(self) -> None:
-        """Close the websocket.
-
-        Returns:
-            None.
-        """
+        """Close the websocket."""
         self.closed = True
 
-    async def send_bytes(self, payload: bytes) -> None:
-        """Capture binary payloads.
+    async def send_frame(self, payload: bytes, opcode: aiohttp.WSMsgType) -> None:
+        """Capture sent websocket frames.
 
         Args:
-            payload: Binary payload to record.
-
-        Returns:
-            None.
+            payload: Raw payload bytes.
+            opcode: WebSocket opcode used for the frame.
         """
-        self.sent_bytes.append(payload)
-
-    async def send_str(self, payload: str) -> None:
-        """Capture text payloads.
-
-        Args:
-            payload: Text payload to record.
-
-        Returns:
-            None.
-        """
-        self.sent_str.append(payload)
+        self.sent_frames.append((payload, opcode))
 
     async def receive(self) -> FakeWSMessage:
         """Return the next message for receive().
@@ -115,9 +91,6 @@ class FakeSession:
 
         Args:
             ws: Websocket instance to return.
-
-        Returns:
-            None.
         """
         self._ws = ws
         self.closed = False
@@ -134,11 +107,7 @@ class FakeSession:
         return self._ws
 
     async def close(self) -> None:
-        """Close the session.
-
-        Returns:
-            None.
-        """
+        """Close the session."""
         self.closed = True
 
 
@@ -151,9 +120,6 @@ class TestWebSocketConnection:
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
         ws = FakeWebSocket(messages=[])
         session = FakeSession(ws)
@@ -176,14 +142,8 @@ class TestWebSocketConnection:
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
-        messages = [
-            FakeWSMessage(aiohttp.WSMsgType.BINARY, b"one"),
-            FakeWSMessage(aiohttp.WSMsgType.TEXT, "two"),
-        ]
+        messages = [FakeWSMessage(aiohttp.WSMsgType.TEXT, "two")]
         ws = FakeWebSocket(messages=messages)
         session = FakeSession(ws)
         monkeypatch.setattr(
@@ -199,28 +159,21 @@ class TestWebSocketConnection:
         received = []
         async for msg in connection:
             received.append(msg)
-        assert received == [b"one", b"two"]
+        assert received == [b"two"]
 
     @pytest.mark.asyncio
     async def test_send_requires_connection(self) -> None:
-        """Test send raises when not connected.
-
-        Returns:
-            None.
-        """
+        """Test send raises when not connected."""
         connection = WebSocketConnection("wss://example", Logger(name="test"))
         with pytest.raises(ConnectionError, match="not connected"):
-            await connection.send("payload")
+            await connection.send(b"payload")
 
     @pytest.mark.asyncio
-    async def test_send_text_and_binary(self, monkeypatch) -> None:
-        """Test send normalizes text and binary payloads.
+    async def test_send_always_uses_text_opcode(self, monkeypatch) -> None:
+        """Test send always emits text websocket frames.
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
         ws = FakeWebSocket(messages=[])
         session = FakeSession(ws)
@@ -232,21 +185,13 @@ class TestWebSocketConnection:
         connection = WebSocketConnection("wss://example", Logger(name="test"))
         await connection.connect()
 
-        await connection.send("hello")
         await connection.send(b"raw-bytes")
-        await connection.send("binary", as_binary=True)
-        await connection.send(b"\x00\x01", as_binary=True)
 
-        assert ws.sent_str == ["hello", "raw-bytes"]
-        assert ws.sent_bytes == [b"binary", b"\x00\x01"]
+        assert ws.sent_frames == [(b"raw-bytes", aiohttp.WSMsgType.TEXT)]
 
     @pytest.mark.asyncio
     async def test_receive_requires_connection(self) -> None:
-        """Test receive raises when not connected.
-
-        Returns:
-            None.
-        """
+        """Test receive raises when not connected."""
         connection = WebSocketConnection("wss://example", Logger(name="test"))
         with pytest.raises(ConnectionError, match="not connected"):
             await connection.receive()
@@ -257,9 +202,6 @@ class TestWebSocketConnection:
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
         ws = FakeWebSocket(messages=[FakeWSMessage(aiohttp.WSMsgType.TEXT, "payload")])
         session = FakeSession(ws)
@@ -280,20 +222,13 @@ class TestWebSocketConnection:
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
         connection = WebSocketConnection(
             "wss://example", Logger(name="test"), auto_reconnect=False
         )
 
         async def _fail_connect() -> None:
-            """Always fail connect.
-
-            Returns:
-                None.
-            """
+            """Always fail connect."""
             raise ConnectionError("fail")
 
         monkeypatch.setattr(connection, "connect", _fail_connect)
@@ -310,19 +245,12 @@ class TestWebSocketConnection:
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
         connection = WebSocketConnection("wss://example", Logger(name="test"))
         ws = FakeWebSocket(messages=[FakeWSMessage(aiohttp.WSMsgType.TEXT, "ok")])
 
         async def _fail_connect() -> None:
-            """Always fail initial connect.
-
-            Returns:
-                None.
-            """
+            """Always fail initial connect."""
             raise ConnectionError("fail")
 
         reconnect_calls = {"count": 0}
@@ -343,11 +271,7 @@ class TestWebSocketConnection:
         callbacks: list[str] = []
 
         async def _on_reconnect() -> None:
-            """Capture reconnect callback invocation.
-
-            Returns:
-                None.
-            """
+            """Capture reconnect callback invocation."""
             callbacks.append("called")
 
         connection.add_reconnect_callback(_on_reconnect)
@@ -367,9 +291,6 @@ class TestWebSocketConnection:
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
         connection = WebSocketConnection("wss://example", Logger(name="test"))
         delays: list[float] = []
@@ -380,19 +301,13 @@ class TestWebSocketConnection:
             Args:
                 delay: Sleep delay in seconds.
 
-            Returns:
-                None.
             """
             delays.append(delay)
 
         attempts = {"count": 0}
 
         async def _flaky_connect() -> None:
-            """Fail twice then succeed.
-
-            Returns:
-                None.
-            """
+            """Fail twice then succeed."""
             attempts["count"] += 1
             if attempts["count"] < 3:
                 raise ConnectionError("temporary failure")
@@ -413,9 +328,6 @@ class TestWebSocketConnection:
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
-
-        Returns:
-            None.
         """
         connection = WebSocketConnection(
             "wss://example", Logger(name="test"), max_reconnect_attempts=2
@@ -428,17 +340,11 @@ class TestWebSocketConnection:
             Args:
                 delay: Sleep delay in seconds.
 
-            Returns:
-                None.
             """
             delays.append(delay)
 
         async def _always_fail_connect() -> None:
-            """Always fail connect.
-
-            Returns:
-                None.
-            """
+            """Always fail connect."""
             raise ConnectionError("fail")
 
         monkeypatch.setattr(
@@ -451,11 +357,7 @@ class TestWebSocketConnection:
         assert delays == [1.0, 2.0]
 
     def test_normalize_message_filters_non_payloads(self) -> None:
-        """Test normalize filters unsupported message types.
-
-        Returns:
-            None.
-        """
+        """Test normalize filters unsupported message types."""
         connection = WebSocketConnection("wss://example", Logger(name="test"))
         connection._is_connected = True
 
@@ -468,28 +370,16 @@ class TestWebSocketConnection:
 
     @pytest.mark.asyncio
     async def test_reconnect_callback_errors_do_not_stop(self) -> None:
-        """Test reconnect callback errors are swallowed.
-
-        Returns:
-            None.
-        """
+        """Test reconnect callback errors are swallowed."""
         connection = WebSocketConnection("wss://example", Logger(name="test"))
         calls: list[str] = []
 
         async def _bad_callback() -> None:
-            """Raise an error for testing.
-
-            Returns:
-                None.
-            """
+            """Raise an error for testing."""
             raise RuntimeError("boom")
 
         async def _good_callback() -> None:
-            """Record successful callback execution.
-
-            Returns:
-                None.
-            """
+            """Record successful callback execution."""
             calls.append("ok")
 
         connection.add_reconnect_callback(_bad_callback)
