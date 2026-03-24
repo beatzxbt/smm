@@ -67,3 +67,9 @@ def load_venue_bundle(venue: Venue) -> VenueBundle:
                 market_stream_manager=OkxMarketStreamManager,
                 private_stream_manager=OkxPrivateStreamManager,
             )
+        case Venue.NULL:
+            raise ValueError("Venue.NULL is not a valid venue for load_venue_bundle")
+        case _:
+            raise NotImplementedError(
+                f"No venue bundle implementation for venue: {venue}"
+            )
