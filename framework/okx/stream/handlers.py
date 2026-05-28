@@ -7,7 +7,6 @@ Components: typed decoders, subscription payloads, and OKX-specific authenticati
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -15,7 +14,8 @@ from abc import ABC
 
 import msgspec
 
-from framework.base.common import Instrument, InstrumentCollection, Venue
+from framework.base.common import Instrument, InstrumentCollection, Symbol, Venue
+from framework.base.schema import MessageId, Moments
 from framework.base.stream.connection import WebSocketConnection
 from framework.base.stream.handlers import (
     BBOStreamHandler,
@@ -26,8 +26,6 @@ from framework.base.stream.handlers import (
 )
 from framework.base.stream.models import (
     ExecutionMsg,
-    Moments,
-    Msg,
     OrderMsg,
     StreamType,
     TradeMsg,
@@ -42,7 +40,8 @@ from framework.okx.stream.models import (
     OkxTradesPublicMsg,
 )
 from mm_toolbox.logging.standard import Logger
-from mm_toolbox.time import time_ms, time_ns
+from mm_toolbox.ringbuffer import GenericRingBuffer
+from mm_toolbox.time import time_ms
 
 
 class _OkxStreamHandler(ABC):
@@ -110,7 +109,7 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the OKX ticker handler.
 
@@ -119,7 +118,7 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         TickerStreamHandler.__init__(
             self,
@@ -127,7 +126,7 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         _OkxStreamHandler.__init__(self, channel="tickers")
         self._decoder = msgspec.json.Decoder(OkxTickerPublicMsg)
@@ -174,18 +173,27 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
         args = self._build_okx_subscribe_args(instruments)
         return msgspec.json.encode({"op": "unsubscribe", "args": args})
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode ticker messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
             data = self._decoder.decode(raw_msg)
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             for ticker_data in data.data:
                 ticker_msg = ticker_data.to_ticker_msg(
                     venue=self.venue,
                     instrument_collection=self.instrument_collection,
+                    is_snapshot=data.action == "snapshot",
+                    origin_id=origin_id,
+                    recv_time_ns=recv_time_ns,
                 )
                 self.broadcast(ticker_msg)
         except msgspec.DecodeError:
@@ -207,7 +215,7 @@ class OkxBBOHandler(BBOStreamHandler, _OkxStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the OKX BBO handler.
 
@@ -216,7 +224,7 @@ class OkxBBOHandler(BBOStreamHandler, _OkxStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         BBOStreamHandler.__init__(
             self,
@@ -224,7 +232,7 @@ class OkxBBOHandler(BBOStreamHandler, _OkxStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         _OkxStreamHandler.__init__(self, channel="bbo-tbt")
         self._decoder = msgspec.json.Decoder(OkxOrderbookPublicMsg)
@@ -271,16 +279,22 @@ class OkxBBOHandler(BBOStreamHandler, _OkxStreamHandler):
         args = self._build_okx_subscribe_args(instruments)
         return msgspec.json.encode({"op": "unsubscribe", "args": args})
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode BBO messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
             data = self._decoder.decode(raw_msg)
             inst_id = data.arg.get("instId", "")
             is_snapshot = data.action == "snapshot"
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             for book_data in data.data:
                 orderbook_msg = book_data.to_orderbook_msg(
                     venue=self.venue,
@@ -288,6 +302,8 @@ class OkxBBOHandler(BBOStreamHandler, _OkxStreamHandler):
                     inst_id=inst_id,
                     is_bbo=True,
                     is_snapshot=is_snapshot,
+                    origin_id=origin_id,
+                    recv_time_ns=recv_time_ns,
                 )
                 self.broadcast(orderbook_msg)
         except msgspec.DecodeError:
@@ -309,7 +325,7 @@ class OkxOrderbookHandler(OrderbookStreamHandler, _OkxStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the OKX orderbook handler.
 
@@ -318,7 +334,7 @@ class OkxOrderbookHandler(OrderbookStreamHandler, _OkxStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         OrderbookStreamHandler.__init__(
             self,
@@ -326,7 +342,7 @@ class OkxOrderbookHandler(OrderbookStreamHandler, _OkxStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         _OkxStreamHandler.__init__(self, channel="books5")
         self._decoder = msgspec.json.Decoder(OkxOrderbookPublicMsg)
@@ -373,16 +389,22 @@ class OkxOrderbookHandler(OrderbookStreamHandler, _OkxStreamHandler):
         args = self._build_okx_subscribe_args(instruments)
         return msgspec.json.encode({"op": "unsubscribe", "args": args})
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode orderbook messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
             data = self._decoder.decode(raw_msg)
             inst_id = data.arg.get("instId", "")
             is_snapshot = data.action == "snapshot"
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             for book_data in data.data:
                 orderbook_msg = book_data.to_orderbook_msg(
                     venue=self.venue,
@@ -390,6 +412,8 @@ class OkxOrderbookHandler(OrderbookStreamHandler, _OkxStreamHandler):
                     inst_id=inst_id,
                     is_bbo=False,
                     is_snapshot=is_snapshot,
+                    origin_id=origin_id,
+                    recv_time_ns=recv_time_ns,
                 )
                 self.broadcast(orderbook_msg)
         except msgspec.DecodeError:
@@ -411,7 +435,7 @@ class OkxTradesHandler(TradesStreamHandler, _OkxStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the OKX trades handler.
 
@@ -420,7 +444,7 @@ class OkxTradesHandler(TradesStreamHandler, _OkxStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         TradesStreamHandler.__init__(
             self,
@@ -428,7 +452,7 @@ class OkxTradesHandler(TradesStreamHandler, _OkxStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         _OkxStreamHandler.__init__(self, channel="trades")
         self._decoder = msgspec.json.Decoder(OkxTradesPublicMsg)
@@ -475,10 +499,15 @@ class OkxTradesHandler(TradesStreamHandler, _OkxStreamHandler):
         args = self._build_okx_subscribe_args(instruments)
         return msgspec.json.encode({"op": "unsubscribe", "args": args})
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode trade messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
@@ -487,7 +516,7 @@ class OkxTradesHandler(TradesStreamHandler, _OkxStreamHandler):
                 return
 
             inst_id = data.arg.get("instId", "")
-            instrument = self.instrument_collection.get(self.venue, inst_id)
+            instrument = self.instrument_collection.get(Symbol(inst_id))
             if not instrument:
                 self._logger.warning(
                     f"{self.__class__.__name__}.decode_and_broadcast "
@@ -496,14 +525,17 @@ class OkxTradesHandler(TradesStreamHandler, _OkxStreamHandler):
                 return
 
             trades = [trade_data.to_trade() for trade_data in data.data]
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             trade_msg = TradeMsg(
+                id=origin_id,
+                origin_id=origin_id,
                 moments=Moments(
                     exch_time_ns=int(data.data[0].ts) * 1_000_000,
-                    recv_time_ns=time_ns(),
+                    recv_time_ns=recv_time_ns,
                 ),
-                venue=self.venue,
                 instrument=instrument,
-                trades=trades,
+                is_snapshot=data.action == "snapshot",
+                trades=tuple(trades),
             )
             self.broadcast(trade_msg)
         except msgspec.DecodeError:
@@ -529,7 +561,7 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
         logger: Logger,
         connection: WebSocketConnection,
         instrument_collection: InstrumentCollection,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
         api_key: str,
         api_secret: str,
         passphrase: str,
@@ -541,7 +573,7 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
             logger: Logger for diagnostics.
             connection: WebSocket connection for private streams.
             instrument_collection: Shared instrument collection.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
             api_key: OKX API key.
             api_secret: OKX API secret.
             passphrase: OKX API passphrase.
@@ -552,7 +584,7 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
             logger=logger,
             connection=connection,
             instrument_collection=instrument_collection,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         _OkxStreamHandler.__init__(self, channel="private")
         self._api_key = api_key
@@ -653,10 +685,15 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
         self._is_authenticated = True
         self._logger.info(f"{self.__class__.__name__}.authenticate login payload sent.")
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode and route OKX private messages.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
@@ -670,13 +707,14 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
 
             channel = payload.get("arg", {}).get("channel", "")
             data_list = payload.get("data", [])
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
 
             if channel == "orders":
-                self._handle_orders(data_list)
+                self._handle_orders(data_list, origin_id, recv_time_ns)
             elif channel == "positions":
-                self._handle_positions(data_list)
+                self._handle_positions(data_list, origin_id, recv_time_ns)
             elif channel == "account":
-                self._handle_account(data_list)
+                self._handle_account(data_list, origin_id, recv_time_ns)
         except msgspec.DecodeError as exc:
             control_payload = self._handle_control_message(raw_msg, self._logger)
             if control_payload is not None:
@@ -719,11 +757,18 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
                 f"{self.__class__.__name__}._handle_login_response error; {exc}"
             )
 
-    def _handle_orders(self, data_list: list[dict]) -> None:
+    def _handle_orders(
+        self,
+        data_list: list[dict],
+        origin_id: MessageId,
+        recv_time_ns: int,
+    ) -> None:
         """Handle order update messages.
 
         Args:
             data_list: List of order data dicts.
+            origin_id: Shared origin identifier for the raw payload.
+            recv_time_ns: Shared receive timestamp for the raw payload.
         """
         order_decoder = msgspec.json.Decoder(OkxOrderMsg)
         exec_decoder = msgspec.json.Decoder(OkxExecutionMsg)
@@ -732,19 +777,21 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
             try:
                 order_data = order_decoder.decode(msgspec.json.encode(item))
                 inst_id = order_data.inst_id
-                instrument = self._instrument_collection.get(self._venue, inst_id)
+                instrument = self._instrument_collection.get(inst_id)
                 if not instrument:
                     continue
 
                 order = order_data.to_order()
                 order_msg = OrderMsg(
+                    id=MessageId(recv_time_ns=recv_time_ns),
+                    origin_id=origin_id,
                     moments=Moments(
                         exch_time_ns=int(order_data.u_time) * 1_000_000,
-                        recv_time_ns=time_ns(),
+                        recv_time_ns=recv_time_ns,
                     ),
-                    venue=self._venue,
                     instrument=instrument,
-                    orders=[order],
+                    is_snapshot=False,
+                    orders=(order,),
                 )
                 self.broadcast(order_msg)
 
@@ -752,13 +799,15 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
                 execution = exec_data.to_execution()
                 if execution:
                     exec_msg = ExecutionMsg(
+                        id=MessageId(recv_time_ns=recv_time_ns),
+                        origin_id=origin_id,
                         moments=Moments(
                             exch_time_ns=int(exec_data.u_time) * 1_000_000,
-                            recv_time_ns=time_ns(),
+                            recv_time_ns=recv_time_ns,
                         ),
-                        venue=self._venue,
                         instrument=instrument,
-                        executions=[execution],
+                        is_snapshot=False,
+                        executions=(execution,),
                     )
                     self.broadcast(exec_msg)
             except Exception as exc:
@@ -766,11 +815,18 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
                     f"{self.__class__.__name__}._handle_orders error; {exc}"
                 )
 
-    def _handle_positions(self, data_list: list[dict]) -> None:
+    def _handle_positions(
+        self,
+        data_list: list[dict],
+        origin_id: MessageId,
+        recv_time_ns: int,
+    ) -> None:
         """Handle position update messages.
 
         Args:
             data_list: List of position data dicts.
+            origin_id: Shared origin identifier for the raw payload.
+            recv_time_ns: Shared receive timestamp for the raw payload.
         """
         decoder = msgspec.json.Decoder(OkxPositionMsg)
 
@@ -780,6 +836,9 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
                 position_msg = pos_data.to_position_msg(
                     venue=self._venue,
                     instrument_collection=self._instrument_collection,
+                    is_snapshot=False,
+                    origin_id=origin_id,
+                    recv_time_ns=recv_time_ns,
                 )
                 self.broadcast(position_msg)
             except Exception as exc:
@@ -787,11 +846,18 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
                     f"{self.__class__.__name__}._handle_positions error; {exc}"
                 )
 
-    def _handle_account(self, data_list: list[dict]) -> None:
+    def _handle_account(
+        self,
+        data_list: list[dict],
+        origin_id: MessageId,
+        recv_time_ns: int,
+    ) -> None:
         """Handle account update messages.
 
         Args:
             data_list: List of account data dicts.
+            origin_id: Shared origin identifier for the raw payload.
+            recv_time_ns: Shared receive timestamp for the raw payload.
         """
         decoder = msgspec.json.Decoder(OkxAccountMsg)
 
@@ -805,6 +871,9 @@ class OkxPrivateHandler(PrivateStreamHandler, _OkxStreamHandler):
                 account_msg = acct_data.to_account_msg(
                     venue=self._venue,
                     instrument=instrument,
+                    is_snapshot=False,
+                    origin_id=origin_id,
+                    recv_time_ns=recv_time_ns,
                 )
                 self.broadcast(account_msg)
             except Exception as exc:

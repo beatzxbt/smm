@@ -7,12 +7,10 @@ Components: handler wiring and OKX-specific credential extraction.
 
 from __future__ import annotations
 
-import asyncio
 
 from framework.base.common import Venue
 from framework.base.stream.connection import WebSocketConnection
 from framework.base.stream.manager import MarketStreamManager, PrivateStreamManager
-from framework.base.stream.models import Msg
 from framework.base.trading.exchange import Exchange
 from framework.okx.stream.handlers import (
     OkxBBOHandler,
@@ -23,6 +21,7 @@ from framework.okx.stream.handlers import (
 )
 from framework.okx.trading.client import OkxHttpClient
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 OKX_PUBLIC_URL = "wss://ws.okx.com:8443/ws/v5/public"
 OKX_PRIVATE_URL = "wss://ws.okx.com:8443/ws/v5/private"
@@ -36,14 +35,14 @@ class OkxMarketStreamManager(MarketStreamManager):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> "OkxMarketStreamManager":
         """Create the OKX market stream manager.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             OkxMarketStreamManager: Initialized manager instance.
@@ -58,34 +57,34 @@ class OkxMarketStreamManager(MarketStreamManager):
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         bbo_handler = OkxBBOHandler(
             connection=WebSocketConnection(OKX_PUBLIC_URL, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         orderbook_handler = OkxOrderbookHandler(
             connection=WebSocketConnection(OKX_PUBLIC_URL, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         trades_handler = OkxTradesHandler(
             connection=WebSocketConnection(OKX_PUBLIC_URL, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
 
         return cls(
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             instrument_collection=instrument_collection,
             ticker_handler=ticker_handler,
             bbo_handler=bbo_handler,
@@ -102,14 +101,14 @@ class OkxPrivateStreamManager(PrivateStreamManager):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> "OkxPrivateStreamManager":
         """Create the OKX private stream manager.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             OkxPrivateStreamManager: Initialized manager instance.
@@ -129,7 +128,7 @@ class OkxPrivateStreamManager(PrivateStreamManager):
             logger=logger,
             connection=WebSocketConnection(OKX_PRIVATE_URL, logger),
             instrument_collection=instrument_collection,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             api_key=api_key,
             api_secret=api_secret,
             passphrase=passphrase,
@@ -138,7 +137,7 @@ class OkxPrivateStreamManager(PrivateStreamManager):
         return cls(
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             instrument_collection=instrument_collection,
             handler=handler,
         )

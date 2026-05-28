@@ -30,7 +30,7 @@ if REPO_ROOT not in sys.path:
 
 SYMBOL_LIMIT = 300
 
-from framework.base.common import Instrument
+from framework.base.common import Instrument, Symbol
 from framework.base.stream.models import ALL_MARKET_DATA_STREAM_TYPES, Msg
 from framework.bybit.stream.manager import BybitMarketStreamManager
 from framework.bybit.trading.exchange import BybitExchange
@@ -548,7 +548,7 @@ class MessageTypeTracker:
 
 
 async def resolve_instruments(
-    exchange: BybitExchange, symbols: Sequence[str]
+    exchange: BybitExchange, symbols: Sequence[Symbol]
 ) -> list[Instrument]:
     """Resolve Bybit instruments for the given symbols.
 
@@ -797,9 +797,7 @@ async def run(runner: StreamRunner) -> None:
             logger=runner.logger,
             consumer_queues=[consumer_queue],
         )
-        collection_instruments = runner.manager.instrument_collection.get_by_venue(
-            runner.exchange.venue
-        )
+        collection_instruments = runner.manager.instrument_collection.instruments
         instruments = sorted(
             collection_instruments,
             key=lambda instrument: instrument.symbol,

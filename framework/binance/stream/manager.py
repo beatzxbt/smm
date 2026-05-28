@@ -6,14 +6,15 @@ Components: handler wiring and Binance-specific routing.
 """
 
 from __future__ import annotations
-
-import asyncio
+from typing import cast
 
 from framework.base.common import Venue
 from framework.base.stream.connection import WebSocketConnection
 from framework.base.stream.manager import MarketStreamManager, PrivateStreamManager
-from framework.base.stream.models import Msg
+from framework.base.stream.shared import StreamSharedContext
 from framework.base.trading.exchange import Exchange
+from framework.base.trading.models import is_success
+from framework.binance.trading.exchange import BinanceExchange
 from framework.binance.stream.handlers import (
     BinanceBBOHandler,
     BinanceOrderbookHandler,
@@ -22,6 +23,7 @@ from framework.binance.stream.handlers import (
     BinanceTradesHandler,
 )
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 BINANCE_PUBLIC_URLS = {
     Venue.BINANCE_USDM: "wss://fstream.binance.com/ws",
@@ -37,14 +39,14 @@ class BinanceMarketStreamManager(MarketStreamManager):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue],
+        consumer_buffer: GenericRingBuffer,
     ) -> "BinanceMarketStreamManager":
         """Create the Binance market stream manager.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             BinanceMarketStreamManager: Initialized manager instance.
@@ -54,39 +56,44 @@ class BinanceMarketStreamManager(MarketStreamManager):
 
         instrument_collection = await exchange.get_instrument_collection_cached()
         base_url = BINANCE_PUBLIC_URLS[exchange.venue]
+        shared_context = StreamSharedContext()
         ticker_handler = BinanceTickerHandler(
             connection=WebSocketConnection(base_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             exchange=exchange,  # type: ignore[arg-type]
+            shared_context=shared_context,
         )
         bbo_handler = BinanceBBOHandler(
             connection=WebSocketConnection(base_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
+            shared_context=shared_context,
         )
         orderbook_handler = BinanceOrderbookHandler(
             connection=WebSocketConnection(base_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
+            shared_context=shared_context,
         )
         trades_handler = BinanceTradesHandler(
             connection=WebSocketConnection(base_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
+            shared_context=shared_context,
         )
         return cls(
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             instrument_collection=instrument_collection,
             ticker_handler=ticker_handler,
             bbo_handler=bbo_handler,
@@ -103,14 +110,14 @@ class BinancePrivateStreamManager(PrivateStreamManager):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> "BinancePrivateStreamManager":
         """Create the Binance private stream manager.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             BinancePrivateStreamManager: Initialized manager instance.
@@ -118,29 +125,32 @@ class BinancePrivateStreamManager(PrivateStreamManager):
         if exchange.venue not in BINANCE_PUBLIC_URLS:
             raise ValueError("BinancePrivateStreamManager requires BinanceExchange.")
 
+        exchange = cast(BinanceExchange, exchange)  # for .get_listen_key()
         instrument_collection = await exchange.get_instrument_collection_cached()
         listen_key_resp = await exchange.get_listen_key()
-        if listen_key_resp.is_successful is False:
+        if not is_success(listen_key_resp):
             raise RuntimeError(
                 f"Failed to acquire listen key; {listen_key_resp.err_msg}"
             )
         listen_key = listen_key_resp.data
         wss_url = f"{BINANCE_PUBLIC_URLS[exchange.venue]}/{listen_key}"
+        shared_context = StreamSharedContext()
 
         handler = BinancePrivateHandler(
             venue=exchange.venue,
             logger=logger,
             connection=WebSocketConnection(wss_url, logger),
             instrument_collection=instrument_collection,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             exchange=exchange,
             listen_key=listen_key,
+            shared_context=shared_context,
         )
 
         return cls(
             venue=exchange.venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             instrument_collection=instrument_collection,
             handler=handler,
         )

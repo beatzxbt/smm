@@ -8,38 +8,7 @@ from __future__ import annotations
 
 from msgspec import Struct, field
 
-from framework.base.tools import EnumMap
-from framework.base.common import (
-    Instrument,
-    InstrumentCollection,
-    Venue,
-)
-from framework.base.stream.models import (
-    AccountMsg,
-    Execution,
-    ExecutionMsg,
-    Moments,
-    OrderbookLevel,
-    OrderbookMsg,
-    Order,
-    OrderMsg,
-    PositionMsg,
-    TickerMsg,
-    Trade,
-    TradeMsg,
-    OrderTimeInForce,
-)
-from mm_toolbox.time import time_ns
-
-BINANCE_TIF_MAP = EnumMap(
-    enum_class=OrderTimeInForce,
-    mapping={
-        OrderTimeInForce.GTC: "GTC",
-        OrderTimeInForce.PO: "GTX",
-        OrderTimeInForce.IOC: "IOC",
-        OrderTimeInForce.FOK: "FOK",
-    },
-)
+from framework.base.common import Asset, Symbol
 
 
 class BookTickerStreamUpdate(Struct, tag=True, frozen=True):
@@ -67,34 +36,11 @@ class BookTickerStreamUpdate(Struct, tag=True, frozen=True):
     update_id: int = field(name="u")
     event_time: int = field(name="E")
     transaction_time: int = field(name="T")
-    symbol: str = field(name="s")
+    symbol: Symbol = field(name="s")
     best_bid_price: str = field(name="b")
     best_bid_qty: str = field(name="B")
     best_ask_price: str = field(name="a")
     best_ask_qty: str = field(name="A")
-
-    def is_outdated(self, last_update_id: int) -> bool:
-        return self.update_id <= last_update_id
-
-    def to_orderbook_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> OrderbookMsg:
-        instrument = instrument_collection.get(venue, self.symbol)
-        if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{self.symbol}")
-
-        return OrderbookMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,  # ms -> ns
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            bids=[OrderbookLevel(float(self.best_bid_price), float(self.best_bid_qty))],
-            asks=[OrderbookLevel(float(self.best_ask_price), float(self.best_ask_qty))],
-            is_bbo=True,
-            is_snapshot=False,
-        )
 
 
 class DiffBookDepthStreamUpdate(Struct, tag=True, frozen=True):
@@ -125,42 +71,15 @@ class DiffBookDepthStreamUpdate(Struct, tag=True, frozen=True):
     event_type: str = field(name="e")
     event_time: int = field(name="E")
     transaction_time: int = field(name="T")
-    symbol: str = field(name="s")
+    symbol: Symbol = field(name="s")
     first_update_id: int = field(name="U")
     final_update_id: int = field(name="u")
     prev_final_update_id: int = field(name="pu")
-    bids: list[tuple[str, str]] = field(name="b")
-    asks: list[tuple[str, str]] = field(name="a")
-
-    def is_outdated(self, last_update_id: int) -> bool:
-        return self.final_update_id <= last_update_id
-
-    def to_orderbook_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> OrderbookMsg:
-        instrument = instrument_collection.get(venue, self.symbol)
-        if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{self.symbol}")
-
-        return OrderbookMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,  # ms -> ns
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            bids=[
-                OrderbookLevel(float(price), float(size)) for price, size in self.bids
-            ],
-            asks=[
-                OrderbookLevel(float(price), float(size)) for price, size in self.asks
-            ],
-            is_bbo=False,
-            is_snapshot=False,
-        )
+    bids: tuple[tuple[str, str]] = field(name="b")
+    asks: tuple[tuple[str, str]] = field(name="a")
 
 
-class TradeStreamUpdate(Struct, frozen=True):
+class TradeStreamUpdate(Struct, tag=True, frozen=True):
     """Trade execution update for a symbol.
 
     Docs: https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/Individual-Symbol-Trade-Streams
@@ -193,36 +112,12 @@ class TradeStreamUpdate(Struct, frozen=True):
     event_type: str = field(name="e")
     event_time: int = field(name="E")
     transaction_time: int = field(name="T")
-    symbol: str = field(name="s")
+    symbol: Symbol = field(name="s")
     trade_id: int = field(name="t")
     price: str = field(name="p")
     quantity: str = field(name="q")
     trade_type: str = field(name="X")
     is_buyer_maker: bool = field(name="m")
-
-    def to_trade_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> TradeMsg:
-        instrument = instrument_collection.get(venue, self.symbol)
-        if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{self.symbol}")
-
-        return TradeMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,  # ms -> ns
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            trades=[
-                Trade(
-                    time_ms=self.transaction_time,
-                    price=float(self.price),
-                    is_buy=not self.is_buyer_maker,
-                    size=float(self.quantity),
-                )
-            ],
-        )
 
 
 class OpenInterestInfo(Struct, frozen=True):
@@ -234,7 +129,7 @@ class TickerStats24h(Struct, frozen=True):
     avg_volume_24h: float
 
 
-class TickerStats24hStreamUpdate(Struct, frozen=True):
+class TickerStats24hStreamUpdate(Struct, tag=True, frozen=True):
     """24-hour rolling statistics for a symbol.
 
     Provides price change, percentage change, and volume information over a 24-hour
@@ -256,7 +151,7 @@ class TickerStats24hStreamUpdate(Struct, frozen=True):
     """
 
     event_time: int = field(name="E")
-    symbol: str = field(name="s")
+    symbol: Symbol = field(name="s")
     price_change: str = field(name="p")
     price_change_percent: str = field(name="P")
     volume: str = field(name="v")
@@ -292,51 +187,18 @@ class MarkPriceStreamUpdate(Struct, frozen=True):
     """
 
     event_time: int = field(name="E")
-    symbol: str = field(name="s")
+    symbol: Symbol = field(name="s")
     mark_price: str = field(name="p")
     index_price: str = field(name="i")
     estimated_settle_price: str = field(name="P")
     funding_rate: str = field(name="r")
     next_funding_time: int = field(name="T")
 
-    def to_ticker_msg(
-        self,
-        venue: Venue,
-        instrument_collection: InstrumentCollection,
-        instrument_to_open_interest_map: dict[Instrument, OpenInterestInfo],
-        instrument_to_ticker_stats_24h_map: dict[Instrument, TickerStats24h],
-    ) -> TickerMsg:
-        instrument = instrument_collection.get(venue, self.symbol)
-        if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{self.symbol}")
-        open_interest = instrument_to_open_interest_map.get(
-            instrument, OpenInterestInfo(open_interest=0.0)
-        )
-        ticker_stats_24h = instrument_to_ticker_stats_24h_map.get(
-            instrument, TickerStats24h(price_chg_24h_pct=0.0, avg_volume_24h=0.0)
-        )
-
-        return TickerMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,  # ms -> ns
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            mark_price=float(self.mark_price),
-            index_price=float(self.index_price),
-            funding_rate=float(self.funding_rate),
-            next_funding_time_ms=self.next_funding_time,
-            open_interest=open_interest.open_interest,
-            avg_volume_24h=ticker_stats_24h.avg_volume_24h,
-            price_chg_24h_pct=ticker_stats_24h.price_chg_24h_pct,
-        )
-
 
 class OrderUpdateOrderData(Struct, frozen=True):
     """Order details payload embedded in order update messages."""
 
-    symbol: str = field(name="s")
+    symbol: Symbol = field(name="s")
     client_order_id: str = field(name="c")
     side: str = field(name="S")
     order_type: str = field(name="o")
@@ -348,7 +210,7 @@ class OrderUpdateOrderData(Struct, frozen=True):
     cum_exec_qty: str = field(name="z")
     last_exec_price: str = field(name="L")
     commission: str = field(name="n")
-    commission_asset: str = field(name="N")
+    commission_asset: Asset = field(name="N")
     trade_time: int = field(name="T")
     create_time: int = field(name="t")
     is_maker: bool = field(name="m")
@@ -361,7 +223,7 @@ class OrderUpdateOrderData(Struct, frozen=True):
 class AccountBalanceData(Struct, frozen=True):
     """Account balance details from account update payloads."""
 
-    asset: str = field(name="a")
+    asset: Asset = field(name="a")
     wallet_balance: str = field(name="wb")
     cross_wallet_balance: str = field(name="cw")
 
@@ -369,7 +231,7 @@ class AccountBalanceData(Struct, frozen=True):
 class PositionUpdateData(Struct, frozen=True):
     """Position details from account update payloads."""
 
-    symbol: str = field(name="s")
+    symbol: Symbol = field(name="s")
     position_amount: str = field(name="pa")
     entry_price: str = field(name="ep")
     cumulative_realized: str = field(name="cr")
@@ -439,101 +301,6 @@ class OrderUpdateStreamUpdate(
     transaction_time: int = field(name="T")
     order: OrderUpdateOrderData = field(name="o")
 
-    def to_order_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> OrderMsg:
-        """Convert an order update payload into an order message.
-
-        Args:
-            venue: Venue associated with the stream.
-            instrument_collection: Collection of available instruments.
-
-        Returns:
-            OrderMsg: Order message.
-        """
-        order_data = self.order
-        instrument = instrument_collection.get(venue, order_data.symbol)
-
-        if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{order_data.symbol}")
-
-        tif = BINANCE_TIF_MAP.str_to_enum(
-            order_data.time_in_force,
-            default=OrderTimeInForce.GTC,
-        )
-
-        size = float(order_data.quantity)
-        filled = float(order_data.cum_exec_qty)
-        status = str(order_data.status)
-        is_cancelled = status in {"CANCELED", "REJECTED", "EXPIRED", "CANCELLED"}
-        order = Order(
-            create_time_ms=float(order_data.create_time),
-            order_id=str(order_data.order_id),
-            price=float(order_data.price),
-            is_buy=order_data.side == "BUY",
-            size=size,
-            size_remaining=max(0.0, size - filled),
-            tif=tif,
-            is_cancelled=is_cancelled,
-            is_reduce_only=order_data.reduce_only,
-            client_order_id=order_data.client_order_id,
-        )
-
-        return OrderMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            orders=[order],
-        )
-
-    def to_execution_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> ExecutionMsg:
-        """Convert an order update payload into an execution message.
-
-        Args:
-            venue: Venue associated with the stream.
-            instrument_collection: Collection of available instruments.
-
-        Returns:
-            ExecutionMsg: Execution message.
-        """
-        order_data = self.order
-        if order_data.status != "TRADE":
-            raise ValueError(
-                f"Execution update expected status TRADE, got {order_data.status}"
-            )
-        instrument = instrument_collection.get(venue, order_data.symbol)
-        if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{order_data.symbol}")
-        last_executed_qty = float(order_data.last_exec_qty)
-        if last_executed_qty == 0:
-            raise ValueError("Execution update has zero executed quantity")
-
-        execution = Execution(
-            exec_time_ms=float(order_data.trade_time),
-            order_id=str(order_data.order_id),
-            price=float(order_data.last_exec_price),
-            is_buy=order_data.side == "BUY",
-            size=last_executed_qty,
-            is_maker=order_data.is_maker,
-            fee_paid=float(order_data.commission),
-            client_order_id=order_data.client_order_id,
-        )
-
-        return ExecutionMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            executions=[execution],
-        )
-
 
 class AccountUpdateStreamUpdate(
     Struct, frozen=True, tag_field="e", tag="ACCOUNT_UPDATE"
@@ -573,73 +340,6 @@ class AccountUpdateStreamUpdate(
     transaction_time: int = field(name="T")
     account_data: AccountUpdateData = field(name="a")
 
-    def to_account_msg(self, venue: Venue) -> AccountMsg:
-        """Convert account update payload into an account message.
-
-        Args:
-            venue: Venue associated with the stream.
-
-        Returns:
-            AccountMsg: Normalized account balance update.
-        """
-        balance_data = self.account_data.balances
-        wallet_balance = 0.0
-
-        for balance in balance_data:
-            if balance.asset == "USDT":  # Focus on USDT balance
-                wallet_balance = float(balance.wallet_balance)
-                break
-
-        # Provide a dummy instrument (non-specific) to satisfy schema expectations
-        instrument = Instrument.empty()
-        return AccountMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            balance=wallet_balance,
-            initial_margin=float(self.account_data.maintenance_margin),
-            maintenance_margin=float(self.account_data.maintenance_margin_level),
-            unrealized_pnl=float(self.account_data.unrealized_pnl_usd),
-        )
-
-    def to_position_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> list[PositionMsg]:
-        """Convert account update payload into position messages.
-
-        Args:
-            venue: Venue associated with the stream.
-            instrument_collection: Collection of available instruments.
-
-        Returns:
-            list[PositionMsg]: Position messages for non-zero positions.
-        """
-        positions: list[PositionMsg] = []
-        for position in self.account_data.positions:
-            instrument = instrument_collection.get(venue, position.symbol)
-            if not instrument:
-                raise KeyError(f"Instrument not found for {venue}:{position.symbol}")
-            position_amt = float(position.position_amount)
-            if position_amt == 0.0:
-                continue
-            positions.append(
-                PositionMsg(
-                    moments=Moments(
-                        exch_time_ns=self.event_time * 1_000_000,
-                        recv_time_ns=time_ns(),
-                    ),
-                    venue=venue,
-                    instrument=instrument,
-                    price=float(position.entry_price),
-                    is_long=position_amt > 0,
-                    size=abs(position_amt),
-                )
-            )
-        return positions
-
 
 class PositionUpdateStreamUpdate(Struct, frozen=True):
     """Position size and entry price update (user data stream).
@@ -676,45 +376,6 @@ class PositionUpdateStreamUpdate(Struct, frozen=True):
     event_time: int = field(name="E")
     transaction_time: int = field(name="T")
     account_data: AccountUpdateData = field(name="a")
-
-    def to_position_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> PositionMsg:
-        """Convert position update payload into a position message.
-
-        Args:
-            venue: Venue associated with the stream.
-            instrument_collection: Collection of available instruments.
-
-        Returns:
-            PositionMsg: Position message.
-        """
-        positions_data = self.account_data.positions
-
-        # Process position updates
-        for position in positions_data:
-            instrument = instrument_collection.get(venue, position.symbol)
-
-            if not instrument:
-                raise KeyError(f"Instrument not found for {venue}:{position.symbol}")
-
-            position_amt = float(position.position_amount)
-            if position_amt == 0:
-                continue
-
-            return PositionMsg(
-                moments=Moments(
-                    exch_time_ns=self.event_time * 1_000_000,
-                    recv_time_ns=time_ns(),
-                ),
-                venue=venue,
-                instrument=instrument,
-                price=float(position.entry_price),
-                is_long=position_amt > 0,
-                size=abs(position_amt),
-            )
-
-        raise ValueError("Position update has no non-zero positions")
 
 
 class ExecutionReportStreamUpdate(Struct, frozen=True):
@@ -759,47 +420,3 @@ class ExecutionReportStreamUpdate(Struct, frozen=True):
     event_time: int = field(name="E")
     transaction_time: int = field(name="T")
     order: OrderUpdateOrderData = field(name="o")
-
-    def to_execution_msg(
-        self, venue: Venue, instrument_collection: InstrumentCollection
-    ) -> ExecutionMsg:
-        """Convert execution report payload into an execution message.
-
-        Args:
-            venue: Venue associated with the stream.
-            instrument_collection: Collection of available instruments.
-
-        Returns:
-            ExecutionMsg: Execution message.
-        """
-        order_data = self.order
-        instrument = instrument_collection.get(venue, order_data.symbol)
-
-        if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{order_data.symbol}")
-
-        # Only process if there was an execution
-        last_executed_qty = float(order_data.last_exec_qty)
-        if last_executed_qty == 0:
-            raise ValueError("Execution report has zero executed quantity")
-
-        execution = Execution(
-            exec_time_ms=float(order_data.trade_time),
-            order_id=str(order_data.order_id),
-            price=float(order_data.last_exec_price),
-            is_buy=order_data.side == "BUY",
-            size=last_executed_qty,
-            is_maker=order_data.is_maker,
-            fee_paid=float(order_data.commission),
-            client_order_id=order_data.client_order_id,
-        )
-
-        return ExecutionMsg(
-            moments=Moments(
-                exch_time_ns=self.event_time * 1_000_000,
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
-            instrument=instrument,
-            executions=[execution],
-        )

@@ -7,11 +7,9 @@ Components: handler wiring and Bybit-specific routing.
 
 from __future__ import annotations
 
-import asyncio
 
 from framework.base.stream.connection import WebSocketConnection
 from framework.base.stream.manager import MarketStreamManager, PrivateStreamManager
-from framework.base.stream.models import Msg
 from framework.base.trading.exchange import Exchange
 from framework.bybit.stream.handlers import (
     BybitBBOHandler,
@@ -21,6 +19,7 @@ from framework.bybit.stream.handlers import (
     BybitTradesHandler,
 )
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 BYBIT_PUBLIC_STREAM_URL = "wss://stream.bybit.com/v5/public/linear"
 BYBIT_PRIVATE_STREAM_URL = "wss://stream.bybit.com/v5/private"
@@ -34,14 +33,14 @@ class BybitMarketStreamManager(MarketStreamManager):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue],
+        consumer_buffer: GenericRingBuffer,
     ) -> "BybitMarketStreamManager":
         """Create the Bybit market stream manager.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             BybitMarketStreamManager: Initialized manager instance.
@@ -53,33 +52,33 @@ class BybitMarketStreamManager(MarketStreamManager):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         bbo_handler = BybitBBOHandler(
             connection=WebSocketConnection(BYBIT_PUBLIC_STREAM_URL, logger),
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         orderbook_handler = BybitOrderbookHandler(
             connection=WebSocketConnection(BYBIT_PUBLIC_STREAM_URL, logger),
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         trades_handler = BybitTradesHandler(
             connection=WebSocketConnection(BYBIT_PUBLIC_STREAM_URL, logger),
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
         return cls(
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             instrument_collection=instrument_collection,
             ticker_handler=ticker_handler,
             bbo_handler=bbo_handler,
@@ -96,14 +95,14 @@ class BybitPrivateStreamManager(PrivateStreamManager):
         cls,
         exchange: Exchange,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> "BybitPrivateStreamManager":
         """Create the Bybit private stream manager.
 
         Args:
             exchange: Exchange client for instrument resolution.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
 
         Returns:
             BybitPrivateStreamManager: Initialized manager instance.
@@ -117,7 +116,7 @@ class BybitPrivateStreamManager(PrivateStreamManager):
             logger=logger,
             connection=WebSocketConnection(BYBIT_PRIVATE_STREAM_URL, logger),
             instrument_collection=instrument_collection,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             key=key,
             secret=secret,
         )
@@ -125,7 +124,7 @@ class BybitPrivateStreamManager(PrivateStreamManager):
         return cls(
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
             instrument_collection=instrument_collection,
             handler=handler,
         )

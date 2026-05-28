@@ -13,14 +13,19 @@ from __future__ import annotations
 from msgspec import Struct, field
 
 from framework.base.common import (
+    Asset,
+    ClientOrderId,
     Instrument,
     InstrumentCollection,
+    OrderId,
+    Symbol,
     Venue,
 )
+from framework.base.schema import MessageId, Moments
 from framework.base.stream.models import (
+    Balance,
     AccountMsg,
     Execution,
-    Moments,
     Order,
     OrderTimeInForce,
     OrderbookLevel,
@@ -79,50 +84,40 @@ class OkxTickerMsg(Struct, frozen=True):
         }
     """
 
-    inst_id: str = field(name="instId")
-    last: str
-    last_sz: str = field(name="lastSz")
-    ask_px: str = field(name="askPx")
-    ask_sz: str = field(name="askSz")
-    bid_px: str = field(name="bidPx")
-    bid_sz: str = field(name="bidSz")
-    open_24h: str = field(name="open24h")
-    high_24h: str = field(name="high24h")
-    low_24h: str = field(name="low24h")
-    vol_ccy_24h: str = field(name="volCcy24h")
-    vol_24h: str = field(name="vol24h")
-    sod_utc_0: str = field(name="sodUtc0")
-    sod_utc_8: str = field(name="sodUtc8")
-    ts: str
-    mark_px: str = field(name="markPx")
-    idx_px: str = field(name="idxPx")
-    funding_rate: str = field(name="fundingRate")
-    next_funding_time: str = field(name="nextFundingTime")
-    open_interest: str = field(name="openInterest")
+    inst_id: Symbol = field(name="instId")
 
     def to_ticker_msg(
         self,
         venue: Venue,
         instrument_collection: InstrumentCollection,
+        is_snapshot: bool,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> TickerMsg:
-        instrument = instrument_collection.get(venue, self.inst_id)
+        instrument = instrument_collection.get(self.inst_id)
         if not instrument:
             raise KeyError(f"Instrument not found for {venue}:{self.inst_id}")
 
         exch_time_ns = int(self.ts) * 1_000_000
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
         price_chg_pct = (
             (float(self.last) - float(self.open_24h)) / float(self.open_24h) * 100.0
             if float(self.open_24h) > 0
             else 0.0
         )
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
 
         return TickerMsg(
-            moments=Moments(exch_time_ns=exch_time_ns),
-            venue=venue,
+            id=msg_id,
+            origin_id=origin_id,
+            moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=recv_time_ns),
             instrument=instrument,
+            is_snapshot=is_snapshot,
             mark_price=float(self.mark_px),
             index_price=float(self.idx_px),
             funding_rate=float(self.funding_rate),
+            funding_period_min=480,
             next_funding_time_ms=float(self.next_funding_time),
             open_interest=float(self.open_interest),
             avg_volume_24h=float(self.vol_24h),
@@ -150,7 +145,7 @@ class OkxTradeMsg(Struct, frozen=True):
         }
     """
 
-    inst_id: str = field(name="instId")
+    inst_id: Symbol = field(name="instId")
     trade_id: str = field(name="tradeId")
     px: str
     sz: str
@@ -215,33 +210,39 @@ class OkxOrderbookMsg(Struct, frozen=True):
         inst_id: str,
         is_bbo: bool,
         is_snapshot: bool = False,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> OrderbookMsg:
-        instrument = instrument_collection.get(venue, inst_id)
+        instrument = instrument_collection.get(Symbol(inst_id))
         if not instrument:
             raise KeyError(f"Instrument not found for {venue}:{inst_id}")
 
         exch_time_ns = int(self.ts) * 1_000_000
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
         return OrderbookMsg(
+            id=msg_id,
+            origin_id=origin_id,
             moments=Moments(
                 exch_time_ns=exch_time_ns,
-                recv_time_ns=time_ns(),
+                recv_time_ns=recv_time_ns,
             ),
-            venue=venue,
             instrument=instrument,
-            bids=[
+            is_snapshot=is_snapshot,
+            bids=tuple(
                 OrderbookLevel(
                     float(level.price), float(level.size), int(level.num_orders)
                 )
                 for level in self.bids
-            ],
-            asks=[
+            ),
+            asks=tuple(
                 OrderbookLevel(
                     float(level.price), float(level.size), int(level.num_orders)
                 )
                 for level in self.asks
-            ],
+            ),
             is_bbo=is_bbo,
-            is_snapshot=is_snapshot,
         )
 
 
@@ -312,7 +313,7 @@ class OkxPositionMsg(Struct, frozen=True):
         }
     """
 
-    inst_id: str = field(name="instId")
+    inst_id: Symbol = field(name="instId")
     inst_type: str = field(name="instType")
     mgn_mode: str = field(name="mgnMode")
     pos_id: str = field(name="posId")
@@ -337,21 +338,29 @@ class OkxPositionMsg(Struct, frozen=True):
         self,
         venue: Venue,
         instrument_collection: InstrumentCollection,
+        is_snapshot: bool,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> PositionMsg:
-        instrument = instrument_collection.get(venue, self.inst_id)
+        instrument = instrument_collection.get(self.inst_id)
         if not instrument:
             raise KeyError(f"Instrument not found for {venue}:{self.inst_id}")
 
         pos_size = float(self.pos)
         exch_time_ns = int(self.u_time) * 1_000_000
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
 
         return PositionMsg(
+            id=msg_id,
+            origin_id=origin_id,
             moments=Moments(
                 exch_time_ns=exch_time_ns,
-                recv_time_ns=time_ns(),
+                recv_time_ns=recv_time_ns,
             ),
-            venue=venue,
             instrument=instrument,
+            is_snapshot=is_snapshot,
             price=float(self.avg_px),
             is_long=pos_size > 0,
             size=abs(pos_size),
@@ -402,7 +411,7 @@ class OkxOrderMsg(Struct, frozen=True):
         }
     """
 
-    inst_id: str = field(name="instId")
+    inst_id: Symbol = field(name="instId")
     inst_type: str = field(name="instType")
     ord_id: str = field(name="ordId")
     cl_ord_id: str = field(name="clOrdId")
@@ -417,7 +426,7 @@ class OkxOrderMsg(Struct, frozen=True):
     avg_px: str = field(name="avgPx")
     state: str
     lever: str
-    fee_ccy: str = field(name="feeCcy")
+    fee_ccy: Asset = field(name="feeCcy")
     fee: str
     rebate_ccy: str = field(name="rebateCcy")
     rebate: str
@@ -442,7 +451,7 @@ class OkxOrderMsg(Struct, frozen=True):
 
         return Order(
             create_time_ms=float(self.c_time),
-            order_id=self.ord_id,
+            order_id=OrderId(str(self.ord_id)),
             price=float(self.px) if self.px else 0.0,
             is_buy=self.side == "buy",
             size=total_size,
@@ -450,7 +459,9 @@ class OkxOrderMsg(Struct, frozen=True):
             tif=tif,
             is_cancelled=is_cancelled,
             is_reduce_only=self.reduce_only == "true",
-            client_order_id=self.cl_ord_id if self.cl_ord_id else None,
+            client_order_id=ClientOrderId(str(self.cl_ord_id))
+            if self.cl_ord_id
+            else None,
         )
 
 
@@ -465,7 +476,7 @@ class OkxExecutionMsg(Struct, frozen=True):
     Example: Same as OkxOrderMsg, but we extract execution info.
     """
 
-    inst_id: str = field(name="instId")
+    inst_id: Symbol = field(name="instId")
     ord_id: str = field(name="ordId")
     cl_ord_id: str = field(name="clOrdId")
     px: str
@@ -475,7 +486,7 @@ class OkxExecutionMsg(Struct, frozen=True):
     fill_px: str = field(name="fillPx")
     avg_px: str = field(name="avgPx")
     fee: str
-    fee_ccy: str = field(name="feeCcy")
+    fee_ccy: Asset = field(name="feeCcy")
     u_time: str = field(name="uTime")
     ord_type: str = field(name="ordType")
 
@@ -489,13 +500,15 @@ class OkxExecutionMsg(Struct, frozen=True):
 
         return Execution(
             exec_time_ms=float(self.u_time),
-            order_id=self.ord_id,
+            order_id=OrderId(str(self.ord_id)),
             price=float(self.avg_px) if self.avg_px else float(self.fill_px),
             is_buy=self.side == "buy",
             size=fill_size,
             is_maker=is_maker,
             fee_paid=abs(float(self.fee)) if self.fee else 0.0,
-            client_order_id=self.cl_ord_id if self.cl_ord_id else None,
+            client_order_id=ClientOrderId(str(self.cl_ord_id))
+            if self.cl_ord_id
+            else None,
         )
 
 
@@ -539,17 +552,27 @@ class OkxAccountMsg(Struct, frozen=True):
         self,
         venue: Venue,
         instrument: Instrument,
+        is_snapshot: bool,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> AccountMsg:
         exch_time_ns = int(self.u_time) * 1_000_000
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
 
         return AccountMsg(
+            id=msg_id,
+            origin_id=origin_id,
             moments=Moments(
                 exch_time_ns=exch_time_ns,
-                recv_time_ns=time_ns(),
+                recv_time_ns=recv_time_ns,
             ),
-            venue=venue,
             instrument=instrument,
-            balance=float(self.total_eq),
+            is_snapshot=is_snapshot,
+            balances={
+                instrument: Balance(currency=Asset("USD"), amount=float(self.total_eq))
+            },
             initial_margin=float(self.imr),
             maintenance_margin=float(self.mmr),
             unrealized_pnl=float(self.upl),

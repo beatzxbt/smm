@@ -7,14 +7,14 @@ Components: typed decoders, subscription payloads, authentication, and per-strea
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 from abc import ABC
 
 import msgspec
 
-from framework.base.common import Instrument, InstrumentCollection, Venue
+from framework.base.common import Instrument, InstrumentCollection, Symbol, Venue
+from framework.base.schema import MessageId, Moments
 from framework.base.stream.connection import WebSocketConnection
 from framework.base.stream.handlers import (
     BBOStreamHandler,
@@ -26,8 +26,6 @@ from framework.base.stream.handlers import (
 from framework.base.stream.models import (
     Execution,
     ExecutionMsg,
-    Moments,
-    Msg,
     Order,
     OrderMsg,
     PrivateDataStreamType,
@@ -37,26 +35,25 @@ from framework.base.stream.models import (
 from framework.base.tools import EnumMap, SimpleCache
 from framework.bybit.stream.models import (
     BybitExecutionMsg,
-    BybitOrderbookMsg,
+    BybitOrderbookPublicMsg,
     BybitOrderMsg,
     BybitPositionMsg,
     BybitPrivateMsg,
-    BybitPublicMsg,
-    BybitTickerMsg,
+    BybitTickerPublicMsg,
     BybitTradeMsg,
     BybitWalletMsg,
 )
 from mm_toolbox.logging.standard import Logger
-from mm_toolbox.time import time_ns, time_ms
+from mm_toolbox.ringbuffer import GenericRingBuffer
+from mm_toolbox.time import time_ms
 
 
 class _BybitStreamHandler(ABC):
     """Shared Bybit stream behavior with ACK logging."""
 
-    _logger: Logger
-
-    def __init__(self) -> None:
+    def __init__(self, logger: Logger) -> None:
         """Initialize request identifier state."""
+        self._logger = logger
         self._req_id_counter = 0
 
     def _next_req_id(self) -> str:
@@ -117,7 +114,7 @@ class BybitTickerHandler(TickerStreamHandler, _BybitStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the Bybit ticker handler.
 
@@ -126,7 +123,7 @@ class BybitTickerHandler(TickerStreamHandler, _BybitStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         TickerStreamHandler.__init__(
             self,
@@ -134,10 +131,10 @@ class BybitTickerHandler(TickerStreamHandler, _BybitStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
-        _BybitStreamHandler.__init__(self)
-        self._decoder = msgspec.json.Decoder(BybitPublicMsg[BybitTickerMsg])
+        _BybitStreamHandler.__init__(self, logger)
+        self._decoder = msgspec.json.Decoder(BybitTickerPublicMsg)
         self._latest_symbol_ticker_map: dict[str, TickerMsg] = {}
 
     def build_authentication_payload(self) -> bytes:
@@ -186,19 +183,28 @@ class BybitTickerHandler(TickerStreamHandler, _BybitStreamHandler):
             {"op": "unsubscribe", "args": args, "req_id": req_id}
         )
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode ticker messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
             decoded = self._decoder.decode(raw_msg)
             exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else None
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             ticker_msg = decoded.data.to_ticker_msg(
                 venue=self.venue,
                 instrument_collection=self.instrument_collection,
                 exch_time_ns=exch_time_ns,
+                is_snapshot=decoded.type == "snapshot",
+                origin_id=origin_id,
+                recv_time_ns=recv_time_ns,
             )
             symbol = decoded.data.symbol
             if decoded.type == "delta":
@@ -224,7 +230,7 @@ class BybitTickerHandler(TickerStreamHandler, _BybitStreamHandler):
         Returns:
             TickerMsg: Merged ticker message.
         """
-        cached = self._latest_symbol_ticker_map.get(symbol)
+        cached = self._latest_symbol_ticker_map.get(symbol, None)
         if cached is None:
             return incoming
 
@@ -241,12 +247,15 @@ class BybitTickerHandler(TickerStreamHandler, _BybitStreamHandler):
             return fallback if value == 0.0 and fallback != 0.0 else value
 
         return TickerMsg(
+            id=incoming.id,
+            origin_id=incoming.origin_id,
             moments=incoming.moments,
-            venue=incoming.venue,
             instrument=incoming.instrument,
+            is_snapshot=incoming.is_snapshot,
             mark_price=pick(incoming.mark_price, cached.mark_price),
             index_price=pick(incoming.index_price, cached.index_price),
             funding_rate=pick(incoming.funding_rate, cached.funding_rate),
+            funding_period_min=incoming.funding_period_min,
             next_funding_time_ms=pick(
                 incoming.next_funding_time_ms, cached.next_funding_time_ms
             ),
@@ -267,7 +276,7 @@ class BybitBBOHandler(BBOStreamHandler, _BybitStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the Bybit BBO handler.
 
@@ -276,7 +285,7 @@ class BybitBBOHandler(BBOStreamHandler, _BybitStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         BBOStreamHandler.__init__(
             self,
@@ -284,10 +293,10 @@ class BybitBBOHandler(BBOStreamHandler, _BybitStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
-        _BybitStreamHandler.__init__(self)
-        self._decoder = msgspec.json.Decoder(BybitPublicMsg[BybitOrderbookMsg])
+        _BybitStreamHandler.__init__(self, logger)
+        self._decoder = msgspec.json.Decoder(BybitOrderbookPublicMsg)
 
     def build_authentication_payload(self) -> bytes:
         """No authentication needed for public market streams.
@@ -335,21 +344,29 @@ class BybitBBOHandler(BBOStreamHandler, _BybitStreamHandler):
             {"op": "unsubscribe", "args": args, "req_id": req_id}
         )
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode BBO messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
             decoded = self._decoder.decode(raw_msg)
             exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else None
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             orderbook_msg = decoded.data.to_orderbook_msg(
                 venue=self.venue,
                 instrument_collection=self.instrument_collection,
                 is_bbo=True,
                 is_snapshot=decoded.type == "snapshot",
                 exch_time_ns=exch_time_ns,
+                origin_id=origin_id,
+                recv_time_ns=recv_time_ns,
             )
             self.broadcast(orderbook_msg)
         except msgspec.DecodeError:
@@ -371,7 +388,7 @@ class BybitOrderbookHandler(OrderbookStreamHandler, _BybitStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the Bybit orderbook handler.
 
@@ -380,7 +397,7 @@ class BybitOrderbookHandler(OrderbookStreamHandler, _BybitStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         OrderbookStreamHandler.__init__(
             self,
@@ -388,10 +405,10 @@ class BybitOrderbookHandler(OrderbookStreamHandler, _BybitStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
-        _BybitStreamHandler.__init__(self)
-        self._decoder = msgspec.json.Decoder(BybitPublicMsg[BybitOrderbookMsg])
+        _BybitStreamHandler.__init__(self, logger)
+        self._decoder = msgspec.json.Decoder(BybitOrderbookPublicMsg)
 
     def build_authentication_payload(self) -> bytes:
         """No authentication needed for public market streams.
@@ -415,7 +432,7 @@ class BybitOrderbookHandler(OrderbookStreamHandler, _BybitStreamHandler):
         Returns:
             bytes: Serialized payload bytes.
         """
-        args = [f"orderbook.500.{inst.symbol}" for inst in instruments]
+        args = [f"orderbook.1000.{inst.symbol}" for inst in instruments]
         req_id = self._next_req_id()
         return msgspec.json.encode({"op": "subscribe", "args": args, "req_id": req_id})
 
@@ -439,21 +456,29 @@ class BybitOrderbookHandler(OrderbookStreamHandler, _BybitStreamHandler):
             {"op": "unsubscribe", "args": args, "req_id": req_id}
         )
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode orderbook messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
             decoded = self._decoder.decode(raw_msg)
             exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else None
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             orderbook_msg = decoded.data.to_orderbook_msg(
                 venue=self.venue,
                 instrument_collection=self.instrument_collection,
                 is_bbo=False,
                 is_snapshot=decoded.type == "snapshot",
                 exch_time_ns=exch_time_ns,
+                origin_id=origin_id,
+                recv_time_ns=recv_time_ns,
             )
             self.broadcast(orderbook_msg)
         except msgspec.DecodeError:
@@ -475,7 +500,7 @@ class BybitTradesHandler(TradesStreamHandler, _BybitStreamHandler):
         instrument_collection: InstrumentCollection,
         venue: Venue,
         logger: Logger,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the Bybit trades handler.
 
@@ -484,7 +509,7 @@ class BybitTradesHandler(TradesStreamHandler, _BybitStreamHandler):
             instrument_collection: Shared instrument collection.
             venue: Venue for the handler.
             logger: Logger for diagnostics.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
         """
         TradesStreamHandler.__init__(
             self,
@@ -492,9 +517,9 @@ class BybitTradesHandler(TradesStreamHandler, _BybitStreamHandler):
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
-        _BybitStreamHandler.__init__(self)
+        _BybitStreamHandler.__init__(self, logger)
         self._decoder = msgspec.json.Decoder(BybitTradeMsg)
         self._symbol_to_seq_cache: SimpleCache = SimpleCache()
 
@@ -544,18 +569,26 @@ class BybitTradesHandler(TradesStreamHandler, _BybitStreamHandler):
             {"op": "unsubscribe", "args": args, "req_id": req_id}
         )
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode trade messages and broadcast updates.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
             decoded = self._decoder.decode(raw_msg)
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
             trade_msg = decoded.to_trade_msg(
                 venue=self.venue,
                 instrument_collection=self.instrument_collection,
                 symbol_to_seq_cache=self._symbol_to_seq_cache,
+                origin_id=origin_id,
+                recv_time_ns=recv_time_ns,
             )
             if trade_msg is not None:
                 self.broadcast(trade_msg)
@@ -582,7 +615,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
         logger: Logger,
         connection: WebSocketConnection,
         instrument_collection: InstrumentCollection,
-        consumer_queues: list[asyncio.Queue[Msg]],
+        consumer_buffer: GenericRingBuffer,
         api_key: str,
         api_secret: str,
     ) -> None:
@@ -593,7 +626,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
             logger: Logger for diagnostics.
             connection: WebSocket connection for private streams.
             instrument_collection: Shared instrument collection.
-            consumer_queues: Queues to broadcast messages to.
+            consumer_buffer: Ring buffer to broadcast messages to.
             api_key: Bybit API key.
             api_secret: Bybit API secret.
         """
@@ -602,9 +635,9 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
             logger=logger,
             connection=connection,
             instrument_collection=instrument_collection,
-            consumer_queues=consumer_queues,
+            consumer_buffer=consumer_buffer,
         )
-        _BybitStreamHandler.__init__(self)
+        _BybitStreamHandler.__init__(self, logger)
         self._api_key = api_key
         self._api_secret = api_secret
         self._stream_type_topic_map = EnumMap(
@@ -616,12 +649,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
                 PrivateDataStreamType.ACCOUNT: "wallet",
             },
         )
-        self._decoder = msgspec.json.Decoder(
-            BybitPrivateMsg[BybitOrderMsg]
-            | BybitPrivateMsg[BybitPositionMsg]
-            | BybitPrivateMsg[BybitExecutionMsg]
-            | BybitPrivateMsg[BybitWalletMsg]
-        )
+        self._decoder = msgspec.json.Decoder(BybitPrivateMsg)
 
     def build_authentication_payload(self) -> bytes:
         """Build Bybit HMAC authentication payload.
@@ -681,10 +709,15 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
             {"op": "unsubscribe", "args": args, "req_id": req_id}
         )
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode and broadcast Bybit private messages.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload arrived.
             raw_msg: Raw websocket payload bytes.
         """
         try:
@@ -693,16 +726,32 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
                 return
 
             exch_time_ns = payload.ts * 1_000_000
+            origin_id = MessageId(recv_time_ns=recv_time_ns)
 
             match payload.topic:
                 case "order":
-                    self._handle_order(payload, exch_time_ns)
+                    self._handle_order(payload, exch_time_ns, origin_id, recv_time_ns)
                 case "position":
-                    self._handle_position(payload, exch_time_ns)
+                    self._handle_position(
+                        payload,
+                        exch_time_ns,
+                        origin_id,
+                        recv_time_ns,
+                    )
                 case "execution":
-                    self._handle_execution(payload, exch_time_ns)
+                    self._handle_execution(
+                        payload,
+                        exch_time_ns,
+                        origin_id,
+                        recv_time_ns,
+                    )
                 case "wallet":
-                    self._handle_account(payload, exch_time_ns)
+                    self._handle_account(
+                        payload,
+                        exch_time_ns,
+                        origin_id,
+                        recv_time_ns,
+                    )
         except msgspec.DecodeError:
             if self._handle_control_message(raw_msg):
                 return
@@ -712,96 +761,144 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
                 f"{self.__class__.__name__}.decode_and_broadcast error; {exc}"
             )
 
-    def _handle_order(self, payload: BybitPrivateMsg, exch_time_ns: int) -> None:
+    def _handle_order(
+        self,
+        payload: BybitPrivateMsg,
+        exch_time_ns: int,
+        origin_id: MessageId,
+        recv_time_ns: int,
+    ) -> None:
         """Handle order update messages.
 
         Args:
             payload: Decoded private payload.
             exch_time_ns: Exchange timestamp in nanoseconds.
+            origin_id: Shared origin identifier for the raw payload.
+            recv_time_ns: Shared receive timestamp for the raw payload.
         """
         if not payload.data:
             return
         orders: list[Order] = []
         instrument: Instrument | None = None
-        for update in payload.data:
-            if not isinstance(update, BybitOrderMsg):
-                continue
-            inst = self._instrument_collection.get(self._venue, update.symbol)
+        for raw in payload.data:
+            update = msgspec.json.decode(raw, type=BybitOrderMsg)
+            inst = self._instrument_collection.get(Symbol(update.symbol))
             if not inst:
                 continue
             instrument = inst
             orders.append(update.to_order())
         if orders and instrument is not None:
+            msg_id = MessageId(recv_time_ns=recv_time_ns)
             self.broadcast(
                 OrderMsg(
-                    moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=time_ns()),
-                    venue=self._venue,
+                    id=msg_id,
+                    origin_id=origin_id,
+                    moments=Moments(
+                        exch_time_ns=exch_time_ns,
+                        recv_time_ns=recv_time_ns,
+                    ),
                     instrument=instrument,
-                    orders=orders,
+                    is_snapshot=payload.type.upper() == "SNAPSHOT",
+                    orders=tuple(orders),
                 )
             )
 
-    def _handle_position(self, payload: BybitPrivateMsg, exch_time_ns: int) -> None:
+    def _handle_position(
+        self,
+        payload: BybitPrivateMsg,
+        exch_time_ns: int,
+        origin_id: MessageId,
+        recv_time_ns: int,
+    ) -> None:
         """Handle position update messages.
 
         Args:
             payload: Decoded private payload.
             exch_time_ns: Exchange timestamp in nanoseconds.
+            origin_id: Shared origin identifier for the raw payload.
+            recv_time_ns: Shared receive timestamp for the raw payload.
         """
-        for update in payload.data:
-            if not isinstance(update, BybitPositionMsg):
-                continue
+        for raw in payload.data:
+            update = msgspec.json.decode(raw, type=BybitPositionMsg)
             msg = update.to_position_msg(
                 venue=self._venue,
                 instrument_collection=self._instrument_collection,
                 exch_time_ns=exch_time_ns,
+                is_snapshot=payload.type.upper() == "SNAPSHOT",
+                origin_id=origin_id,
+                recv_time_ns=recv_time_ns,
             )
             if msg:
                 self.broadcast(msg)
 
-    def _handle_execution(self, payload: BybitPrivateMsg, exch_time_ns: int) -> None:
+    def _handle_execution(
+        self,
+        payload: BybitPrivateMsg,
+        exch_time_ns: int,
+        origin_id: MessageId,
+        recv_time_ns: int,
+    ) -> None:
         """Handle execution update messages.
 
         Args:
             payload: Decoded private payload.
             exch_time_ns: Exchange timestamp in nanoseconds.
+            origin_id: Shared origin identifier for the raw payload.
+            recv_time_ns: Shared receive timestamp for the raw payload.
         """
         if not payload.data:
             return
         executions: list[Execution] = []
         instrument: Instrument | None = None
-        for update in payload.data:
-            if not isinstance(update, BybitExecutionMsg):
-                continue
-            inst = self._instrument_collection.get(self._venue, update.symbol)
+        for raw in payload.data:
+            update = msgspec.json.decode(raw, type=BybitExecutionMsg)
+            inst = self._instrument_collection.get(Symbol(update.symbol))
             if not inst:
                 continue
             instrument = inst
             executions.append(update.to_execution())
         if executions and instrument is not None:
+            msg_id = MessageId(recv_time_ns=recv_time_ns)
             self.broadcast(
                 ExecutionMsg(
-                    moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=time_ns()),
-                    venue=self._venue,
+                    id=msg_id,
+                    origin_id=origin_id,
+                    moments=Moments(
+                        exch_time_ns=exch_time_ns,
+                        recv_time_ns=recv_time_ns,
+                    ),
                     instrument=instrument,
-                    executions=executions,
+                    is_snapshot=payload.type.upper() == "SNAPSHOT",
+                    executions=tuple(executions),
                 )
             )
 
-    def _handle_account(self, payload: BybitPrivateMsg, exch_time_ns: int) -> None:
+    def _handle_account(
+        self,
+        payload: BybitPrivateMsg,
+        exch_time_ns: int,
+        origin_id: MessageId,
+        recv_time_ns: int,
+    ) -> None:
         """Handle account update messages.
 
         Args:
             payload: Decoded private payload.
             exch_time_ns: Exchange timestamp in nanoseconds.
+            origin_id: Shared origin identifier for the raw payload.
+            recv_time_ns: Shared receive timestamp for the raw payload.
         """
         if not payload.data:
             return
-        update = payload.data[0]
-        if not isinstance(update, BybitWalletMsg):
-            return
+        update = msgspec.json.decode(payload.data[0], type=BybitWalletMsg)
         self.broadcast(
-            update.to_account_msg(venue=self._venue, exch_time_ns=exch_time_ns)
+            update.to_account_msg(
+                venue=self._venue,
+                exch_time_ns=exch_time_ns,
+                is_snapshot=payload.type.upper() == "SNAPSHOT",
+                origin_id=origin_id,
+                recv_time_ns=recv_time_ns,
+            )
         )
 
     def _handle_control_message(self, raw_msg: bytes) -> bool:

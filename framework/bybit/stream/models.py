@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-from msgspec import Struct, field
+from msgspec import Raw, Struct, field
 
 from framework.base.common import (
+    Asset,
+    ClientOrderId,
     Instrument,
     InstrumentCollection,
-    InstrumentType,
+    OrderId,
+    Symbol,
     Venue,
 )
+from framework.base.schema import MessageId, Moments
 from framework.base.stream.models import (
+    Balance,
     AccountMsg,
     Execution,
-    Moments,
     Order,
     OrderTimeInForce,
     OrderbookLevel,
@@ -91,18 +95,40 @@ class BybitTickerMsg(Struct, rename="camel", frozen=True):
         venue: Venue,
         instrument_collection: InstrumentCollection,
         exch_time_ns: int,
+        is_snapshot: bool,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> TickerMsg:
-        instrument = instrument_collection.get(venue, self.symbol)
+        mark_price = float(self.mark_price)
+        index_price = float(self.index_price)
+        last_price = float(self.last_price)
+        if mark_price <= 0.0 or index_price <= 0.0 or last_price <= 0.0:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; nonpositive prices "
+                f"(mark/index/last); raw: {self}"
+            )
+
+        symbol = Symbol(self.symbol)
+        instrument = instrument_collection.get(symbol)
         if not instrument:
-            raise KeyError(f"Instrument not found for {venue}:{self.symbol}")
+            raise KeyError(
+                f"{self.__class__.__name__} data error; instrument not found; "
+                f"venue={venue}; symbol={self.symbol}; raw: {self}"
+            )
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
 
         return TickerMsg(
-            moments=Moments(exch_time_ns=exch_time_ns),
-            venue=venue,
+            id=msg_id,
+            origin_id=origin_id,
+            moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=recv_time_ns),
             instrument=instrument,
-            mark_price=float(self.mark_price),
-            index_price=float(self.index_price),
+            is_snapshot=is_snapshot,
+            mark_price=mark_price,
+            index_price=index_price,
             funding_rate=float(self.funding_rate),
+            funding_period_min=480,
             next_funding_time_ms=float(self.next_funding_time),
             open_interest=float(self.open_interest),
             avg_volume_24h=float(self.volume_24h),
@@ -155,44 +181,86 @@ class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
         is_bbo: bool,
         is_snapshot: bool,
         exch_time_ns: int,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> OrderbookMsg:
-        instrument = instrument_collection.get(venue, self.symbol)
+        if not self.bids and not self.asks:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; empty bids and asks; raw: {self}"
+            )
+        if any(
+            level.price <= 0.0 or level.size < 0.0 for level in self.bids + self.asks
+        ):
+            raise ValueError(
+                f"{self.__class__.__name__} data error; invalid level price/size "
+                f"(<=0); raw: {self}"
+            )
+
+        symbol = Symbol(self.symbol)
+        instrument = instrument_collection.get(symbol)
         if not instrument:
             raise KeyError(f"Instrument not found for {venue}:{self.symbol}")
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
 
         return OrderbookMsg(
-            moments=Moments(exch_time_ns=exch_time_ns),
-            venue=venue,
+            id=msg_id,
+            origin_id=origin_id,
+            moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=recv_time_ns),
             instrument=instrument,
-            bids=self.bids,
-            asks=self.asks,
-            is_bbo=is_bbo,
             is_snapshot=is_snapshot,
+            bids=tuple(self.bids),
+            asks=tuple(self.asks),
+            is_bbo=is_bbo,
         )
 
 
-class BybitPublicMsg[T](Struct, frozen=True):
-    """Generic wrapper for Bybit public websocket messages.
+class BybitTickerPublicMsg(Struct, frozen=True):
+    """Wrapper for Bybit ticker public websocket messages.
 
-    Wraps public stream data (ticker, trades, orderbook) with metadata including
-    topic, message type, and optional server timestamp. The type parameter T is one
-    of BybitTickerMsg, BybitTradeMsg, or BybitOrderbookMsg.
+    Wraps ticker stream data with metadata including topic, message type, and
+    optional server timestamp.
 
-    Docs: https://bybit-exchange.github.io/docs/v5/websocket/public/
+    Docs: https://bybit-exchange.github.io/docs/v5/ws/connect
 
     Example payload::
 
         {
           "topic": "tickers.BTCUSDT",       // subscription topic
           "type": "snapshot",               // message type (snapshot/delta)
-          "data": {...},                    // typed data (ticker/trade/orderbook)
+          "data": {...},                    // BybitTickerMsg data
           "ts": 1568014460891               // server timestamp (ms, optional)
         }
     """
 
     topic: str
     type: str
-    data: T
+    data: BybitTickerMsg
+    ts: int | None = None
+
+
+class BybitOrderbookPublicMsg(Struct, frozen=True):
+    """Wrapper for Bybit orderbook public websocket messages.
+
+    Wraps orderbook stream data with metadata including topic, message type, and
+    optional server timestamp.
+
+    Docs: https://bybit-exchange.github.io/docs/v5/ws/connect
+
+    Example payload::
+
+        {
+          "topic": "orderbook.1.BTCUSDT",   // subscription topic
+          "type": "snapshot",               // message type (snapshot/delta)
+          "data": {...},                    // BybitOrderbookMsg data
+          "ts": 1568014460891               // server timestamp (ms, optional)
+        }
+    """
+
+    topic: str
+    type: str
+    data: BybitOrderbookMsg
     ts: int | None = None
 
 
@@ -266,20 +334,43 @@ class BybitTradeMsg(Struct, frozen=True):
     topic: str
     type: str
     ts: int
-    data: list[BybitTradeMsg]
+    data: list[BybitTrade]
 
     def to_trade_msg(
         self,
         venue: Venue,
         instrument_collection: InstrumentCollection,
         symbol_to_seq_cache: SimpleCache,
-        symbol_override: str | None = None,
-    ) -> TradeMsg | None:
-        if not self.data:
-            return None
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
+    ) -> TradeMsg:
+        """Convert trade data to a framework TradeMsg.
 
-        symbol = symbol_override or self.data[0].symbol
-        instrument = instrument_collection.get(venue, symbol)
+        Args:
+            venue: Venue the trade message belongs to.
+            instrument_collection: Collection used to resolve the instrument.
+            symbol_to_seq_cache: Cache for deduplicating trade sequences.
+
+        Returns:
+            TradeMsg: Converted trade message.
+
+        Raises:
+            KeyError: When the instrument cannot be resolved.
+            ValueError: When no trades are available after filtering.
+        """
+        if len(self.data) == 0:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; no trades found; raw: {self}"
+            )
+
+        # Bybit only sends trades for a single symbol per msg
+        symbol = self.data[0].symbol
+        if any(trade.symbol and trade.symbol != symbol for trade in self.data):
+            raise ValueError(
+                f"{self.__class__.__name__} data error; mixed symbols in trade list; "
+                f"first={symbol}; raw: {self}"
+            )
+        instrument = instrument_collection.get(Symbol(symbol))
         if not instrument:
             raise KeyError(f"Instrument not found for {venue}:{symbol}")
 
@@ -292,25 +383,33 @@ class BybitTradeMsg(Struct, frozen=True):
             trades.append(trade_data.to_trade())
 
         if not trades:
-            return None
+            raise ValueError(
+                f"{self.__class__.__name__} data error; all trades filtered by "
+                f"sequence cache; raw: {self}"
+            )
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
 
         return TradeMsg(
+            id=msg_id,
+            origin_id=origin_id,
             moments=Moments(
                 exch_time_ns=self.ts * 1_000_000,
-                recv_time_ns=time_ns(),
+                recv_time_ns=recv_time_ns,
             ),
-            venue=venue,
             instrument=instrument,
-            trades=trades,
+            is_snapshot=self.type == "snapshot",
+            trades=tuple(trades),
         )
 
 
-class BybitPrivateMsg[T](Struct, rename="camel", frozen=True):
-    """Generic wrapper for Bybit private websocket messages.
+class BybitPrivateMsg(Struct, rename="camel", frozen=True):
+    """Wrapper for Bybit private websocket messages.
 
     Wraps private stream data (orders, positions, executions, wallet) with metadata
-    including topic, message type, and server timestamp. The type parameter T is one
-    of BybitPositionMsg, BybitOrderMsg, BybitExecutionMsg, or BybitWalletMsg.
+    including topic, message type, and server timestamp. Data items are stored as
+    raw bytes and decoded individually by the handler.
 
     Docs: https://bybit-exchange.github.io/docs/v5/websocket/private/
 
@@ -327,7 +426,7 @@ class BybitPrivateMsg[T](Struct, rename="camel", frozen=True):
     topic: str
     type: str
     ts: int
-    data: list[T]
+    data: list[Raw]
 
 
 class BybitPositionMsg(Struct, rename="camel", frozen=True):
@@ -422,27 +521,38 @@ class BybitPositionMsg(Struct, rename="camel", frozen=True):
         self,
         venue: Venue,
         instrument_collection: InstrumentCollection,
-        exch_time_ns: int | None = None,
+        exch_time_ns: int,
+        is_snapshot: bool,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> PositionMsg | None:
-        instrument = instrument_collection.get(venue, self.symbol)
+        if not self.symbol:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; empty symbol; raw: {self}"
+            )
+        if self.side not in {"Buy", "Sell"}:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; invalid side "
+                f"(expected Buy/Sell); raw: {self}"
+            )
+
+        symbol = Symbol(self.symbol)
+        instrument = instrument_collection.get(symbol)
         if not instrument:
             raise KeyError(f"Instrument not found for {venue}:{self.symbol}")
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
 
-        size = float(self.size or 0)
-        if size == 0:
-            return None
-
-        exchange_time_ns = exch_time_ns or time_ns()
         return PositionMsg(
-            moments=Moments(
-                exch_time_ns=exchange_time_ns,
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
+            id=msg_id,
+            origin_id=origin_id,
+            moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=recv_time_ns),
             instrument=instrument,
+            is_snapshot=is_snapshot,
             price=float(self.entry_price or 0),
             is_long=self.side == "Buy",
-            size=abs(size),
+            size=abs(float(self.size)),
         )
 
 
@@ -522,19 +632,25 @@ class BybitOrderMsg(Struct, rename="camel", frozen=True):
     category: str
     place_type: str
 
-    def to_order(self, tif_map: EnumMap[OrderTimeInForce] | None = None) -> Order:
-        tif_lookup = tif_map or BYBIT_TIF_MAP
-        tif = tif_lookup.str_to_enum(self.time_in_force, default=OrderTimeInForce.GTC)
-        size = float(self.qty or 0.0)
-        cum_exec_qty = float(self.cum_exec_qty or 0.0)
-
+    def to_order(self) -> Order:
+        price = float(self.price)
+        qty = float(self.qty)
+        if price <= 0.0 or qty <= 0.0:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; invalid qty/price (<=0); "
+                f"raw: {self}"
+            )
+        tif = BYBIT_TIF_MAP.str_to_enum(
+            self.time_in_force, default=OrderTimeInForce.GTC
+        )
+        size = qty
         return Order(
-            create_time_ms=float(self.created_time or 0),
-            order_id=str(self.order_id),
-            price=float(self.price or 0.0),
+            create_time_ms=float(self.created_time),
+            order_id=OrderId(str(self.order_id)),
+            price=price,
             is_buy=self.side == "Buy",
             size=size,
-            size_remaining=max(0.0, size - cum_exec_qty),
+            size_remaining=max(0.0, size - float(self.cum_exec_qty)),
             tif=tif,
             is_cancelled=(
                 self.order_status
@@ -545,8 +661,10 @@ class BybitOrderMsg(Struct, rename="camel", frozen=True):
                     "CancelledByReduceOnly",
                 ]
             ),
-            is_reduce_only=bool(self.reduce_only),
-            client_order_id=self.order_link_id or None,
+            is_reduce_only=self.reduce_only,
+            client_order_id=ClientOrderId(str(self.order_link_id))
+            if self.order_link_id
+            else None,
         )
 
 
@@ -622,15 +740,29 @@ class BybitExecutionMsg(Struct, rename="camel", frozen=True):
     create_type: str
 
     def to_execution(self) -> Execution:
+        if not self.exec_id or not self.order_id:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; missing exec/order id; "
+                f"raw: {self}"
+            )
+        exec_price = float(self.exec_price)
+        exec_qty = float(self.exec_qty)
+        if exec_price <= 0.0 or exec_qty <= 0.0:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; nonpositive exec_qty/"
+                f"exec_price; raw: {self}"
+            )
         return Execution(
-            exec_time_ms=float(self.exec_time or 0),
-            order_id=str(self.order_id),
-            price=float(self.exec_price or 0),
+            exec_time_ms=float(self.exec_time),
+            order_id=OrderId(str(self.order_id)),
+            price=exec_price,
             is_buy=self.side == "Buy",
-            size=float(self.exec_qty or 0),
+            size=exec_qty,
             is_maker=bool(self.is_maker),
-            fee_paid=float(self.exec_fee or 0),
-            client_order_id=self.order_link_id or None,
+            fee_paid=float(self.exec_fee),
+            client_order_id=ClientOrderId(str(self.order_link_id))
+            if self.order_link_id
+            else None,
         )
 
 
@@ -658,26 +790,33 @@ class BybitWalletMsg(Struct, rename="camel", frozen=True):
     total_perp_upl: str = field(name="totalPerpUPL")
 
     def to_account_msg(
-        self, venue: Venue, exch_time_ns: int | None = None
+        self,
+        venue: Venue,
+        exch_time_ns: int,
+        is_snapshot: bool,
+        origin_id: MessageId | None = None,
+        recv_time_ns: int | None = None,
     ) -> AccountMsg:
-        instrument = Instrument(
-            venue=venue,
-            symbol="",
-            base="",
-            quote="",
-            code=0,
-            instrument_type=InstrumentType.PERPETUAL,
-        )
-        exchange_time_ns = exch_time_ns or time_ns()
+        total_equity = float(self.total_equity)
+        account_im_rate = float(self.account_im_rate)
+        account_mm_rate = float(self.account_mm_rate)
+        if total_equity < 0.0 or account_im_rate < 0.0 or account_mm_rate < 0.0:
+            raise ValueError(
+                f"{self.__class__.__name__} data error; negative equity or margin "
+                f"rates; raw: {self}"
+            )
+        instrument = Instrument.empty_with(venue=venue)
+        recv_time_ns = time_ns() if recv_time_ns is None else recv_time_ns
+        msg_id = MessageId(recv_time_ns=recv_time_ns)
+        origin_id = msg_id if origin_id is None else origin_id
         return AccountMsg(
-            moments=Moments(
-                exch_time_ns=exchange_time_ns,
-                recv_time_ns=time_ns(),
-            ),
-            venue=venue,
+            id=msg_id,
+            origin_id=origin_id,
+            moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=recv_time_ns),
             instrument=instrument,
-            balance=float(self.total_equity or 0.0),
-            initial_margin=float(self.account_im_rate or 0.0),
-            maintenance_margin=float(self.account_mm_rate or 0.0),
-            unrealized_pnl=float(self.total_perp_upl or 0.0),
+            is_snapshot=is_snapshot,
+            balances={instrument: Balance(currency=Asset("USD"), amount=total_equity)},
+            initial_margin=account_im_rate,
+            maintenance_margin=account_mm_rate,
+            unrealized_pnl=float(self.total_perp_upl),
         )
