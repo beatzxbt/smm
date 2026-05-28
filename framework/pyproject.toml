@@ -10,7 +10,7 @@ license = "MIT"
 dependencies = [
     "aiohttp",
     "msgspec",
-    "mm-toolbox==1.0.0b6",
+    "mm-toolbox==1.0.0b7",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -10,7 +10,7 @@ dependencies = [
     "framework",
     "uvloop",
     "dotenv>=0.9.9",
-    "mm-toolbox==1.0.0b6",
+    "mm-toolbox==1.0.0b7",
 ]
 
 [tool.uv.sources]
