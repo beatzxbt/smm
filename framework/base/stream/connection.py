@@ -13,9 +13,11 @@ from typing import AsyncIterator, Awaitable, Callable
 import aiohttp
 
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.time import time_ns
 
 
 ReconnectCallback = Callable[[], Awaitable[None]]
+ReceivedWSMessage = tuple[int, bytes]
 
 
 class WebSocketConnection:
@@ -131,22 +133,24 @@ class WebSocketConnection:
             raise ConnectionError("WebSocket is not connected.")
         await ws.send_frame(data, aiohttp.WSMsgType.TEXT)
 
-    async def receive(self) -> bytes | None:
+    async def receive(self) -> ReceivedWSMessage | None:
         """Receive a single websocket message payload.
 
         Returns:
-            bytes | None: Raw payload bytes, or None if the socket is closed.
+            ReceivedWSMessage | None: Receive timestamp and payload bytes, or None if
+            the socket is closed.
         """
         if not self.is_connected or self._ws is None:
             raise ConnectionError("WebSocket is not connected.")
         msg = await self._ws.receive()
         return self._normalize_message(msg)
 
-    async def __aiter__(self) -> AsyncIterator[bytes]:
+    async def __aiter__(self) -> AsyncIterator[ReceivedWSMessage]:
         """Yield incoming websocket messages as raw bytes.
 
         Returns:
-            AsyncIterator[bytes]: Iterator over raw websocket payloads.
+            AsyncIterator[ReceivedWSMessage]: Iterator over receive timestamp and raw
+            websocket payload bytes.
         """
         while True:
             if self._closing:
@@ -187,14 +191,15 @@ class WebSocketConnection:
                 break
             await self._notify_reconnect()
 
-    def _normalize_message(self, msg: aiohttp.WSMessage) -> bytes | None:
+    def _normalize_message(self, msg: aiohttp.WSMessage) -> ReceivedWSMessage | None:
         """Normalize aiohttp websocket messages to raw bytes.
 
         Args:
             msg: WebSocket message from aiohttp.
 
         Returns:
-            bytes | None: Normalized payload bytes or None to skip.
+            ReceivedWSMessage | None: Receive timestamp and normalized payload bytes,
+            or None to skip.
         """
         if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
             self._is_connected = False
@@ -203,7 +208,7 @@ class WebSocketConnection:
             return None
         data = msg.data
         if isinstance(data, str):
-            return data.encode()
+            return time_ns(), data.encode()
         return None
 
     async def _notify_reconnect(self) -> None:

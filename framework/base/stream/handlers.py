@@ -154,10 +154,16 @@ class BaseStreamHandler(ABC):
         ...
 
     @abstractmethod
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Decode a raw message and broadcast it.
 
         Args:
+            recv_time_ns: Receive timestamp captured when the websocket payload
+                arrived.
             raw_msg: Raw websocket payload bytes.
         """
         ...
@@ -325,9 +331,12 @@ class BaseStreamHandler(ABC):
     async def _message_loop(self) -> None:
         """Consume websocket messages and broadcast decoded payloads."""
         try:
-            async for raw_msg in self._connection:
+            async for recv_time_ns, raw_msg in self._connection:
                 try:
-                    await self.decode_and_broadcast(raw_msg)
+                    await self.decode_and_broadcast(
+                        recv_time_ns,
+                        raw_msg,
+                    )
                 except Exception as exc:
                     self._logger.warning(
                         f"{self.__class__.__name__}._message_loop error; {exc}"
