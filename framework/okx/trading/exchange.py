@@ -12,12 +12,17 @@ from typing import cast
 import msgspec
 
 from framework.base.common import (
+    Asset,
+    ClientOrderId,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    OrderId,
+    Symbol,
     Venue,
 )
-from framework.base.stream.models import Execution, Moments, Trade
+from framework.base.schema import Moments, MessageId
+from framework.base.stream.models import Execution, Trade
 from framework.base.tools import EnumMap
 from framework.base.trading.client import HttpMethod
 from framework.base.trading.exchange import Exchange
@@ -30,8 +35,6 @@ from framework.base.trading.models import (
     CancelOrder,
     CancelOrderResponse,
     ClientResponse,
-    ClientResponseFailure,
-    ClientResponseSuccess,
     CreateOrder,
     CreateOrderResponse,
     ExecutionResponse,
@@ -44,9 +47,24 @@ from framework.base.trading.models import (
     PositionResponse,
     TickerResponse,
     TradesResponse,
+    is_success,
 )
 from framework.okx.trading.client import OkxHttpClient, OkxWsClient
+from framework.okx.trading.models import (
+    OkxWsOrderResult,
+    OkxHttpInstrument,
+    OkxHttpTicker,
+    OkxHttpOrderbook,
+    OkxHttpOrderbookLevel,
+    OkxHttpTrade,
+    OkxHttpOrder,
+    OkxHttpPosition,
+    OkxHttpFill,
+    OkxHttpAccount,
+    OkxHttpBatchCancelResult,
+)
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.time import time_ns
 
 ENDPOINT_GET_INSTRUMENTS = "/api/v5/public/instruments"
 ENDPOINT_GET_TICKER = "/api/v5/market/ticker"
@@ -123,13 +141,15 @@ class OkxExchange(Exchange):
         """
         response = await self.get_instrument_info([])
 
-        if not response.is_successful or response.data is None:
-            return ClientResponseFailure(
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
                 err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        return ClientResponseSuccess(
+        return self.make_success(
+            meta=response.meta,
             data=InstrumentCollection(
                 instruments=[info.instrument for info in response.data]
             ),
@@ -175,33 +195,38 @@ class OkxExchange(Exchange):
         }
 
         response = await self.ws_client.submit(
-            data=payload, decoder=msgspec.json.Decoder(list)
+            data=payload, decoder=msgspec.json.Decoder(list[OkxWsOrderResult])
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
-        result_list = cast(list, response.data)
-        if not result_list:
-            return ClientResponseFailure(
-                is_successful=False, err_no=1, err_msg="Empty response from OKX"
+        results = cast(list[OkxWsOrderResult], response.data)
+        if not results:
+            return self.make_failure(
+                meta=response.meta,
+                err_no=1,
+                err_msg="Empty response from OKX",
             )
 
-        result = result_list[0]
-        order_id = str(result.get("ordId", ""))
-        cloid = result.get("clOrdId")
-
+        result = results[0]
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = CreateOrderResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=create_order.origin_id or create_order.id,
+            moments=moments,
             instrument=create_order.instrument,
-            trigger=create_order,
-            order_id=order_id,
-            client_order_id=cloid,
+            order_id=OrderId(str(result.ord_id)),
+            client_order_id=ClientOrderId(str(result.cl_ord_id))
+            if result.cl_ord_id
+            else None,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(data=base_resp, meta=response.meta)
 
     async def amend_order(
         self, amend_order: AmendOrder
@@ -236,33 +261,38 @@ class OkxExchange(Exchange):
         }
 
         response = await self.ws_client.submit(
-            data=payload, decoder=msgspec.json.Decoder(list)
+            data=payload, decoder=msgspec.json.Decoder(list[OkxWsOrderResult])
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
-        result_list = cast(list, response.data)
-        if not result_list:
-            return ClientResponseFailure(
-                is_successful=False, err_no=1, err_msg="Empty response from OKX"
+        results = cast(list[OkxWsOrderResult], response.data)
+        if not results:
+            return self.make_failure(
+                meta=response.meta,
+                err_no=1,
+                err_msg="Empty response from OKX",
             )
 
-        result = result_list[0]
-        order_id = str(result.get("ordId", ""))
-        cloid = result.get("clOrdId")
-
+        result = results[0]
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = AmendOrderResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=amend_order.origin_id or amend_order.id,
+            moments=moments,
             instrument=amend_order.instrument,
-            trigger=amend_order,
-            order_id=order_id,
-            client_order_id=cloid,
+            order_id=OrderId(str(result.ord_id)),
+            client_order_id=ClientOrderId(str(result.cl_ord_id))
+            if result.cl_ord_id
+            else None,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(data=base_resp, meta=response.meta)
 
     async def cancel_order(
         self, cancel_order: CancelOrder
@@ -293,33 +323,38 @@ class OkxExchange(Exchange):
         }
 
         response = await self.ws_client.submit(
-            data=payload, decoder=msgspec.json.Decoder(list)
+            data=payload, decoder=msgspec.json.Decoder(list[OkxWsOrderResult])
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
-        result_list = cast(list, response.data)
-        if not result_list:
-            return ClientResponseFailure(
-                is_successful=False, err_no=1, err_msg="Empty response from OKX"
+        results = cast(list[OkxWsOrderResult], response.data)
+        if not results:
+            return self.make_failure(
+                meta=response.meta,
+                err_no=1,
+                err_msg="Empty response from OKX",
             )
 
-        result = result_list[0]
-        order_id = str(result.get("ordId", ""))
-        cloid = result.get("clOrdId")
-
+        result = results[0]
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = CancelOrderResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=cancel_order.origin_id or cancel_order.id,
+            moments=moments,
             instrument=cancel_order.instrument,
-            trigger=cancel_order,
-            order_id=order_id,
-            client_order_id=cloid,
+            order_id=OrderId(str(result.ord_id)),
+            client_order_id=ClientOrderId(str(result.cl_ord_id))
+            if result.cl_ord_id
+            else None,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(data=base_resp, meta=response.meta)
 
     async def cancel_all_orders(
         self, cancel_all_orders: CancelAllOrders
@@ -334,28 +369,52 @@ class OkxExchange(Exchange):
         """
         self.ensure_secrets_loaded()
         self.ensure_running(http_only=True)
+        started_ns = time_ns()
 
         # Get pending orders first
         orders_response = await self.get_orders([cancel_all_orders.instrument])
-        if not orders_response.is_successful or not orders_response.data:
-            return ClientResponseFailure(
-                is_successful=False,
+        if not is_success(orders_response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_BATCH_CANCEL,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
                 err_no=orders_response.err_no,
                 err_msg=orders_response.err_msg,
+            )
+        if not orders_response.data:
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_BATCH_CANCEL,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg="Empty orders response from OKX",
             )
 
         orders = orders_response.data[0].orders
         if not orders:
             # No orders to cancel
+            moments = Moments()
+            resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
             base_resp = CancelAllOrdersResponse(
-                moments=None,  # type: ignore[arg-type]
-                venue=self.venue,
+                id=resp_id,
+                origin_id=cancel_all_orders.origin_id or cancel_all_orders.id,
+                moments=moments,
                 instrument=cancel_all_orders.instrument,
-                trigger=cancel_all_orders,
-                order_ids=[],
-                client_order_ids=[],
+                order_ids=(),
+                client_order_ids=(),
             )
-            return ClientResponseSuccess(is_successful=True, data=base_resp)
+            return self.make_success(
+                data=base_resp,
+                meta=self.make_meta(
+                    operation=ENDPOINT_BATCH_CANCEL,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
 
         # Build batch cancel request
         cancel_args = []
@@ -367,7 +426,7 @@ class OkxExchange(Exchange):
                 }
             )
 
-        decoder = msgspec.json.Decoder(list)
+        decoder = msgspec.json.Decoder(list[OkxHttpBatchCancelResult])
         response = await self.http_client.request(
             method=HttpMethod.POST,
             endpoint=ENDPOINT_BATCH_CANCEL,
@@ -377,20 +436,37 @@ class OkxExchange(Exchange):
             decoder=decoder,
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_BATCH_CANCEL,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
-        cancelled_ids = [order.order_id for order in orders]
+        cancelled_ids = tuple(order.order_id for order in orders)
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = CancelAllOrdersResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=cancel_all_orders.origin_id or cancel_all_orders.id,
+            moments=moments,
             instrument=cancel_all_orders.instrument,
-            trigger=cancel_all_orders,
             order_ids=cancelled_ids,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(
+            data=base_resp,
+            meta=self.make_meta(
+                operation=ENDPOINT_BATCH_CANCEL,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=response.meta.status_code,
+            ),
+        )
 
     async def get_trades(
         self, instruments: list[Instrument]
@@ -403,13 +479,14 @@ class OkxExchange(Exchange):
         Returns:
             ClientResponse[list[TradesResponse]]: Trade history for each instrument.
         """
+        started_ns = time_ns()
 
         async def fetch_trades(instrument: Instrument) -> TradesResponse:
             params = {
                 "instId": self.instrument_to_symbol(instrument),
                 "limit": "100",
             }
-            decoder = msgspec.json.Decoder(list)
+            decoder = msgspec.json.Decoder(list[OkxHttpTrade])
             response = await self.http_client.request(
                 method=HttpMethod.GET,
                 endpoint=ENDPOINT_GET_TRADES,
@@ -418,33 +495,51 @@ class OkxExchange(Exchange):
                 sign=False,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
 
-            items = cast(list, response.data)
+            items = cast(list[OkxHttpTrade], response.data)
             trades = [
                 Trade(
-                    time_ms=int(t.get("ts", 0)),
-                    price=float(t.get("px", 0.0)),
-                    is_buy=(t.get("side", "buy") == "buy"),
-                    size=float(t.get("sz", 0.0)),
+                    time_ms=int(t.ts),
+                    price=float(t.px),
+                    is_buy=(t.side == "buy"),
+                    size=float(t.sz),
                 )
                 for t in items
             ]
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return TradesResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                trades=trades,
+                trades=tuple(trades),
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_trades(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TRADES,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TRADES,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_orderbook(
         self, instruments: list[Instrument]
@@ -457,13 +552,14 @@ class OkxExchange(Exchange):
         Returns:
             ClientResponse[list[OrderbookResponse]]: Orderbook for each instrument.
         """
+        started_ns = time_ns()
 
         async def fetch_orderbook(instrument: Instrument) -> OrderbookResponse:
             params = {
                 "instId": self.instrument_to_symbol(instrument),
                 "sz": "200",
             }
-            decoder = msgspec.json.Decoder(list)
+            decoder = msgspec.json.Decoder(list[OkxHttpOrderbook])
             response = await self.http_client.request(
                 method=HttpMethod.GET,
                 endpoint=ENDPOINT_GET_ORDERBOOK,
@@ -472,41 +568,69 @@ class OkxExchange(Exchange):
                 sign=False,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
 
-            items = cast(list, response.data)
+            items = cast(list[OkxHttpOrderbook], response.data)
             if not items:
                 raise RuntimeError("Empty orderbook response")
 
             book = items[0]
-            bids = book.get("bids", [])
-            asks = book.get("asks", [])
+            bids: list[OkxHttpOrderbookLevel] = book.bids
+            asks: list[OkxHttpOrderbookLevel] = book.asks
+            bid_lvls = tuple(
+                sorted(
+                    (
+                        OrderbookLevel(price=float(level.price), size=float(level.size))
+                        for level in bids
+                    ),
+                    key=lambda x: x.price,
+                )
+            )
+            ask_lvls = tuple(
+                sorted(
+                    (
+                        OrderbookLevel(price=float(level.price), size=float(level.size))
+                        for level in asks
+                    ),
+                    key=lambda x: x.price,
+                )
+            )
 
-            bid_lvls = [
-                OrderbookLevel(price=float(px), size=float(sz)) for px, sz, *_ in bids
-            ]
-            ask_lvls = [
-                OrderbookLevel(price=float(px), size=float(sz)) for px, sz, *_ in asks
-            ]
-
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return OrderbookResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
                 bids=bid_lvls,
                 asks=ask_lvls,
                 is_bbo=False,
-                is_snapshot=True,
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_orderbook(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERBOOK,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERBOOK,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_ticker(
         self, instruments: list[Instrument]
@@ -519,12 +643,13 @@ class OkxExchange(Exchange):
         Returns:
             ClientResponse[list[TickerResponse]]: Ticker data for each instrument.
         """
+        started_ns = time_ns()
 
         async def fetch_ticker(instrument: Instrument) -> TickerResponse:
             params = {
                 "instId": self.instrument_to_symbol(instrument),
             }
-            decoder = msgspec.json.Decoder(list)
+            decoder = msgspec.json.Decoder(list[OkxHttpTicker])
             response = await self.http_client.request(
                 method=HttpMethod.GET,
                 endpoint=ENDPOINT_GET_TICKER,
@@ -533,38 +658,52 @@ class OkxExchange(Exchange):
                 sign=False,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
 
-            items = cast(list, response.data)
+            items = cast(list[OkxHttpTicker], response.data)
             if not items:
                 raise RuntimeError("Empty ticker response")
 
             item = items[0]
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return TickerResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                mark_price=float(item.get("markPx", 0.0)),
-                index_price=float(item.get("idxPx", 0.0)),
-                funding_rate=float(item.get("fundingRate", 0.0)),
-                next_funding_time_ms=int(item.get("nextFundingTime", 0)),
-                open_interest=float(item.get("openInterest", 0.0))
-                if item.get("openInterest")
-                else None,
-                avg_volume_24h=float(item.get("vol24h", 0.0))
-                if item.get("vol24h")
-                else None,
-                price_chg_24h=None,  # OKX doesn't provide 24h % change in ticker endpoint
+                mark_price=float(item.mark_px),
+                index_price=float(item.idx_px),
+                funding_rate=float(item.funding_rate),
+                next_funding_time_ms=int(item.next_funding_time),
+                open_interest=float(item.open_interest) if item.open_interest else 0.0,
+                avg_volume_24h=float(item.vol_24h) if item.vol_24h else 0.0,
+                price_chg_24h=0.0,  # OKX doesn't provide 24h % change in ticker endpoint
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_ticker(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TICKER,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TICKER,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_instrument_info(
         self, instruments: list[Instrument]
@@ -577,7 +716,8 @@ class OkxExchange(Exchange):
         Returns:
             ClientResponse[list[InstrumentInfoResponse]]: Metadata for each instrument.
         """
-        decoder = msgspec.json.Decoder(list)
+        started_ns = time_ns()
+        decoder = msgspec.json.Decoder(list[OkxHttpInstrument])
         response = await self.http_client.request(
             method=HttpMethod.GET,
             endpoint=ENDPOINT_GET_INSTRUMENTS,
@@ -587,40 +727,48 @@ class OkxExchange(Exchange):
             decoder=decoder,
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(is_successful=False, err_msg=response.err_msg)
+        if not is_success(response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_INSTRUMENTS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=response.err_no,
+                err_msg=response.err_msg,
+            )
 
-        items = cast(list, response.data)
+        items = cast(list[OkxHttpInstrument], response.data)
 
         results: list[InstrumentInfoResponse] = []
         for item in items:
             # Parse instId format: BTC-USDT-SWAP
-            inst_id = item.get("instId", "")
-            parts = inst_id.split("-")
+            parts = item.inst_id.split("-")
             if len(parts) != 3 or parts[2] != "SWAP":
                 continue
 
             base = parts[0]
             quote = parts[1]
 
-            tick_size = float(item.get("tickSz", 0.0))
-            lot_size = float(item.get("lotSz", 0.0))
-
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             info = InstrumentInfoResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=Instrument(
                     venue=self.venue,
-                    base=base,
-                    quote=quote,
-                    symbol=f"{base}{quote}".upper(),
+                    base=Asset(base),
+                    quote=Asset(quote),
+                    symbol=Symbol(f"{base}{quote}".upper()),
                     code=0,
                     instrument_type=InstrumentType.PERPETUAL,
-                    tick_size=tick_size,
-                    lot_size=lot_size,
+                    tick_size=float(item.tick_sz),
+                    lot_size=float(item.lot_sz),
                 ),
-                tick_size=tick_size,
-                lot_size=lot_size,
+                tick_size=float(item.tick_sz),
+                lot_size=float(item.lot_sz),
                 max_taker_size=0.0,
                 max_maker_size=0.0,
             )
@@ -632,7 +780,15 @@ class OkxExchange(Exchange):
                 r for r in results if self.instrument_to_symbol(r.instrument) in wanted
             ]
 
-        return ClientResponseSuccess(is_successful=True, data=results)
+        return self.make_success(
+            data=results,
+            meta=self.make_meta(
+                operation=ENDPOINT_GET_INSTRUMENTS,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=response.meta.status_code,
+            ),
+        )
 
     async def get_orders(
         self, instruments: list[Instrument]
@@ -646,13 +802,14 @@ class OkxExchange(Exchange):
             ClientResponse[list[OrdersResponse]]: Pending orders for each instrument.
         """
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_orders(instrument: Instrument) -> OrdersResponse:
             params = {
                 "instType": "SWAP",
                 "instId": self.instrument_to_symbol(instrument),
             }
-            decoder = msgspec.json.Decoder(list)
+            decoder = msgspec.json.Decoder(list[OkxHttpOrder])
             response = await self.http_client.request(
                 method=HttpMethod.GET,
                 endpoint=ENDPOINT_GET_ORDERS,
@@ -661,56 +818,72 @@ class OkxExchange(Exchange):
                 sign=True,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
 
-            items = cast(list, response.data)
+            items = cast(list[OkxHttpOrder], response.data)
             orders = []
             for it in items:
                 # Map OKX order type to TIF
-                ord_type = it.get("ordType", "limit")
-                if ord_type == "market":
+                if it.ord_type == "market":
                     tif = OrderTimeInForce.IOC
-                elif ord_type == "post_only":
+                elif it.ord_type == "post_only":
                     tif = OrderTimeInForce.PO
-                elif ord_type == "fok":
+                elif it.ord_type == "fok":
                     tif = OrderTimeInForce.FOK
-                elif ord_type == "ioc":
+                elif it.ord_type == "ioc":
                     tif = OrderTimeInForce.IOC
                 else:
                     tif = OrderTimeInForce.GTC
 
                 order = Order(
-                    create_time_ms=float(it.get("cTime", 0)),
-                    order_id=str(it.get("ordId", "")),
-                    price=float(it.get("px", 0.0)),
-                    is_buy=(it.get("side", "buy") == "buy"),
-                    size=float(it.get("sz", 0.0)),
-                    size_remaining=max(
-                        0.0,
-                        float(it.get("sz", 0.0)) - float(it.get("accFillSz", 0.0)),
-                    ),
+                    create_time_ms=float(it.c_time),
+                    order_id=OrderId(str(it.ord_id)),
+                    price=float(it.px),
+                    is_buy=(it.side == "buy"),
+                    size=float(it.sz),
+                    size_remaining=max(0.0, float(it.sz) - float(it.acc_fill_sz)),
                     tif=tif,
-                    is_cancelled=(it.get("state", "live") in ["canceled", "rejected"]),
-                    is_reduce_only=bool(it.get("reduceOnly", False)),
-                    client_order_id=it.get("clOrdId"),
+                    is_cancelled=(it.state in ["canceled", "rejected"]),
+                    is_reduce_only=(it.reduce_only == "true"),
+                    client_order_id=ClientOrderId(str(it.cl_ord_id))
+                    if it.cl_ord_id
+                    else None,
                 )
                 orders.append(order)
 
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return OrdersResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                orders=orders,
+                orders=tuple(orders),
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_orders(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_position(
         self, instruments: list[Instrument]
@@ -724,13 +897,14 @@ class OkxExchange(Exchange):
             ClientResponse[list[PositionResponse]]: Position for each instrument.
         """
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_position(instrument: Instrument) -> PositionResponse:
             params = {
                 "instType": "SWAP",
                 "instId": self.instrument_to_symbol(instrument),
             }
-            decoder = msgspec.json.Decoder(list)
+            decoder = msgspec.json.Decoder(list[OkxHttpPosition])
             response = await self.http_client.request(
                 method=HttpMethod.GET,
                 endpoint=ENDPOINT_GET_POSITIONS,
@@ -739,23 +913,26 @@ class OkxExchange(Exchange):
                 sign=True,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
 
-            items = cast(list, response.data)
+            items = cast(list[OkxHttpPosition], response.data)
             total_size = 0.0
             avg_px = 0.0
 
             for it in items:
-                pos = float(it.get("pos", 0.0))
+                pos = float(it.pos)
                 if pos != 0:
                     total_size = pos
-                    avg_px = float(it.get("avgPx", 0.0))
+                    avg_px = float(it.avg_px)
                     break
 
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return PositionResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
                 price=avg_px,
                 is_long=total_size > 0,
@@ -766,9 +943,24 @@ class OkxExchange(Exchange):
             results = await asyncio.gather(
                 *(fetch_position(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_POSITIONS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_POSITIONS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_executions(
         self, instruments: list[Instrument]
@@ -782,6 +974,7 @@ class OkxExchange(Exchange):
             ClientResponse[list[ExecutionResponse]]: Executions for each instrument.
         """
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_exec(instrument: Instrument) -> ExecutionResponse:
             params = {
@@ -789,7 +982,7 @@ class OkxExchange(Exchange):
                 "instId": self.instrument_to_symbol(instrument),
                 "limit": "100",
             }
-            decoder = msgspec.json.Decoder(list)
+            decoder = msgspec.json.Decoder(list[OkxHttpFill])
             response = await self.http_client.request(
                 method=HttpMethod.GET,
                 endpoint=ENDPOINT_GET_FILLS,
@@ -798,35 +991,55 @@ class OkxExchange(Exchange):
                 sign=True,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
 
-            items = cast(list, response.data)
+            items = cast(list[OkxHttpFill], response.data)
             executions = [
                 Execution(
-                    exec_time_ms=float(it.get("ts", 0)),
-                    order_id=str(it.get("ordId", "")),
-                    price=float(it.get("fillPx", 0.0)),
-                    is_buy=(it.get("side", "buy") == "buy"),
-                    size=float(it.get("fillSz", 0.0)),
-                    is_maker=(it.get("execType", "T") == "M"),
-                    fee_paid=abs(float(it.get("fee", 0.0))),
-                    client_order_id=it.get("clOrdId"),
+                    exec_time_ms=float(it.ts),
+                    order_id=OrderId(str(it.ord_id)),
+                    price=float(it.fill_px),
+                    is_buy=(it.side == "buy"),
+                    size=float(it.fill_sz),
+                    is_maker=(it.exec_type == "M"),
+                    fee_paid=abs(float(it.fee)),
+                    client_order_id=ClientOrderId(str(it.cl_ord_id))
+                    if it.cl_ord_id
+                    else None,
                 )
                 for it in items
             ]
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return ExecutionResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                executions=executions,
+                executions=tuple(executions),
             )
 
         try:
             results = await asyncio.gather(*(fetch_exec(inst) for inst in instruments))
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_FILLS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_FILLS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_account(self) -> ClientResponse[AccountResponse]:
         """Fetch account balance and margin data via HTTP REST.
@@ -835,7 +1048,8 @@ class OkxExchange(Exchange):
             ClientResponse[AccountResponse]: Account balance and margin information.
         """
         self.ensure_secrets_loaded()
-        decoder = msgspec.json.Decoder(list)
+        started_ns = time_ns()
+        decoder = msgspec.json.Decoder(list[OkxHttpAccount])
         response = await self.http_client.request(
             method=HttpMethod.GET,
             endpoint=ENDPOINT_GET_ACCOUNT,
@@ -845,37 +1059,61 @@ class OkxExchange(Exchange):
             decoder=decoder,
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(is_successful=False, err_msg=response.err_msg)
+        if not is_success(response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ACCOUNT,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=response.err_no,
+                err_msg=response.err_msg,
+            )
 
-        items = cast(list, response.data)
+        items = cast(list[OkxHttpAccount], response.data)
         if not items:
-            return ClientResponseFailure(
-                is_successful=False, err_msg="Empty account response"
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ACCOUNT,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=1,
+                err_msg="Empty account response",
             )
 
         item = items[0]
-        details = item.get("details", [])
 
         # Aggregate across all currencies (typically USDT for SWAP)
         total_equity = 0.0
         total_im = 0.0
-        total_mm = 0.0
         total_upl = 0.0
 
-        for detail in details:
-            total_equity += float(detail.get("eq", 0.0))
-            total_im += float(detail.get("frozenBal", 0.0))
-            total_mm += float(detail.get("mmr", 0.0))
-            total_upl += float(detail.get("upl", 0.0))
+        for detail in item.details:
+            total_equity += float(detail.eq)
+            total_im += float(detail.frozen_bal)
+            total_upl += float(detail.upl)
 
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         acc = AccountResponse(
-            moments=Moments(),
-            venue=self.venue,
-            instrument=Instrument.empty(),
+            id=response_id,
+            origin_id=response_id,
+            moments=moments,
+            instrument=Instrument.empty_with(venue=self.venue),
             balance=total_equity,
             initial_margin=total_im,
-            maintenance_margin=total_mm,
+            maintenance_margin=0.0,  # OKX doesn't provide mmr in balance endpoint details
             unrealized_pnl=total_upl,
         )
-        return ClientResponseSuccess(is_successful=True, data=acc)
+        return self.make_success(
+            data=acc,
+            meta=self.make_meta(
+                operation=ENDPOINT_GET_ACCOUNT,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=response.meta.status_code,
+            ),
+        )

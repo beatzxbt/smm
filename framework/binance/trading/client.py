@@ -6,16 +6,15 @@ from typing import Any, Optional
 import aiohttp
 import msgspec
 
-from mm_toolbox.time import time_ms
 from framework.base.common import Venue
-from framework.base.trading.models import Secret
-from mm_toolbox.logging.standard import Logger
 from framework.base.trading.client import HttpClient, HttpMethod, WsClient
 from framework.base.trading.models import (
     ClientResponse,
-    ClientResponseSuccess,
-    ClientResponseFailure,
+    ClientResponseTransport,
+    Secret,
 )
+from mm_toolbox.logging.standard import Logger
+from mm_toolbox.time import time_ms, time_ns
 
 
 def _resolve_secrets(
@@ -92,6 +91,7 @@ class BinanceHttpClient(HttpClient):
             ClientResponse[T]: The response object.
 
         """
+        started_ns = time_ns()
         url = self.base_url + endpoint
         headers = {"X-MBX-APIKEY": self.key}
         req_params = params.copy() if params else {}
@@ -114,13 +114,33 @@ class BinanceHttpClient(HttpClient):
             ) as resp:
                 resp.raise_for_status()
                 result = decoder.decode(await resp.read())
-                return ClientResponseSuccess[T](
-                    is_successful=True, err_no=0, err_msg="", data=result
+                return self.make_success(
+                    data=result,
+                    meta=self.make_meta(
+                        transport=ClientResponseTransport.HTTP,
+                        operation=endpoint,
+                        started_ns=started_ns,
+                        finished_ns=time_ns(),
+                        status_code=resp.status,
+                        attempt=1,
+                    ),
                 )
         except Exception as e:
             self.logger.warning(f"{self.__class__.__name__} request error: {e}")
-            return ClientResponseFailure[T](
-                is_successful=False, err_no=1, err_msg=str(e), data=None
+            return self.make_failure(
+                meta=self.make_meta(
+                    transport=ClientResponseTransport.HTTP,
+                    operation=endpoint,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=(
+                        e.status if isinstance(e, aiohttp.ClientResponseError) else None
+                    ),
+                    attempt=1,
+                    timeout=isinstance(e, asyncio.TimeoutError),
+                ),
+                err_no=1,
+                err_msg=str(e),
             )
 
 
@@ -401,21 +421,36 @@ class BinanceWsClient(WsClient):
         self, data: dict[str, Any], decoder: msgspec.json.Decoder[T]
     ) -> ClientResponse[T]:
         """Submit a request over the WebSocket connection."""
+        started_ns = time_ns()
+        operation = str(data.get("method", "unknown"))
         if not self.is_running:
             self.logger.error("Binance WebSocket client not initialized")
-            return ClientResponseFailure[T](
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    transport=ClientResponseTransport.WS,
+                    operation=operation,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    attempt=1,
+                ),
                 err_no=1,
                 err_msg="Client not initialized",
-                data=None,
             )
 
         if not self.is_active or self.ws is None:
             self.logger.error(
                 f"Binance WebSocket no active connection available; payload: {data}"
             )
-            return ClientResponseFailure[T](
-                is_successful=False, err_no=1, err_msg="No active connection", data=None
+            return self.make_failure(
+                meta=self.make_meta(
+                    transport=ClientResponseTransport.WS,
+                    operation=operation,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    attempt=1,
+                ),
+                err_no=1,
+                err_msg="No active connection",
             )
 
         # Add request ID and timestamp if not present
@@ -426,21 +461,24 @@ class BinanceWsClient(WsClient):
         loop = asyncio.get_running_loop()
         future: asyncio.Future[Any] = loop.create_future()
         self.pending_requests[req_id] = future
-        time_sent = time_ms()
-
         try:
             await self.ws.send_bytes(self.json_encoder.encode(data))
             response = await asyncio.wait_for(future, timeout=5.0)
-
-            latency = time_ms() - time_sent
-            self.logger.debug(f"Binance WebSocket request latency: {latency}ms")
+            status_code = response.get("status")
+            meta = self.make_meta(
+                transport=ClientResponseTransport.WS,
+                operation=operation,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                request_id=req_id,
+                status_code=int(status_code) if status_code is not None else None,
+                attempt=1,
+            )
 
             if response.get("status") == 200:
-                return ClientResponseSuccess[T](
-                    is_successful=True,
-                    err_no=0,
-                    err_msg="",
+                return self.make_success(
                     data=decoder.decode(response.get("result", response)),
+                    meta=meta,
                 )
             else:
                 error_msg = response.get("error", {}).get("msg", "Unknown error")
@@ -448,22 +486,41 @@ class BinanceWsClient(WsClient):
                 self.logger.debug(
                     f"{self.__class__.__name__} request failed: {response}"
                 )
-                return ClientResponseFailure[T](
-                    is_successful=False,
+                return self.make_failure(
+                    meta=meta,
                     err_no=error_code,
                     err_msg=error_msg,
-                    data=decoder.decode(response),
                 )
 
         except TimeoutError:
             self.pending_requests.pop(req_id, None)
             self.logger.error(f"{self.__class__.__name__} request timeout")
-            return ClientResponseFailure[T](
-                is_successful=False, err_no=1, err_msg="Request timeout", data=None
+            return self.make_failure(
+                meta=self.make_meta(
+                    transport=ClientResponseTransport.WS,
+                    operation=operation,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    request_id=req_id,
+                    attempt=1,
+                    timeout=True,
+                ),
+                err_no=1,
+                err_msg="Request timeout",
             )
         except Exception as e:
             self.pending_requests.pop(req_id, None)
             self.logger.error(f"{self.__class__.__name__} request send failed: {e}")
-            return ClientResponseFailure[T](
-                is_successful=False, err_no=1, err_msg=str(e), data=None
+            return self.make_failure(
+                meta=self.make_meta(
+                    transport=ClientResponseTransport.WS,
+                    operation=operation,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    request_id=req_id,
+                    attempt=1,
+                    timeout=isinstance(e, asyncio.TimeoutError),
+                ),
+                err_no=1,
+                err_msg=str(e),
             )

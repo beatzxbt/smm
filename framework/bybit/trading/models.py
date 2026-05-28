@@ -6,6 +6,8 @@ cancellation responses from the Bybit Trade WebSocket API into strongly-typed Py
 
 from msgspec import Struct
 
+from framework.base.common import Symbol
+
 
 class BybitWsCreateOrderResult(Struct, rename="camel", frozen=True):
     """Result of a Trade WebSocket order creation request.
@@ -47,7 +49,7 @@ class BybitWsCreateOrderResult(Struct, rename="camel", frozen=True):
     """
 
     order_id: int
-    symbol: str
+    symbol: Symbol
     status: str
     client_order_id: str
     price: str

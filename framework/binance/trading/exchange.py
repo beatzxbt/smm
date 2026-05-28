@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 import asyncio
-from typing import cast
 
 import msgspec
 
 from framework.base.common import (
+    Asset,
+    ClientOrderId,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    OrderId,
+    Symbol,
     Venue,
 )
+from framework.base.schema import Moments, MessageId
 from framework.base.tools import EnumMap as EnumMap
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.time import time_ns
 from framework.base.stream.models import (
-    Moments,
     Trade,
     OrderbookLevel,
     Order,
@@ -34,8 +38,6 @@ from framework.base.trading.models import (
     CancelOrder,
     CancelOrderResponse,
     ClientResponse,
-    ClientResponseFailure,
-    ClientResponseSuccess,
     CreateOrder,
     CreateOrderResponse,
     ExecutionResponse,
@@ -45,9 +47,10 @@ from framework.base.trading.models import (
     PositionResponse,
     TickerResponse,
     TradesResponse,
+    is_success,
 )
 from framework.binance.trading.client import BinanceHttpClient, BinanceWsClient
-from framework.binance.trading.structs import (
+from framework.binance.trading.models import (
     BinanceWsOrderResponse,
     BinanceWsCreateOrderResult,
     BinanceWsAmendOrderResult,
@@ -62,6 +65,9 @@ from framework.binance.trading.structs import (
     HttpUserTrade,
     HttpAccount,
     SymbolInformation,
+    PriceFilter,
+    LotSizeFilter,
+    MarketLotSizeFilter,
     BinanceHttpExchangeInformationResponse,
 )
 
@@ -125,27 +131,29 @@ class BinanceExchange(Exchange):
             },
         )
 
-    def instrument_to_symbol(self, instrument: Instrument) -> str:
+    def instrument_to_symbol(self, instrument: Instrument) -> Symbol:
         """Return the Binance symbol for an instrument.
 
         Args:
             instrument: Instrument to format.
 
         Returns:
-            str: Binance symbol string.
+            Symbol: Binance symbol string.
         """
         return instrument.symbol
 
     async def get_instrument_collection(self) -> ClientResponse[InstrumentCollection]:
         response = await self.get_instrument_info([])
 
-        if not response.is_successful or response.data is None:
-            return ClientResponseFailure(
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
                 err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        return ClientResponseSuccess(
+        return self.make_success(
+            meta=response.meta,
             data=InstrumentCollection(
                 instruments=[info.instrument for info in response.data]
             ),
@@ -182,21 +190,27 @@ class BinanceExchange(Exchange):
         )
         response = await self.ws_client.submit(data=payload, decoder=decoder)
 
-        if not response.is_successful:
-            return ClientResponseFailure(
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
                 err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        order_response = cast(BinanceWsOrderResponse, response.data)
-        return ClientResponseSuccess(
+        order_response = response.data
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
+        return self.make_success(
+            meta=response.meta,
             data=CreateOrderResponse(
-                moments=Moments(),
-                venue=create_order.instrument.venue,
+                id=response_id,
+                origin_id=create_order.origin_id or create_order.id,
+                moments=moments,
                 instrument=create_order.instrument,
-                trigger=create_order,
-                order_id=str(order_response.result.order_id),
-                client_order_id=order_response.result.client_order_id,
+                order_id=OrderId(str(order_response.result.order_id)),
+                client_order_id=ClientOrderId(
+                    str(order_response.result.client_order_id)
+                ),
             ),
         )
 
@@ -227,21 +241,27 @@ class BinanceExchange(Exchange):
         )
         response = await self.ws_client.submit(data=payload, decoder=decoder)
 
-        if not response.is_successful:
-            return ClientResponseFailure(
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
                 err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        amend_response = cast(BinanceWsOrderResponse, response.data)
-        return ClientResponseSuccess(
+        amend_response = response.data
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
+        return self.make_success(
+            meta=response.meta,
             data=AmendOrderResponse(
-                moments=Moments(),
-                venue=amend_order.instrument.venue,
+                id=response_id,
+                origin_id=amend_order.origin_id or amend_order.id,
+                moments=moments,
                 instrument=amend_order.instrument,
-                trigger=amend_order,
-                order_id=str(amend_response.result.order_id),
-                client_order_id=amend_response.result.client_order_id,
+                order_id=OrderId(str(amend_response.result.order_id)),
+                client_order_id=ClientOrderId(
+                    str(amend_response.result.client_order_id)
+                ),
             ),
         )
 
@@ -251,7 +271,7 @@ class BinanceExchange(Exchange):
         self.ensure_secrets_loaded()
         self.ensure_running(ws_only=True)
 
-        params = {
+        params: dict[str, str] = {
             "symbol": cancel_order.instrument.symbol,
         }
         if cancel_order.order_id:
@@ -269,21 +289,27 @@ class BinanceExchange(Exchange):
         )
         response = await self.ws_client.submit(data=payload, decoder=decoder)
 
-        if not response.is_successful:
-            return ClientResponseFailure(
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
                 err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        cancel_response = cast(BinanceWsOrderResponse, response.data)
-        return ClientResponseSuccess(
+        cancel_response = response.data
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
+        return self.make_success(
+            meta=response.meta,
             data=CancelOrderResponse(
-                moments=Moments(),
-                venue=cancel_order.instrument.venue,
+                id=response_id,
+                origin_id=cancel_order.origin_id or cancel_order.id,
+                moments=moments,
                 instrument=cancel_order.instrument,
-                trigger=cancel_order,
-                order_id=str(cancel_response.result.order_id),
-                client_order_id=cancel_response.result.client_order_id,
+                order_id=OrderId(str(cancel_response.result.order_id)),
+                client_order_id=ClientOrderId(
+                    str(cancel_response.result.client_order_id)
+                ),
             ),
         )
 
@@ -308,28 +334,36 @@ class BinanceExchange(Exchange):
             decoder=decoder,
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
                 err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
         # Binance returns list of cancelled orders; we optionally extract IDs
-        order_ids: list[str] | None = None
-        client_ids: list[str] | None = None
+        order_ids = None
+        client_ids = None
         try:
-            data_list = cast(list[dict], response.data)
-            order_ids = [str(item.get("orderId", "")) for item in data_list]
-            client_ids = [str(item.get("clientOrderId", "")) for item in data_list]
+            data_list = response.data
+            order_ids = tuple(
+                OrderId(str(item.get("orderId", ""))) for item in data_list
+            )
+            client_ids = tuple(
+                ClientOrderId(str(item.get("clientOrderId", ""))) for item in data_list
+            )
         except Exception:
             pass
 
-        return ClientResponseSuccess(
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
+        return self.make_success(
+            meta=response.meta,
             data=CancelAllOrdersResponse(
-                moments=Moments(),
-                venue=cancel_all_orders.instrument.venue,
+                id=response_id,
+                origin_id=cancel_all_orders.origin_id or cancel_all_orders.id,
+                moments=moments,
                 instrument=cancel_all_orders.instrument,
-                trigger=cancel_all_orders,
                 order_ids=order_ids,
                 client_order_ids=client_ids,
             ),
@@ -338,69 +372,76 @@ class BinanceExchange(Exchange):
     async def get_trades(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[TradesResponse]]:
-        async def fetch_trades(
-            instrument: Instrument,
-        ) -> ClientResponse[TradesResponse]:
-            """Fetch recent trades for a single instrument."""
-            params = {"symbol": instrument.symbol, "limit": 500}
+        started_ns = time_ns()
 
+        async def fetch_trades(instrument: Instrument) -> TradesResponse:
+            """Fetch recent trades for a single instrument."""
             decoder = msgspec.json.Decoder(list[BinanceHttpTradeResponse])
 
             response = await self.http_client.request(
                 method=HttpMethod.GET,
                 endpoint=ENDPOINT_GET_TRADES,
-                params=params,
+                params={"symbol": instrument.symbol, "limit": 1000},
                 data={},
                 sign=False,
                 decoder=decoder,
             )
 
-            if response.is_successful and response.data is not None:
-                trades = [
-                    Trade(
-                        time_ms=trade.time,
-                        price=float(trade.price),
-                        is_buy=not trade.is_buyer_maker,  # buyer_maker=False == taker=buyer
-                        size=float(trade.qty),
-                    )
-                    for trade in response.data
-                ]
+            if not is_success(response):
+                raise RuntimeError(response.err_msg)
 
-                return ClientResponseSuccess(
-                    data=TradesResponse(
-                        moments=Moments(),
-                        venue=instrument.venue,
-                        instrument=instrument,
-                        trades=trades,
-                    ),
+            trades = [
+                Trade(
+                    time_ms=trade.time,
+                    price=float(trade.price),
+                    is_buy=not trade.is_buyer_maker,  # buyer_maker=False == taker=buyer
+                    size=float(trade.qty),
                 )
-            else:
-                return ClientResponseFailure(
-                    err_no=response.err_no,
-                    err_msg=response.err_msg,
-                )
+                for trade in response.data
+            ]
 
-        responses = await asyncio.gather(
-            *[fetch_trades(instrument) for instrument in instruments]
-        )
-        for response in responses:
-            if not response.is_successful:
-                return ClientResponseFailure(
-                    err_no=response.err_no,
-                    err_msg=response.err_msg,
-                )
-        return ClientResponseSuccess(
-            data=[response.data for response in responses if response.data is not None],
-        )
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
+            return TradesResponse(
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
+                instrument=instrument,
+                trades=tuple(trades),
+            )
+
+        try:
+            responses = await asyncio.gather(
+                *[fetch_trades(instrument) for instrument in instruments]
+            )
+            return self.make_success(
+                data=responses,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TRADES,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
+        except Exception as e:
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TRADES,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_orderbook(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[OrderbookResponse]]:
         """Gets orderbook snapshots for instruments using parallel requests."""
+        started_ns = time_ns()
 
         async def fetch_orderbook(instrument: Instrument) -> OrderbookResponse:
             """Fetch orderbook for a single instrument."""
-            params = {"symbol": instrument.symbol, "limit": 100}
+            params = {"symbol": instrument.symbol, "limit": 1000}
 
             decoder = msgspec.json.Decoder(BinanceHttpOrderbookResponse)
 
@@ -413,32 +454,44 @@ class BinanceExchange(Exchange):
                 decoder=decoder,
             )
 
-            if response.is_successful:
-                orderbook_data = cast(BinanceHttpOrderbookResponse, response.data)
+            if is_success(response):
+                orderbook_data = response.data
 
-                bids = [
-                    OrderbookLevel(
-                        price=float(level[0]),
-                        size=float(level[1]),
+                bids = tuple(
+                    sorted(
+                        (
+                            OrderbookLevel(
+                                price=float(level[0]),
+                                size=float(level[1]),
+                            )
+                            for level in orderbook_data.bids
+                        ),
+                        key=lambda x: x.price,
                     )
-                    for level in orderbook_data.bids
-                ]
+                )
 
-                asks = [
-                    OrderbookLevel(
-                        price=float(level[0]),
-                        size=float(level[1]),
+                asks = tuple(
+                    sorted(
+                        (
+                            OrderbookLevel(
+                                price=float(level[0]),
+                                size=float(level[1]),
+                            )
+                            for level in orderbook_data.asks
+                        ),
+                        key=lambda x: x.price,
                     )
-                    for level in orderbook_data.asks
-                ]
+                )
 
+                moments = Moments()
+                response_id = MessageId(recv_time_ns=moments.recv_time_ns)
                 return OrderbookResponse(
-                    moments=Moments(),
-                    venue=self.venue,
+                    id=response_id,
+                    origin_id=response_id,
+                    moments=moments,
                     instrument=instrument,
                     bids=bids,
                     asks=asks,
-                    is_snapshot=True,
                 )
             else:
                 raise Exception(
@@ -450,13 +503,22 @@ class BinanceExchange(Exchange):
                 *[fetch_orderbook(instrument) for instrument in instruments]
             )
 
-            return ClientResponseSuccess(
-                is_successful=True,
+            return self.make_success(
                 data=orderbook_responses,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERBOOK,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
             )
         except Exception as e:
-            return ClientResponseFailure(
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERBOOK,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
                 err_msg=str(e),
             )
 
@@ -464,6 +526,7 @@ class BinanceExchange(Exchange):
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[TickerResponse]]:
         """Gets ticker data for instruments using parallel requests."""
+        started_ns = time_ns()
 
         async def fetch_ticker(instrument: Instrument) -> TickerResponse:
             """Fetch ticker data for a single instrument by combining 24hr stats and mark price."""
@@ -500,40 +563,39 @@ class BinanceExchange(Exchange):
                 ),
             )
 
-            if not ticker_response.is_successful:
+            if not is_success(ticker_response):
                 raise Exception(
                     f"Failed to get 24hr ticker for {instrument}; {ticker_response.err_msg}"
                 )
-            if not mark_price_response.is_successful:
+            if not is_success(mark_price_response):
                 raise Exception(
                     f"Failed to get mark price for {instrument}; {mark_price_response.err_msg}"
                 )
-            if not oi_response.is_successful:
+            if not is_success(oi_response):
                 raise Exception(
                     f"Failed to get open interest for {instrument}; {oi_response.err_msg}"
                 )
 
-            ticker_data = cast(BinanceHttpTicker24hrResponse, ticker_response.data)
-            mark_price_data = cast(
-                BinanceHttpMarkPriceResponse, mark_price_response.data
-            )
-            oi_data = cast(BinanceHttpOpenInterestResponse, oi_response.data)
+            ticker_data = ticker_response.data
+            mark_price_data = mark_price_response.data
+            oi_data = oi_response.data
 
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return TickerResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
                 mark_price=float(mark_price_data.mark_price),
                 index_price=float(mark_price_data.index_price),
                 funding_rate=float(mark_price_data.last_funding_rate),
                 next_funding_time_ms=mark_price_data.next_funding_time,
                 open_interest=float(oi_data.open_interest),
-                avg_volume_24h=float(ticker_data.volume)
-                if ticker_data.volume
-                else None,
+                avg_volume_24h=float(ticker_data.volume) if ticker_data.volume else 0.0,
                 price_chg_24h=float(ticker_data.price_change)
                 if ticker_data.price_change
-                else None,
+                else 0.0,
             )
 
         try:
@@ -541,13 +603,22 @@ class BinanceExchange(Exchange):
                 *[fetch_ticker(instrument) for instrument in instruments]
             )
 
-            return ClientResponseSuccess(
-                is_successful=True,
+            return self.make_success(
                 data=ticker_responses,
+                meta=self.make_meta(
+                    operation=f"{ENDPOINT_GET_TICKER}|{ENDPOINT_GET_MARK_PRICE}|{ENDPOINT_GET_OPEN_INTEREST}",
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
             )
         except Exception as e:
-            return ClientResponseFailure(
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=f"{ENDPOINT_GET_TICKER}|{ENDPOINT_GET_MARK_PRICE}|{ENDPOINT_GET_OPEN_INTEREST}",
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
                 err_msg=str(e),
             )
 
@@ -556,6 +627,7 @@ class BinanceExchange(Exchange):
     ) -> ClientResponse[list[OrdersResponse]]:
         """Gets open orders for instruments using parallel requests."""
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_orders(instrument: Instrument) -> OrdersResponse:
             """Fetch open orders for a single instrument."""
@@ -574,16 +646,19 @@ class BinanceExchange(Exchange):
                 decoder=decoder,
             )
 
-            if not response.is_successful:
+            if not is_success(response):
                 raise Exception(
                     f"Failed to get orders for {instrument}; {response.err_msg}"
                 )
 
-            orders_data = cast(list[HttpOrder], response.data)
+            orders_data = response.data
             orders = [
                 Order(
-                    create_time_ms=float(order.time),
-                    order_id=str(order.order_id),
+                    create_time_ms=max(
+                        float(order.time if order.time > 0 else order.update_time),
+                        1.0,
+                    ),
+                    order_id=OrderId(str(order.order_id)),
                     price=float(order.price),
                     is_buy=order.side.upper() == "BUY",
                     size=float(order.orig_qty),
@@ -593,18 +668,21 @@ class BinanceExchange(Exchange):
                     ),
                     is_cancelled=order.status == "CANCELED",
                     is_reduce_only=order.reduce_only,
-                    client_order_id=order.client_order_id
+                    client_order_id=ClientOrderId(str(order.client_order_id))
                     if order.client_order_id
                     else None,
                 )
                 for order in orders_data
             ]
 
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return OrdersResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                orders=orders,
+                orders=tuple(orders),
             )
 
         try:
@@ -613,13 +691,22 @@ class BinanceExchange(Exchange):
                 *[fetch_orders(instrument) for instrument in instruments]
             )
 
-            return ClientResponseSuccess(
-                is_successful=True,
+            return self.make_success(
                 data=orders_responses,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
             )
         except Exception as e:
-            return ClientResponseFailure(
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
                 err_msg=str(e),
             )
 
@@ -628,6 +715,7 @@ class BinanceExchange(Exchange):
     ) -> ClientResponse[list[PositionResponse]]:
         """Gets position data for instruments using parallel requests."""
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_position(instrument: Instrument) -> PositionResponse:
             """Fetch position for a single instrument."""
@@ -646,12 +734,12 @@ class BinanceExchange(Exchange):
                 decoder=decoder,
             )
 
-            if not response.is_successful:
+            if not is_success(response):
                 raise Exception(
                     f"Failed to get position for {instrument}; {response.err_msg}"
                 )
 
-            positions_data = cast(list[HttpPosition], response.data)
+            positions_data = response.data
 
             # Find the relevant position (there may be multiple position sides)
             total_size = 0.0
@@ -671,9 +759,12 @@ class BinanceExchange(Exchange):
             if total_notional > 0:
                 avg_price = total_notional / abs(total_size) if total_size != 0 else 0.0
 
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return PositionResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
                 price=avg_price,
                 is_long=total_size > 0,
@@ -686,13 +777,22 @@ class BinanceExchange(Exchange):
                 *[fetch_position(instrument) for instrument in instruments]
             )
 
-            return ClientResponseSuccess(
-                is_successful=True,
+            return self.make_success(
                 data=position_responses,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_POSITION,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
             )
         except Exception as e:
-            return ClientResponseFailure(
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_POSITION,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
                 err_msg=str(e),
             )
 
@@ -701,6 +801,7 @@ class BinanceExchange(Exchange):
     ) -> ClientResponse[list[ExecutionResponse]]:
         """Gets executions (user trades) for instruments using parallel requests."""
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_executions(instrument: Instrument) -> ExecutionResponse:
             """Fetch executions for a single instrument."""
@@ -720,16 +821,16 @@ class BinanceExchange(Exchange):
                 decoder=decoder,
             )
 
-            if not response.is_successful:
+            if not is_success(response):
                 raise Exception(
                     f"Failed to get executions for {instrument}; {response.err_msg}"
                 )
 
-            executions_data = cast(list[HttpUserTrade], response.data)
+            executions_data = response.data
             executions = [
                 Execution(
-                    exec_time_ms=float(trade.time),
-                    order_id=str(trade.order_id),
+                    exec_time_ms=max(float(trade.time), 1.0),
+                    order_id=OrderId(str(trade.order_id)),
                     price=float(trade.price),
                     is_buy=trade.side.upper() == "BUY",
                     size=float(trade.qty),
@@ -740,11 +841,14 @@ class BinanceExchange(Exchange):
                 for trade in executions_data
             ]
 
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return ExecutionResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                executions=executions,
+                executions=tuple(executions),
             )
 
         try:
@@ -753,19 +857,29 @@ class BinanceExchange(Exchange):
                 *[fetch_executions(instrument) for instrument in instruments]
             )
 
-            return ClientResponseSuccess(
-                is_successful=True,
+            return self.make_success(
                 data=execution_responses,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_EXECUTIONS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
             )
         except Exception as e:
-            return ClientResponseFailure(
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_EXECUTIONS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
                 err_msg=str(e),
             )
 
     async def get_account(self) -> ClientResponse[AccountResponse]:
         """Gets account data from the exchange."""
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         decoder = msgspec.json.Decoder(HttpAccount)
 
@@ -778,40 +892,48 @@ class BinanceExchange(Exchange):
             decoder=decoder,
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False,
+        if not is_success(response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ACCOUNT,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        account_data = cast(HttpAccount, response.data)
+        account_data = response.data
 
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         account_response = AccountResponse(
-            moments=Moments(),
-            venue=self.venue,
-            instrument=Instrument(  # Account is not instrument-specific, but required by schema
-                venue=self.venue,
-                base="",
-                quote="",
-                symbol="",
-                code=0,
-                instrument_type=InstrumentType.PERPETUAL,
-            ),
+            id=response_id,
+            origin_id=response_id,
+            moments=moments,
+            instrument=Instrument.empty_with(venue=self.venue),
             balance=float(account_data.total_wallet_balance),
             initial_margin=float(account_data.total_initial_margin),
             maintenance_margin=float(account_data.total_maint_margin),
             unrealized_pnl=float(account_data.total_unrealized_pnl),
         )
 
-        return ClientResponseSuccess(
-            is_successful=True,
+        return self.make_success(
             data=account_response,
+            meta=self.make_meta(
+                operation=ENDPOINT_GET_ACCOUNT,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=response.meta.status_code,
+            ),
         )
 
     async def get_instrument_info(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[InstrumentInfoResponse]]:
         """Gets instrument information by fetching all instruments and filtering locally."""
+        started_ns = time_ns()
 
         def parse_symbol_data(
             symbol: SymbolInformation,
@@ -826,23 +948,25 @@ class BinanceExchange(Exchange):
             max_maker_size = 0.0
 
             for f in symbol.filters:
-                if f.filter_type == "PRICE_FILTER" and f.tick_size is not None:
+                if isinstance(f, PriceFilter):
                     tick_size = float(f.tick_size)
-                elif f.filter_type == "LOT_SIZE" and f.step_size is not None:
+                elif isinstance(f, LotSizeFilter):
                     lot_size = float(f.step_size)
-                    if f.max_qty is not None:
-                        max_maker_size = float(f.max_qty)
-                elif f.filter_type == "MARKET_LOT_SIZE" and f.max_qty is not None:
+                    max_maker_size = float(f.max_qty)
+                elif isinstance(f, MarketLotSizeFilter):
                     max_taker_size = float(f.max_qty)
 
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return InstrumentInfoResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=Instrument(
                     venue=self.venue,
-                    base=symbol.base_asset,
-                    quote=symbol.quote_asset,
-                    symbol=f"{symbol.base_asset}{symbol.quote_asset}",
+                    base=Asset(symbol.base_asset),
+                    quote=Asset(symbol.quote_asset),
+                    symbol=Symbol(f"{symbol.base_asset}{symbol.quote_asset}"),
                     code=0,
                     instrument_type=InstrumentType.PERPETUAL,
                     tick_size=tick_size,
@@ -866,10 +990,10 @@ class BinanceExchange(Exchange):
                 decoder=decoder,
             )
 
-            if not response.is_successful:
+            if not is_success(response):
                 raise Exception(f"Failed to get instrument info; {response.err_msg}")
 
-            response_data = cast(BinanceHttpExchangeInformationResponse, response.data)
+            response_data = response.data
 
             all_instrument_infos = []
             for symbol in response_data.symbols:
@@ -886,18 +1010,33 @@ class BinanceExchange(Exchange):
                     if f"{info.instrument.base}{info.instrument.quote}".upper()
                     in requested_symbols
                 ]
-                return ClientResponseSuccess(
-                    is_successful=True,
+                return self.make_success(
                     data=filtered_infos,
+                    meta=self.make_meta(
+                        operation=ENDPOINT_GET_INSTRUMENT_INFO,
+                        started_ns=started_ns,
+                        finished_ns=time_ns(),
+                        status_code=response.meta.status_code,
+                    ),
                 )
             else:
-                return ClientResponseSuccess(
-                    is_successful=True,
+                return self.make_success(
                     data=all_instrument_infos,
+                    meta=self.make_meta(
+                        operation=ENDPOINT_GET_INSTRUMENT_INFO,
+                        started_ns=started_ns,
+                        finished_ns=time_ns(),
+                        status_code=response.meta.status_code,
+                    ),
                 )
         except Exception as e:
-            return ClientResponseFailure(
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_INSTRUMENT_INFO,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
                 err_msg=str(e),
             )
 
@@ -905,6 +1044,7 @@ class BinanceExchange(Exchange):
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[float]]:
         """Gets the open interest for instruments using parallel requests."""
+        started_ns = time_ns()
 
         async def fetch_open_interest(instrument: Instrument) -> float:
             """Fetch open interest for a single instrument."""
@@ -923,12 +1063,12 @@ class BinanceExchange(Exchange):
                 decoder=decoder,
             )
 
-            if not response.is_successful:
+            if not is_success(response):
                 raise Exception(
                     f"Failed to get open interest for {instrument}; {response.err_msg}"
                 )
 
-            open_interest_data = cast(BinanceHttpOpenInterestResponse, response.data)
+            open_interest_data = response.data
             return float(open_interest_data.open_interest)
 
         try:
@@ -937,19 +1077,29 @@ class BinanceExchange(Exchange):
                 *[fetch_open_interest(instrument) for instrument in instruments]
             )
 
-            return ClientResponseSuccess(
-                is_successful=True,
+            return self.make_success(
                 data=open_interests,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_OPEN_INTEREST,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
             )
         except Exception as e:
-            return ClientResponseFailure(
-                is_successful=False,
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_OPEN_INTEREST,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
                 err_msg=str(e),
             )
 
     async def get_listen_key(self) -> ClientResponse[str]:
         """Get listen key from Binance REST API for authenticated websocket connection."""
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         decoder = msgspec.json.Decoder(dict)
 
@@ -963,15 +1113,26 @@ class BinanceExchange(Exchange):
             decoder=decoder,
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False,
+        if not is_success(response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_POST_LISTEN_KEY,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        response_data = cast(dict, response.data)
+        response_data = response.data
         listen_key = response_data.get("listenKey", "")
-        return ClientResponseSuccess(
-            is_successful=True,
+        return self.make_success(
             data=listen_key,
+            meta=self.make_meta(
+                operation=ENDPOINT_POST_LISTEN_KEY,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=response.meta.status_code,
+            ),
         )

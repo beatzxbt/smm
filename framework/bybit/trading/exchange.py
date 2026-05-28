@@ -1,18 +1,22 @@
 import asyncio
-from typing import cast
 
 import msgspec
 
 from framework.base.common import (
+    Asset,
+    ClientOrderId,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    OrderId,
+    Symbol,
     Venue,
 )
+from framework.base.schema import Moments, MessageId
 from framework.base.tools import EnumMap as EnumMap
 from mm_toolbox.logging.standard import Logger
-from mm_toolbox.time import time_ms
-from framework.base.stream.models import Moments, Trade, Execution
+from mm_toolbox.time import time_ms, time_ns
+from framework.base.stream.models import Trade, Execution
 from framework.base.trading.client import HttpMethod
 from framework.base.trading.exchange import Exchange
 from framework.base.trading.models import (
@@ -24,8 +28,6 @@ from framework.base.trading.models import (
     CancelOrder,
     CancelOrderResponse,
     ClientResponse,
-    ClientResponseFailure,
-    ClientResponseSuccess,
     CreateOrder,
     CreateOrderResponse,
     ExecutionResponse,
@@ -38,6 +40,7 @@ from framework.base.trading.models import (
     PositionResponse,
     TickerResponse,
     TradesResponse,
+    is_success,
 )
 from framework.bybit.trading.client import BybitHttpClient, BybitWsClient
 
@@ -88,13 +91,15 @@ class BybitExchange(Exchange):
         """Gets all instruments for the exchange."""
         response = await self.get_instrument_info([])
 
-        if not response.is_successful or response.data is None:
-            return ClientResponseFailure(
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
                 err_no=response.err_no,
                 err_msg=response.err_msg,
             )
 
-        return ClientResponseSuccess(
+        return self.make_success(
+            meta=response.meta,
             data=InstrumentCollection(
                 instruments=[info.instrument for info in response.data]
             ),
@@ -132,23 +137,27 @@ class BybitExchange(Exchange):
         response = await self.ws_client.submit(
             data=payload, decoder=msgspec.json.Decoder(dict)
         )
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
-        result = cast(dict, response.data)
-        order_id = str(result.get("orderId", ""))
+        result = response.data
+        order_id = OrderId(str(result.get("orderId", "")))
         cloid = result.get("orderLinkId")
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = CreateOrderResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=create_order.origin_id or create_order.id,
+            moments=moments,
             instrument=create_order.instrument,
-            trigger=create_order,
             order_id=order_id,
-            client_order_id=cloid,
+            client_order_id=ClientOrderId(str(cloid)) if cloid else None,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(data=base_resp, meta=response.meta)
 
     async def amend_order(
         self, amend_order: AmendOrder
@@ -180,23 +189,27 @@ class BybitExchange(Exchange):
         response = await self.ws_client.submit(
             data=payload, decoder=msgspec.json.Decoder(dict)
         )
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
-        result = cast(dict, response.data)
-        order_id = str(result.get("orderId", ""))
+        result = response.data
+        order_id = OrderId(str(result.get("orderId", "")))
         cloid = result.get("orderLinkId")
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = AmendOrderResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=amend_order.origin_id or amend_order.id,
+            moments=moments,
             instrument=amend_order.instrument,
-            trigger=amend_order,
             order_id=order_id,
-            client_order_id=cloid,
+            client_order_id=ClientOrderId(str(cloid)) if cloid else None,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(data=base_resp, meta=response.meta)
 
     async def cancel_order(
         self, cancel_order: CancelOrder
@@ -225,23 +238,27 @@ class BybitExchange(Exchange):
         response = await self.ws_client.submit(
             data=payload, decoder=msgspec.json.Decoder(dict)
         )
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
-        result = cast(dict, response.data)
-        order_id = str(result.get("orderId", ""))
+        result = response.data
+        order_id = OrderId(str(result.get("orderId", "")))
         cloid = result.get("orderLinkId")
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = CancelOrderResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=cancel_order.origin_id or cancel_order.id,
+            moments=moments,
             instrument=cancel_order.instrument,
-            trigger=cancel_order,
             order_id=order_id,
-            client_order_id=cloid,
+            client_order_id=ClientOrderId(str(cloid)) if cloid else None,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(data=base_resp, meta=response.meta)
 
     async def cancel_all_orders(
         self, cancel_all_orders: CancelAllOrders
@@ -263,22 +280,28 @@ class BybitExchange(Exchange):
             decoder=decoder,
         )
 
-        if not response.is_successful:
-            return ClientResponseFailure(
-                is_successful=False, err_no=response.err_no, err_msg=response.err_msg
+        if not is_success(response):
+            return self.make_failure(
+                meta=response.meta,
+                err_no=response.err_no,
+                err_msg=response.err_msg,
             )
 
+        moments = Moments()
+        resp_id = MessageId(recv_time_ns=moments.recv_time_ns)
         base_resp = CancelAllOrdersResponse(
-            moments=None,  # type: ignore[arg-type]
-            venue=self.venue,
+            id=resp_id,
+            origin_id=cancel_all_orders.origin_id or cancel_all_orders.id,
+            moments=moments,
             instrument=cancel_all_orders.instrument,
-            trigger=cancel_all_orders,
         )
-        return ClientResponseSuccess(is_successful=True, data=base_resp)
+        return self.make_success(data=base_resp, meta=response.meta)
 
     async def get_trades(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[TradesResponse]]:
+        started_ns = time_ns()
+
         async def fetch_trades(instrument: Instrument) -> TradesResponse:
             params = {
                 "category": "linear",
@@ -294,9 +317,9 @@ class BybitExchange(Exchange):
                 sign=False,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
-            payload = cast(dict, response.data)
+            payload = response.data
             items = payload.get("list", payload.get("result", {}).get("list", []))
             trades = [
                 Trade(
@@ -307,24 +330,44 @@ class BybitExchange(Exchange):
                 )
                 for t in items[::-1]
             ]
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return TradesResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                trades=trades,
+                trades=tuple(trades),
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_trades(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TRADES,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TRADES,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_orderbook(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[OrderbookResponse]]:
+        started_ns = time_ns()
+
         async def fetch_orderbook(instrument: Instrument) -> OrderbookResponse:
             params = {
                 "category": "linear",
@@ -340,38 +383,69 @@ class BybitExchange(Exchange):
                 sign=False,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
-            payload = cast(dict, response.data)
+            payload = response.data
             bids = payload.get("b") or payload.get("result", {}).get("b", [])
             asks = payload.get("a") or payload.get("result", {}).get("a", [])
-            bid_lvls = [
-                OrderbookLevel(price=float(px), size=float(sz)) for px, sz in bids
-            ]
-            ask_lvls = [
-                OrderbookLevel(price=float(px), size=float(sz)) for px, sz in asks
-            ]
+            bid_lvls = tuple(
+                sorted(
+                    (
+                        OrderbookLevel(price=float(px), size=float(sz))
+                        for px, sz in bids
+                    ),
+                    key=lambda x: x.price,
+                )
+            )
+            ask_lvls = tuple(
+                sorted(
+                    (
+                        OrderbookLevel(price=float(px), size=float(sz))
+                        for px, sz in asks
+                    ),
+                    key=lambda x: x.price,
+                )
+            )
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return OrderbookResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
                 bids=bid_lvls,
                 asks=ask_lvls,
                 is_bbo=False,
-                is_snapshot=True,
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_orderbook(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERBOOK,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERBOOK,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_ticker(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[TickerResponse]]:
+        started_ns = time_ns()
+
         async def fetch_ticker(instrument: Instrument) -> TickerResponse:
             params = {
                 "category": "linear",
@@ -386,42 +460,55 @@ class BybitExchange(Exchange):
                 sign=False,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
-            payload = cast(dict, response.data)
+            payload = response.data
             item = (payload.get("list") or payload.get("result", {}).get("list", [{}]))[
                 0
             ]
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return TickerResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
                 mark_price=float(item.get("markPrice", 0.0)),
                 index_price=float(item.get("indexPrice", 0.0)),
                 funding_rate=float(item.get("fundingRate", 0.0)),
                 next_funding_time_ms=int(item.get("nextFundingTime", 0)),
-                open_interest=float(item.get("openInterest", 0.0))
-                if item.get("openInterest") is not None
-                else None,
-                avg_volume_24h=float(item.get("volume24h", 0.0))
-                if item.get("volume24h") is not None
-                else None,
-                price_chg_24h=float(item.get("price24hPcnt", 0.0))
-                if item.get("price24hPcnt") is not None
-                else None,
+                open_interest=float(item.get("openInterest", 0.0)),
+                avg_volume_24h=float(item.get("volume24h", 0.0)),
+                price_chg_24h=float(item.get("price24hPcnt", 0.0)),
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_ticker(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TICKERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_TICKERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_instrument_info(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[InstrumentInfoResponse]]:
+        started_ns = time_ns()
         decoder = msgspec.json.Decoder(dict)
         response = await self.http_client.request(
             method=HttpMethod.GET,
@@ -431,9 +518,18 @@ class BybitExchange(Exchange):
             sign=False,
             decoder=decoder,
         )
-        if not response.is_successful:
-            return ClientResponseFailure(is_successful=False, err_msg=response.err_msg)
-        payload = cast(dict, response.data)
+        if not is_success(response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_INSTRUMENTS_INFO,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=response.err_no,
+                err_msg=response.err_msg,
+            )
+        payload = response.data
         symbols = payload.get("list") or payload.get("result", {}).get("list", [])
 
         results: list[InstrumentInfoResponse] = []
@@ -442,14 +538,19 @@ class BybitExchange(Exchange):
                 continue
             tick_size = float(s.get("priceFilter", {}).get("tickSize", 0.0))
             lot_size = float(s.get("lotSizeFilter", {}).get("qtyStep", 0.0))
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             info = InstrumentInfoResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=Instrument(
                     venue=self.venue,
-                    base=s.get("baseCoin", ""),
-                    quote=s.get("quoteCoin", ""),
-                    symbol=f"{s.get('baseCoin', '')}{s.get('quoteCoin', '')}".upper(),
+                    base=Asset(s.get("baseCoin", "")),
+                    quote=Asset(s.get("quoteCoin", "")),
+                    symbol=Symbol(
+                        f"{s.get('baseCoin', '')}{s.get('quoteCoin', '')}".upper()
+                    ),
                     code=0,
                     instrument_type=InstrumentType.PERPETUAL,
                     tick_size=tick_size,
@@ -469,12 +570,21 @@ class BybitExchange(Exchange):
                 for r in results
                 if f"{r.instrument.base}{r.instrument.quote}".upper() in wanted
             ]
-        return ClientResponseSuccess(is_successful=True, data=results)
+        return self.make_success(
+            data=results,
+            meta=self.make_meta(
+                operation=ENDPOINT_GET_INSTRUMENTS_INFO,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=response.meta.status_code,
+            ),
+        )
 
     async def get_orders(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[OrdersResponse]]:
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_orders(instrument: Instrument) -> OrdersResponse:
             params = {
@@ -490,14 +600,14 @@ class BybitExchange(Exchange):
                 sign=True,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
-            payload = cast(dict, response.data)
+            payload = response.data
             items = payload.get("list") or payload.get("result", {}).get("list", [])
             orders = [
                 Order(
                     create_time_ms=float(it.get("createTime", 0)),
-                    order_id=str(it.get("orderId", "")),
+                    order_id=OrderId(str(it.get("orderId", ""))),
                     price=float(it.get("price", 0.0)),
                     is_buy=(it.get("side", "Buy") == "Buy"),
                     size=float(it.get("qty", 0.0)),
@@ -513,29 +623,50 @@ class BybitExchange(Exchange):
                         in ["Cancelled", "Rejected", "Deactivated"]
                     ),
                     is_reduce_only=bool(it.get("reduceOnly", False)),
-                    client_order_id=it.get("orderLinkId"),
+                    client_order_id=ClientOrderId(str(it["orderLinkId"]))
+                    if it.get("orderLinkId")
+                    else None,
                 )
                 for it in items
             ]
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return OrdersResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                orders=orders,
+                orders=tuple(orders),
             )
 
         try:
             results = await asyncio.gather(
                 *(fetch_orders(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ORDERS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_position(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[PositionResponse]]:
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_position(instrument: Instrument) -> PositionResponse:
             params = {
@@ -551,9 +682,9 @@ class BybitExchange(Exchange):
                 sign=True,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
-            payload = cast(dict, response.data)
+            payload = response.data
             items = payload.get("list") or payload.get("result", {}).get("list", [])
             total_size = 0.0
             w_notional = 0.0
@@ -565,9 +696,12 @@ class BybitExchange(Exchange):
                 total_size += sz
                 w_notional += abs(sz) * px
             avg_px = (w_notional / abs(total_size)) if total_size != 0 else 0.0
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return PositionResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
                 price=avg_px,
                 is_long=total_size > 0,
@@ -578,14 +712,30 @@ class BybitExchange(Exchange):
             results = await asyncio.gather(
                 *(fetch_position(inst) for inst in instruments)
             )
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_POSITION,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_POSITION,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_executions(
         self, instruments: list[Instrument]
     ) -> ClientResponse[list[ExecutionResponse]]:
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
 
         async def fetch_exec(instrument: Instrument) -> ExecutionResponse:
             params = {
@@ -602,38 +752,59 @@ class BybitExchange(Exchange):
                 sign=True,
                 decoder=decoder,
             )
-            if not response.is_successful:
+            if not is_success(response):
                 raise RuntimeError(response.err_msg)
-            payload = cast(dict, response.data)
+            payload = response.data
             items = payload.get("list") or payload.get("result", {}).get("list", [])
             executions = [
                 Execution(
                     exec_time_ms=float(it.get("execTime", 0)),
-                    order_id=str(it.get("orderId", "")),
+                    order_id=OrderId(str(it.get("orderId", ""))),
                     price=float(it.get("execPrice", 0.0)),
                     is_buy=(it.get("side", "Buy") == "Buy"),
                     size=float(it.get("execQty", 0.0)),
                     is_maker=bool(it.get("isMaker", False)),
                     fee_paid=float(it.get("execFee", 0.0)),
-                    client_order_id=it.get("orderLinkId"),
+                    client_order_id=ClientOrderId(str(it["orderLinkId"]))
+                    if it.get("orderLinkId")
+                    else None,
                 )
                 for it in items
             ]
+            moments = Moments()
+            response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return ExecutionResponse(
-                moments=Moments(),
-                venue=self.venue,
+                id=response_id,
+                origin_id=response_id,
+                moments=moments,
                 instrument=instrument,
-                executions=executions,
+                executions=tuple(executions),
             )
 
         try:
             results = await asyncio.gather(*(fetch_exec(inst) for inst in instruments))
-            return ClientResponseSuccess(is_successful=True, data=results)
+            return self.make_success(
+                data=results,
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_EXECUTIONS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+            )
         except Exception as e:
-            return ClientResponseFailure(is_successful=False, err_msg=str(e))
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_EXECUTIONS,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                ),
+                err_no=1,
+                err_msg=str(e),
+            )
 
     async def get_account(self) -> ClientResponse[AccountResponse]:
         self.ensure_secrets_loaded()
+        started_ns = time_ns()
         decoder = msgspec.json.Decoder(dict)
         response = await self.http_client.request(
             method=HttpMethod.GET,
@@ -643,17 +814,37 @@ class BybitExchange(Exchange):
             sign=True,
             decoder=decoder,
         )
-        if not response.is_successful:
-            return ClientResponseFailure(is_successful=False, err_msg=response.err_msg)
-        payload = cast(dict, response.data)
+        if not is_success(response):
+            return self.make_failure(
+                meta=self.make_meta(
+                    operation=ENDPOINT_GET_ACCOUNT,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=response.meta.status_code,
+                ),
+                err_no=response.err_no,
+                err_msg=response.err_msg,
+            )
+        payload = response.data
         item = (payload.get("list") or payload.get("result", {}).get("list", [{}]))[0]
+        moments = Moments()
+        response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         acc = AccountResponse(
-            moments=Moments(),
-            venue=self.venue,
-            instrument=Instrument.empty(),
+            id=response_id,
+            origin_id=response_id,
+            moments=moments,
+            instrument=Instrument.empty_with(venue=self.venue),
             balance=float(item.get("totalEquity", 0.0)),
             initial_margin=float(item.get("accountIMRate", 0.0)),
             maintenance_margin=float(item.get("accountMMRate", 0.0)),
             unrealized_pnl=float(item.get("totalPerpUPL", 0.0)),
         )
-        return ClientResponseSuccess(is_successful=True, data=acc)
+        return self.make_success(
+            data=acc,
+            meta=self.make_meta(
+                operation=ENDPOINT_GET_ACCOUNT,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=response.meta.status_code,
+            ),
+        )

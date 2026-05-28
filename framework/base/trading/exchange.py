@@ -7,14 +7,21 @@ Components: connection helpers, instrument caching, and abstract API.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from enum import IntEnum
 from typing import Optional, final
 
 import aiohttp
 
 from mm_toolbox.logging.standard import Logger
-from mm_toolbox.time import time_ns
+from mm_toolbox.time import time_monotonic_ns
 
-from framework.base.common import Instrument, InstrumentCollection, Symbol, Venue
+from framework.base.common import (
+    ClientOrderId,
+    Instrument,
+    InstrumentCollection,
+    Symbol,
+    Venue,
+)
 from framework.base.trading.client import HttpClient, WsClient
 from framework.base.trading.models import (
     AccountResponse,
@@ -42,6 +49,14 @@ from framework.base.trading.models import (
 )
 
 
+class AllowedOrderIdChars(IntEnum):
+    """Allowed characters for a client order ID."""
+
+    NUMERIC = 0
+    ALPHABETIC = 1
+    ALPHANUMERIC = 2
+
+
 class Exchange(ABC):
     """Base exchange interface with HTTP/WS clients and instrument helpers.
 
@@ -52,6 +67,7 @@ class Exchange(ABC):
         http_client (HttpClient): HTTP client implementation.
         ws_client (WsClient): WebSocket client implementation.
         max_cloid_length (int): Maximum length for generated client order ids.
+        allowed_cloid_chars (AllowedOrderIdChars): Character constraints for generated client order ids.
     """
 
     def __init__(
@@ -62,6 +78,7 @@ class Exchange(ABC):
         http_client: HttpClient,
         ws_client: WsClient,
         max_cloid_length: int = 36,
+        allowed_cloid_chars: AllowedOrderIdChars = AllowedOrderIdChars.ALPHANUMERIC,
     ) -> None:
         """Initialize the exchange with its runtime dependencies.
 
@@ -72,6 +89,7 @@ class Exchange(ABC):
             http_client (HttpClient): HTTP client implementation.
             ws_client (WsClient): WebSocket client implementation.
             max_cloid_length (int): Maximum length for generated order ids.
+            allowed_cloid_chars (AllowedOrderIdChars): Character constraints for generated client order ids.
         """
         self.venue = venue
         self.logger = logger
@@ -79,6 +97,7 @@ class Exchange(ABC):
         self.http_client = http_client
         self.ws_client = ws_client
         self.max_cloid_length = max_cloid_length
+        self.allowed_cloid_chars = allowed_cloid_chars
 
         self._unauthenticated_session: aiohttp.ClientSession | None = None
         self._instrument_collection: InstrumentCollection | None = None
@@ -269,15 +288,15 @@ class Exchange(ABC):
         """
         collection = await self.get_instrument_collection_cached()
 
-        lookup = symbol.strip()
+        lookup = Symbol(symbol.strip())
         if instrument := collection.get(lookup):
             return instrument
 
-        upper = lookup.upper()
+        upper = Symbol(lookup.upper())
         if instrument := collection.get(upper):
             return instrument
 
-        lower = lookup.lower()
+        lower = Symbol(lookup.lower())
         if instrument := collection.get(lower):
             return instrument
 
@@ -301,43 +320,57 @@ class Exchange(ABC):
 
     @final
     def generate_cloid(
-        self, start: Optional[str] = None, end: Optional[str] = None
-    ) -> str:
-        """Generate a client order id with optional prefix and suffix.
+        self, prefix: Optional[str | int] = None, suffix: Optional[str | int] = None
+    ) -> ClientOrderId:
+        """Generate a typed client order id with optional prefix and suffix.
 
-        The id is formed as: prefix + time_ns (zero-padded) + suffix.
+        The id is formed as: prefix + time_monotonic_ns (zero-padded) + suffix.
 
         Args:
-            start (Optional[str]): Prefix for the generated id.
-            end (Optional[str]): Suffix for the generated id.
+            prefix (Optional[str | int]): Prefix for the generated id.
+            suffix (Optional[str | int]): Suffix for the generated id.
 
         Returns:
-            str: Generated client order id.
+            ClientOrderId: Generated client order id.
 
         Raises:
-            ValueError: If the prefix and suffix exceed the max length.
+            ValueError: If the prefix and suffix exceed the max length or violate character constraints.
         """
-        start = "" if start is None else start
-        end = "" if end is None else end
+        prefix = "" if prefix is None else prefix
+        suffix = "" if suffix is None else suffix
 
-        substr_len = len(start) + len(end)
-        time_ns_str = str(time_ns())
+        match self.allowed_cloid_chars:
+            case AllowedOrderIdChars.NUMERIC:
+                if isinstance(prefix, str) or isinstance(suffix, str):
+                    raise ValueError(
+                        "Prefix and suffix must be integers if allowed_cloid_chars is NUMERIC"
+                    )
+            case AllowedOrderIdChars.ALPHABETIC:
+                if isinstance(prefix, int) or isinstance(suffix, int):
+                    raise ValueError(
+                        "Prefix and suffix must be strings if allowed_cloid_chars is ALPHABETIC"
+                    )
+            case AllowedOrderIdChars.ALPHANUMERIC:
+                pass
 
-        if substr_len < self.max_cloid_length:
-            available_length = self.max_cloid_length - substr_len
+        prefix_str = str(prefix)
+        suffix_str = str(suffix)
 
-            # Pad with zeros if the time_ns string is shorter than available space,
-            # or truncate if longer (unlikely but possible if max_cloid_length < 19).
-            if len(time_ns_str) < available_length:
-                time_ns_str = time_ns_str.zfill(available_length)
-            elif len(time_ns_str) > available_length:
-                time_ns_str = time_ns_str[:available_length]
-
-            return start + time_ns_str + end
-        else:
+        substr_len = len(prefix_str) + len(suffix_str)
+        if substr_len >= self.max_cloid_length:
             raise ValueError(
-                f"Invalid cloid length; expected <={self.max_cloid_length} but got {substr_len}"
+                f"Invalid cloid length; expected <{self.max_cloid_length} but got {substr_len}"
             )
+
+        available_length = self.max_cloid_length - substr_len
+        time_str = str(time_monotonic_ns())
+
+        if len(time_str) < available_length:
+            time_str = time_str.zfill(available_length)
+        elif len(time_str) > available_length:
+            time_str = time_str[-available_length:]
+
+        return ClientOrderId(f"{prefix_str}{time_str}{suffix_str}")
 
     @abstractmethod
     async def get_instrument_collection(self) -> ClientResponse[InstrumentCollection]:

@@ -10,7 +10,7 @@ REST API responses (market data, accounts, trades).
 
 from msgspec import Struct
 
-from framework.base.common import Instrument, Venue
+from framework.base.common import Instrument, Symbol, Asset, Venue
 from framework.base.stream.models import (
     Execution,
 )
@@ -56,7 +56,7 @@ class BinanceWsCreateOrderResult(Struct, rename="camel", frozen=True):
     """
 
     order_id: int
-    symbol: str
+    symbol: Symbol
     status: str
     client_order_id: str
     price: str
@@ -121,7 +121,7 @@ class BinanceWsAmendOrderResult(Struct, rename="camel", frozen=True):
     """
 
     order_id: int
-    symbol: str
+    symbol: Symbol
     status: str
     client_order_id: str
     price: str
@@ -200,7 +200,7 @@ class BinanceWsCancelOrderResult(Struct, rename="camel", frozen=True):
     status: str
     stop_price: str
     close_position: bool
-    symbol: str
+    symbol: Symbol
     time_in_force: str
     type: str
     activate_price: str
@@ -330,7 +330,7 @@ class BinanceHttpTicker24hrResponse(Struct, rename="camel", frozen=True):
         }
     """
 
-    symbol: str
+    symbol: Symbol
     price_change: str
     price_change_percent: str
     weighted_avg_price: str
@@ -370,7 +370,7 @@ class BinanceHttpMarkPriceResponse(Struct, rename="camel", frozen=True):
         }
     """
 
-    symbol: str
+    symbol: Symbol
     mark_price: str
     index_price: str
     estimated_settle_price: str
@@ -398,7 +398,7 @@ class BinanceHttpOpenInterestResponse(Struct, rename="camel", frozen=True):
     """
 
     open_interest: str
-    symbol: str
+    symbol: Symbol
     time: int
 
 
@@ -602,8 +602,8 @@ class SymbolInformation(Struct, rename="camel", frozen=True):
     """
 
     status: str
-    base_asset: str
-    quote_asset: str
+    base_asset: Asset
+    quote_asset: Asset
     underlying_type: str
     filters: list[SymbolInformationFilters]
 
@@ -693,7 +693,7 @@ class BinanceHttpOrdersResponse(Struct, rename="camel", frozen=True):
     status: str
     stop_price: str
     close_position: bool
-    symbol: str
+    symbol: Symbol
     time: int
     time_in_force: str
     type: str
@@ -738,7 +738,7 @@ class BinanceHttpPositionResponse(Struct, rename="camel", frozen=True):
         }
     """
 
-    symbol: str
+    symbol: Symbol
     position_side: str
     position_amt: str
     entry_price: str
@@ -748,7 +748,7 @@ class BinanceHttpPositionResponse(Struct, rename="camel", frozen=True):
     liquidation_price: str
     isolated_margin: str
     notional: str
-    margin_asset: str
+    margin_asset: Asset
     isolated_wallet: str
     initial_margin: str
     maint_margin: str
@@ -809,7 +809,7 @@ class HttpOrder(Struct, rename="camel", frozen=True):
         }
     """
 
-    symbol: str
+    symbol: Symbol
     order_id: int
     client_order_id: str
     price: str
@@ -856,7 +856,7 @@ class HttpPosition(Struct, rename="camel", frozen=True):
         }
     """
 
-    symbol: str
+    symbol: Symbol
     position_amt: str
     entry_price: str
     mark_price: str
@@ -900,7 +900,7 @@ class HttpUserTrade(Struct, rename="camel", frozen=True):
         }
     """
 
-    symbol: str
+    symbol: Symbol
     id: int
     order_id: int
     side: str
@@ -908,7 +908,7 @@ class HttpUserTrade(Struct, rename="camel", frozen=True):
     price: str
     quote_qty: str
     commission: str
-    commission_asset: str
+    commission_asset: Asset
     time: int
     is_buyer: bool
     is_maker: bool

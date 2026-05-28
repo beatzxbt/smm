@@ -7,15 +7,14 @@ import aiohttp
 import msgspec
 
 from framework.base.common import Venue
-from mm_toolbox.logging.standard import Logger
-from mm_toolbox.time import time_ms, time_ns
 from framework.base.trading.client import HttpClient, HttpMethod, WsClient
-from framework.base.trading.models import Secret
 from framework.base.trading.models import (
     ClientResponse,
-    ClientResponseFailure,
-    ClientResponseSuccess,
+    ClientResponseTransport,
+    Secret,
 )
+from mm_toolbox.logging.standard import Logger
+from mm_toolbox.time import time_ms, time_ns
 
 
 RECV_WINDOW_MS = 5000
@@ -80,6 +79,7 @@ class BybitHttpClient(HttpClient):
         sign: bool,
         decoder: msgspec.json.Decoder[T],
     ) -> ClientResponse[T]:
+        started_ns = time_ns()
         url = endpoint if endpoint.startswith("http") else self.BASE_URL + endpoint
         headers: Optional[dict[str, str]] = None
         json_payload: Optional[str] = None
@@ -110,24 +110,42 @@ class BybitHttpClient(HttpClient):
                 payload = msgspec.json.decode(raw)
                 # Expect retCode/retMsg style
                 ret_code = payload.get("retCode", 0)
+                meta = self.make_meta(
+                    transport=ClientResponseTransport.HTTP,
+                    operation=endpoint,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    status_code=resp.status,
+                    attempt=1,
+                )
                 if ret_code == 0:
                     result = payload.get("result", payload)
-                    return ClientResponseSuccess[T](
-                        is_successful=True,
-                        err_no=0,
-                        err_msg="",
+                    return self.make_success(
                         data=decoder.decode(msgspec.json.encode(result)),
+                        meta=meta,
                     )
-                return ClientResponseFailure(
-                    is_successful=False,
+                return self.make_failure(
+                    meta=meta,
                     err_no=int(ret_code),
                     err_msg=str(payload.get("retMsg", "Unknown error")),
-                    data=None,
                 )
         except Exception as e:
             self.logger.warning(f"{self.__class__.__name__} request error: {e}")
-            return ClientResponseFailure(
-                is_successful=False, err_no=1, err_msg=str(e), data=None
+            meta = self.make_meta(
+                transport=ClientResponseTransport.HTTP,
+                operation=endpoint,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                status_code=(
+                    e.status if isinstance(e, aiohttp.ClientResponseError) else None
+                ),
+                attempt=1,
+                timeout=isinstance(e, asyncio.TimeoutError),
+            )
+            return self.make_failure(
+                meta=meta,
+                err_no=1,
+                err_msg=str(e),
             )
 
 
@@ -238,37 +256,64 @@ class BybitWsClient(WsClient):
     async def submit[T](
         self, data: dict[str, Any], decoder: msgspec.json.Decoder[T]
     ) -> ClientResponse[T]:
+        started_ns = time_ns()
+        operation = str(data.get("op", "unknown"))
         if not self.is_running or not self.is_active or self.ws is None:
-            return ClientResponseFailure(
-                is_successful=False, err_no=1, err_msg="No active connection", data=None
+            return self.make_failure(
+                meta=self.make_meta(
+                    transport=ClientResponseTransport.WS,
+                    operation=operation,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    attempt=1,
+                ),
+                err_no=1,
+                err_msg="No active connection",
             )
 
         data["reqId"] = self._generate_request_id()
         req_id = data["reqId"]
-        future = asyncio.get_event_loop().create_future()
+        future = asyncio.get_running_loop().create_future()
         self.pending_requests[req_id] = future
 
         try:
             await self.ws.send_bytes(self.json_encoder.encode(data))
             resp = await asyncio.wait_for(future, timeout=5.0)
+            status_code = int(resp.get("retCode", 1))
+            meta = self.make_meta(
+                transport=ClientResponseTransport.WS,
+                operation=operation,
+                started_ns=started_ns,
+                finished_ns=time_ns(),
+                request_id=req_id,
+                status_code=status_code,
+                attempt=1,
+            )
             if resp.get("retCode", 1) == 0:
                 result_payload = resp.get("result", resp)
-                return ClientResponseSuccess[T](
-                    is_successful=True,
-                    err_no=0,
-                    err_msg="",
+                return self.make_success(
                     data=decoder.decode(msgspec.json.encode(result_payload)),
+                    meta=meta,
                 )
-            return ClientResponseFailure(
-                is_successful=False,
-                err_no=int(resp.get("retCode", 1)),
+            return self.make_failure(
+                meta=meta,
+                err_no=status_code,
                 err_msg=str(resp.get("retMsg", "Unknown error")),
-                data=None,
             )
         except Exception as e:
             self.pending_requests.pop(req_id, None)
-            return ClientResponseFailure(
-                is_successful=False, err_no=1, err_msg=str(e), data=None
+            return self.make_failure(
+                meta=self.make_meta(
+                    transport=ClientResponseTransport.WS,
+                    operation=operation,
+                    started_ns=started_ns,
+                    finished_ns=time_ns(),
+                    request_id=req_id,
+                    attempt=1,
+                    timeout=isinstance(e, asyncio.TimeoutError),
+                ),
+                err_no=1,
+                err_msg=str(e),
             )
 
     async def close(self):
