@@ -138,7 +138,7 @@ class TestWebSocketConnection:
 
     @pytest.mark.asyncio
     async def test_message_iteration(self, monkeypatch) -> None:
-        """Test async iteration yields normalized bytes.
+        """Test async iteration yields normalized payload tuples.
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
@@ -156,10 +156,13 @@ class TestWebSocketConnection:
         )
         await connection.connect()
 
-        received = []
-        async for msg in connection:
-            received.append(msg)
-        assert received == [b"two"]
+        received: list[tuple[int, bytes]] = []
+        async for recv_time_ns, payload in connection:
+            received.append((recv_time_ns, payload))
+
+        assert len(received) == 1
+        assert received[0][0] > 0
+        assert received[0][1] == b"two"
 
     @pytest.mark.asyncio
     async def test_send_requires_connection(self) -> None:
@@ -198,7 +201,7 @@ class TestWebSocketConnection:
 
     @pytest.mark.asyncio
     async def test_receive_normalizes_payload(self, monkeypatch) -> None:
-        """Test receive returns normalized bytes.
+        """Test receive returns a normalized payload tuple.
 
         Args:
             monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
@@ -214,7 +217,10 @@ class TestWebSocketConnection:
         await connection.connect()
 
         payload = await connection.receive()
-        assert payload == b"payload"
+        assert payload is not None
+        recv_time_ns, msg = payload
+        assert recv_time_ns > 0
+        assert msg == b"payload"
 
     @pytest.mark.asyncio
     async def test_iteration_no_auto_reconnect(self, monkeypatch) -> None:
@@ -278,11 +284,13 @@ class TestWebSocketConnection:
         monkeypatch.setattr(connection, "connect", _fail_connect)
         monkeypatch.setattr(connection, "_reconnect_with_backoff", _fake_reconnect)
 
-        received = []
-        async for msg in connection:
-            received.append(msg)
+        received: list[tuple[int, bytes]] = []
+        async for recv_time_ns, payload in connection:
+            received.append((recv_time_ns, payload))
 
-        assert received == [b"ok"]
+        assert len(received) == 1
+        assert received[0][0] > 0
+        assert received[0][1] == b"ok"
         assert callbacks == ["called"]
 
     @pytest.mark.asyncio

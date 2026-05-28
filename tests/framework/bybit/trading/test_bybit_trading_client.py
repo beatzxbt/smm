@@ -14,7 +14,11 @@ from framework.bybit.trading.client import (
     BybitWsClient,
     RECV_WINDOW_MS,
 )
-from framework.base.trading.models import ClientResponseFailure, ClientResponseSuccess
+from framework.base.trading.models import (
+    ClientResponseFailure,
+    ClientResponseSuccess,
+    ClientResponseTransport,
+)
 from mm_toolbox.logging.standard import Logger
 
 
@@ -27,6 +31,7 @@ class DummyResponse:
 
     def __init__(self, payload: dict) -> None:
         self._payload = payload
+        self.status = 200
 
     async def __aenter__(self):
         """Enter the async context manager.
@@ -60,8 +65,7 @@ class DummyResponse:
     def raise_for_status(self) -> None:
         """No-op status check for tests.
 
-        Returns:
-            None: Always returns None.
+        : Always returns None.
         """
         return None
 
@@ -139,6 +143,8 @@ class TestBybitHttpClientRequest:
 
         assert isinstance(resp, ClientResponseSuccess)
         assert resp.data["ok"] is True
+        assert resp.meta.transport == ClientResponseTransport.HTTP
+        assert resp.meta.operation == "/v5/market/tickers"
 
     @pytest.mark.asyncio
     async def test_request_failure_ret_code(self):
@@ -157,6 +163,8 @@ class TestBybitHttpClientRequest:
 
         assert isinstance(resp, ClientResponseFailure)
         assert resp.err_no == 1001
+        assert resp.meta.transport == ClientResponseTransport.HTTP
+        assert resp.meta.operation == "/v5/market/tickers"
 
 
 class TestBybitWsClientSubmit:

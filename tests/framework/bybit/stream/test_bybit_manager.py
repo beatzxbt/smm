@@ -8,10 +8,14 @@ from __future__ import annotations
 
 import asyncio
 
+import msgspec
+
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
 from framework.base.stream.models import PrivateDataStreamType
@@ -25,8 +29,9 @@ from framework.bybit.stream.manager import (
     BybitMarketStreamManager,
     BybitPrivateStreamManager,
 )
-from framework.bybit.stream.models import BybitOrderMsg, BybitPrivateMsg
+from framework.bybit.stream.models import BybitPrivateMsg
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 
 class FakeHttpClient:
@@ -73,9 +78,9 @@ def make_collection() -> InstrumentCollection:
     """
     instrument = Instrument(
         venue=Venue.BYBIT,
-        base="BTC",
-        quote="USDT",
-        symbol="BTCUSDT",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTCUSDT"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
@@ -94,7 +99,7 @@ class TestBybitMarketStreamManager:
             BybitMarketStreamManager.create(
                 exchange=exchange,
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
         assert isinstance(manager._ticker_handler, BybitTickerHandler)
@@ -113,10 +118,11 @@ class TestBybitPrivateStreamManager:
             BybitPrivateStreamManager.create(
                 exchange=exchange,
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
-        payload = BybitPrivateMsg[BybitOrderMsg](
-            topic="order", type="UPDATE", ts=1, data=[]
+        raw_bytes = msgspec.json.encode(
+            {"topic": "order", "type": "UPDATE", "ts": 1, "data": []}
         )
+        payload = msgspec.json.decode(raw_bytes, type=BybitPrivateMsg)
         assert manager._resolve_stream_types(payload) == {PrivateDataStreamType.ORDER}

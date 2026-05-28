@@ -13,7 +13,7 @@ from typing import Any
 import msgspec
 import pytest
 
-from framework.base.common import Instrument, InstrumentType, Venue
+from framework.base.common import Asset, Instrument, InstrumentType, Symbol, Venue
 from framework.base.trading.models import ClientResponseFailure, ClientResponseSuccess
 
 
@@ -26,9 +26,9 @@ def bybit_instrument():
     """
     return Instrument(
         venue=Venue.BYBIT,
-        base="BTC",
-        quote="USDT",
-        symbol="BTCUSDT",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTCUSDT"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,

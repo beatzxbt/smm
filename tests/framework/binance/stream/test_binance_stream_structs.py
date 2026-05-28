@@ -1,14 +1,14 @@
-"""Tests for framework.binance.stream.structs conversions."""
+"""Tests for Binance stream raw struct decoding.
+
+Layer 1 validates primitive market-data structs decode the expected fields.
+Layer 2 validates private/tagged structs and union routing decode correctly.
+"""
 
 from __future__ import annotations
 
-from framework.base.common import (
-    Instrument,
-    InstrumentCollection,
-    InstrumentType,
-    Venue,
-)
-from framework.binance.stream.structs import (
+import msgspec
+
+from framework.binance.stream.models import (
     AccountUpdateStreamUpdate,
     BookTickerStreamUpdate,
     DiffBookDepthStreamUpdate,
@@ -16,306 +16,329 @@ from framework.binance.stream.structs import (
     MarkPriceStreamUpdate,
     OrderUpdateStreamUpdate,
     PositionUpdateStreamUpdate,
+    TickerStats24hStreamUpdate,
     TradeStreamUpdate,
-    OpenInterestInfo,
-    TickerStats24h,
 )
 
 
-def make_collection() -> InstrumentCollection:
-    """Create an InstrumentCollection containing BTCUSDT.
+class TestBinanceMarketStructDecoding:
+    """Layer 1: Primitive market stream struct decoding."""
 
-    Returns:
-        InstrumentCollection: Collection with a single BTCUSDT instrument.
-    """
-    instrument = Instrument(
-        venue=Venue.BINANCE_USDM,
-        symbol="BTCUSDT",
-        base="BTC",
-        quote="USDT",
-        code=0,
-        instrument_type=InstrumentType.PERPETUAL,
-        tick_size=0.01,
-        lot_size=0.001,
-    )
-    return InstrumentCollection([instrument])
+    def test_book_ticker_decodes_fields(self) -> None:
+        """Decode book ticker payload into the expected typed struct fields."""
+        payload = {
+            "u": 10,
+            "E": 1,
+            "T": 1,
+            "s": "BTCUSDT",
+            "b": "1.0",
+            "B": "2.0",
+            "a": "3.0",
+            "A": "4.0",
+        }
 
-
-class TestBookTickerStreamUpdate:
-    """Layer 1: Book ticker conversion."""
-
-    def test_is_outdated(self) -> None:
-        """Test is_outdated flags old updates."""
-        update = BookTickerStreamUpdate(
-            update_id=10,
-            event_time=1,
-            transaction_time=1,
-            symbol="BTCUSDT",
-            best_bid_price="1",
-            best_bid_qty="1",
-            best_ask_price="2",
-            best_ask_qty="1",
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=BookTickerStreamUpdate
         )
 
-        assert update.is_outdated(10) is True
-        assert update.is_outdated(9) is False
+        assert decoded.update_id == 10
+        assert decoded.symbol == "BTCUSDT"
+        assert decoded.best_bid_price == "1.0"
+        assert decoded.best_ask_qty == "4.0"
 
-    def test_to_orderbook_msg(self) -> None:
-        """Test orderbook message conversion."""
-        update = BookTickerStreamUpdate(
-            update_id=10,
-            event_time=1,
-            transaction_time=1,
-            symbol="BTCUSDT",
-            best_bid_price="1",
-            best_bid_qty="1",
-            best_ask_price="2",
-            best_ask_qty="1",
-        )
-        msg = update.to_orderbook_msg(
-            venue=Venue.BINANCE_USDM,
-            instrument_collection=make_collection(),
-        )
+    def test_diff_depth_decodes_fields(self) -> None:
+        """Decode diff-depth payload into the expected typed struct fields."""
+        payload = {
+            "e": "depthUpdate",
+            "E": 1,
+            "T": 1,
+            "s": "BTCUSDT",
+            "U": 1,
+            "u": 2,
+            "pu": 0,
+            "b": [["1.0", "2.0"]],
+            "a": [["3.0", "4.0"]],
+        }
 
-        assert msg.bids[0].price == 1.0
-        assert msg.is_bbo is True
-
-
-class TestDiffBookDepthStreamUpdate:
-    """Layer 1: Diff depth conversion."""
-
-    def test_is_outdated(self) -> None:
-        """Test is_outdated flags old updates."""
-        update = DiffBookDepthStreamUpdate(
-            event_type="depthUpdate",
-            event_time=1,
-            transaction_time=1,
-            symbol="BTCUSDT",
-            first_update_id=1,
-            final_update_id=10,
-            prev_final_update_id=9,
-            bids=[("1", "1")],
-            asks=[("2", "1")],
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=DiffBookDepthStreamUpdate
         )
 
-        assert update.is_outdated(10) is True
-        assert update.is_outdated(9) is False
+        assert decoded.event_type == "depthUpdate"
+        assert decoded.first_update_id == 1
+        assert decoded.final_update_id == 2
+        assert decoded.bids[0] == ("1.0", "2.0")
 
-    def test_to_orderbook_msg(self) -> None:
-        """Test orderbook conversion for diff depth updates."""
-        update = DiffBookDepthStreamUpdate(
-            event_type="depthUpdate",
-            event_time=1,
-            transaction_time=1,
-            symbol="BTCUSDT",
-            first_update_id=1,
-            final_update_id=10,
-            prev_final_update_id=9,
-            bids=[("1", "1")],
-            asks=[("2", "1")],
-        )
-        msg = update.to_orderbook_msg(
-            venue=Venue.BINANCE_USDM,
-            instrument_collection=make_collection(),
-        )
+    def test_trade_update_decodes_fields(self) -> None:
+        """Decode trade payload into the expected typed struct fields."""
+        payload = {
+            "e": "trade",
+            "E": 1,
+            "T": 2,
+            "s": "BTCUSDT",
+            "t": 100,
+            "p": "30000",
+            "q": "0.1",
+            "X": "MARKET",
+            "m": False,
+        }
 
-        assert msg.bids[0].price == 1.0
-        assert msg.is_snapshot is False
-
-
-class TestTradeStreamUpdate:
-    """Layer 1: Trade conversion."""
-
-    def test_to_trade_msg(self) -> None:
-        """Test trade update conversion to TradeMsg."""
-        update = TradeStreamUpdate(
-            event_time=1,
-            transaction_time=2,
-            symbol="BTCUSDT",
-            trade_id=100,
-            price="30000",
-            quantity="0.1",
-            is_buyer_maker=False,
-        )
-        msg = update.to_trade_msg(
-            venue=Venue.BINANCE_USDM,
-            instrument_collection=make_collection(),
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=TradeStreamUpdate
         )
 
-        assert msg.trades[0].is_buy is True
-        assert msg.trades[0].price == 30000.0
+        assert decoded.event_type == "trade"
+        assert decoded.transaction_time == 2
+        assert decoded.trade_id == 100
+        assert decoded.trade_type == "MARKET"
+        assert decoded.is_buyer_maker is False
 
+    def test_mark_price_decodes_fields(self) -> None:
+        """Decode mark-price payload into the expected typed struct fields."""
+        payload = {
+            "E": 1,
+            "s": "BTCUSDT",
+            "p": "30000",
+            "i": "29990",
+            "P": "0",
+            "r": "0.0001",
+            "T": 123,
+        }
 
-class TestMarkPriceStreamUpdate:
-    """Layer 1: Mark price conversion."""
-
-    def test_to_ticker_msg(self) -> None:
-        """Test mark price conversion to TickerMsg."""
-        collection = make_collection()
-        instrument = collection.instruments[0]
-        update = MarkPriceStreamUpdate(
-            event_time=1,
-            symbol="BTCUSDT",
-            mark_price="30000",
-            index_price="29990",
-            estimated_settle_price="0",
-            funding_rate="0.0001",
-            next_funding_time=123,
-        )
-        msg = update.to_ticker_msg(
-            venue=Venue.BINANCE_USDM,
-            instrument_collection=collection,
-            instrument_to_open_interest_map={
-                instrument: OpenInterestInfo(open_interest=1000.0)
-            },
-            instrument_to_ticker_stats_24h_map={
-                instrument: TickerStats24h(price_chg_24h_pct=0.01, avg_volume_24h=5.0)
-            },
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=MarkPriceStreamUpdate
         )
 
-        assert msg.open_interest == 1000.0
-        assert msg.price_chg_24h_pct == 0.01
+        assert decoded.event_time == 1
+        assert decoded.symbol == "BTCUSDT"
+        assert decoded.mark_price == "30000"
+        assert decoded.next_funding_time == 123
+
+    def test_ticker_stats_24h_decodes_and_converts(self) -> None:
+        """Decode ticker-stats payload and convert to helper stats struct."""
+        payload = {
+            "E": 1,
+            "s": "BTCUSDT",
+            "p": "10.0",
+            "P": "0.5",
+            "v": "1000.0",
+            "q": "2000.0",
+        }
+
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=TickerStats24hStreamUpdate
+        )
+        stats = decoded.to_ticker_stats_24h()
+
+        assert decoded.symbol == "BTCUSDT"
+        assert stats.price_chg_24h_pct == 0.5
+        assert stats.avg_volume_24h == 1000.0
 
 
-class TestOrderUpdateStreamUpdate:
-    """Layer 2: Order update conversion."""
+class TestBinancePrivateStructDecoding:
+    """Layer 2: Composite/tagged private stream struct decoding."""
 
-    def test_to_order_msg(self) -> None:
-        """Test order update conversion to ExecutionMsg."""
-        update = OrderUpdateStreamUpdate(
-            event_type="ORDER_TRADE_UPDATE",
-            event_time=1,
-            transaction_time=2,
-            order={
+    def test_order_update_decodes_with_tagged_type(self) -> None:
+        """Decode ORDER_TRADE_UPDATE payload into tagged order update struct."""
+        payload = {
+            "e": "ORDER_TRADE_UPDATE",
+            "E": 1,
+            "T": 2,
+            "o": {
                 "s": "BTCUSDT",
-                "T": 2,
-                "i": 1,
-                "L": "30000",
-                "S": "BUY",
-                "l": "0.1",
-                "m": False,
                 "c": "client_1",
-            },
-        )
-
-        msg = update.to_order_msg(
-            venue=Venue.BINANCE_USDM,
-            symbol_map={"btcusdt": make_collection().instruments[0]},
-        )
-
-        assert msg.executions[0].order_id == "1"
-        assert msg.executions[0].is_buy is True
-
-
-class TestExecutionReportStreamUpdate:
-    """Layer 2: Execution report conversion."""
-
-    def test_to_execution_msg_filters_zero_qty(self) -> None:
-        """Test zero-quantity executions return None."""
-        update = ExecutionReportStreamUpdate(
-            event_type="executionReport",
-            event_time=1,
-            transaction_time=2,
-            order={"s": "BTCUSDT", "l": "0", "T": 2, "i": 1, "L": "0", "S": "BUY"},
-        )
-
-        msg = update.to_execution_msg(
-            venue=Venue.BINANCE_USDM,
-            symbol_map={"btcusdt": make_collection().instruments[0]},
-        )
-
-        assert msg is None
-
-    def test_to_execution_msg_maps_fields(self) -> None:
-        """Test execution report conversion to ExecutionMsg."""
-        update = ExecutionReportStreamUpdate(
-            event_type="executionReport",
-            event_time=1,
-            transaction_time=2,
-            order={
-                "s": "BTCUSDT",
-                "l": "0.1",
-                "T": 2,
-                "i": 1,
-                "L": "30000",
                 "S": "BUY",
-                "m": True,
+                "o": "LIMIT",
+                "f": "GTC",
+                "q": "1.0",
+                "p": "30000",
+                "ap": "30000",
+                "l": "0.1",
+                "z": "0.1",
+                "L": "30000",
                 "n": "0.01",
-                "c": "client_1",
+                "N": "USDT",
+                "T": 2,
+                "t": 1,
+                "m": True,
+                "i": 1,
+                "ps": "BOTH",
+                "X": "TRADE",
+                "R": False,
             },
+        }
+
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=OrderUpdateStreamUpdate
         )
 
-        msg = update.to_execution_msg(
-            venue=Venue.BINANCE_USDM,
-            symbol_map={"btcusdt": make_collection().instruments[0]},
-        )
+        assert decoded.event_time == 1
+        assert decoded.order.symbol == "BTCUSDT"
+        assert decoded.order.status == "TRADE"
+        assert decoded.order.order_id == 1
 
-        assert msg.executions[0].fee_paid == 0.01
-
-
-class TestAccountUpdateStreamUpdate:
-    """Layer 2: Account update conversion."""
-
-    def test_to_account_msg(self) -> None:
-        """Test account update conversion to AccountMsg."""
-        update = AccountUpdateStreamUpdate(
-            event_type="ACCOUNT_UPDATE",
-            event_time=1,
-            transaction_time=2,
-            account_data={
-                "B": [{"a": "USDT", "wb": "1000.0"}],
-                "m": "1.0",
-                "mm": "0.5",
-                "up": "10.0",
-            },
-        )
-
-        msg = update.to_account_msg(venue=Venue.BINANCE_USDM)
-
-        assert msg.balance == 1000.0
-        assert msg.initial_margin == 1.0
-
-
-class TestPositionUpdateStreamUpdate:
-    """Layer 2: Position update conversion."""
-
-    def test_to_position_msg_maps_fields(self) -> None:
-        """Test position update conversion to PositionMsg."""
-        update = PositionUpdateStreamUpdate(
-            event_type="ACCOUNT_UPDATE",
-            event_time=1,
-            transaction_time=2,
-            account_data={
+    def test_account_update_decodes_with_tagged_type(self) -> None:
+        """Decode ACCOUNT_UPDATE payload into tagged account update struct."""
+        payload = {
+            "e": "ACCOUNT_UPDATE",
+            "E": 1,
+            "T": 2,
+            "a": {
+                "B": [{"a": "USDT", "wb": "1000.0", "cw": "1000.0"}],
                 "P": [
                     {
                         "s": "BTCUSDT",
                         "pa": "1.0",
                         "ep": "30000",
+                        "cr": "0.0",
+                        "up": "10.0",
+                        "ps": "BOTH",
                     }
-                ]
+                ],
+                "m": "1.0",
+                "mm": "0.5",
+                "u": "10.0",
+                "up": "10.0",
             },
+        }
+
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=AccountUpdateStreamUpdate
         )
 
-        msg = update.to_position_msg(
-            venue=Venue.BINANCE_USDM,
-            symbol_map={"btcusdt": make_collection().instruments[0]},
+        assert decoded.event_time == 1
+        assert decoded.account_data.balances[0].asset == "USDT"
+        assert decoded.account_data.positions[0].symbol == "BTCUSDT"
+        assert decoded.account_data.maintenance_margin == "1.0"
+
+    def test_position_update_decodes_fields(self) -> None:
+        """Decode position update payload into non-tagged position update struct."""
+        payload = {
+            "e": "ACCOUNT_UPDATE",
+            "E": 1,
+            "T": 2,
+            "a": {
+                "B": [{"a": "USDT", "wb": "1000.0", "cw": "1000.0"}],
+                "P": [
+                    {
+                        "s": "BTCUSDT",
+                        "pa": "1.0",
+                        "ep": "30000",
+                        "cr": "0.0",
+                        "up": "10.0",
+                        "ps": "BOTH",
+                    }
+                ],
+                "m": "1.0",
+                "mm": "0.5",
+                "u": "10.0",
+                "up": "10.0",
+            },
+        }
+
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=PositionUpdateStreamUpdate
         )
 
-        assert msg is not None
-        assert msg.size == 1.0
+        assert decoded.event_type == "ACCOUNT_UPDATE"
+        assert decoded.account_data.positions[0].position_amount == "1.0"
 
-    def test_to_position_msg_filters_zero_size(self) -> None:
-        """Test position update returns None for zero size."""
-        update = PositionUpdateStreamUpdate(
-            event_type="ACCOUNT_UPDATE",
-            event_time=1,
-            transaction_time=2,
-            account_data={"P": [{"s": "BTCUSDT", "pa": "0", "ep": "0"}]},
+    def test_execution_report_decodes_fields(self) -> None:
+        """Decode execution-report payload into non-tagged execution report struct."""
+        payload = {
+            "e": "executionReport",
+            "E": 1,
+            "T": 2,
+            "o": {
+                "s": "BTCUSDT",
+                "c": "client_1",
+                "S": "BUY",
+                "o": "LIMIT",
+                "f": "GTC",
+                "q": "1.0",
+                "p": "30000",
+                "ap": "30000",
+                "l": "0.1",
+                "z": "0.1",
+                "L": "30000",
+                "n": "0.01",
+                "N": "USDT",
+                "T": 2,
+                "t": 1,
+                "m": True,
+                "i": 1,
+                "ps": "BOTH",
+                "X": "TRADE",
+                "R": False,
+            },
+        }
+
+        decoded = msgspec.json.decode(
+            msgspec.json.encode(payload), type=ExecutionReportStreamUpdate
         )
 
-        msg = update.to_position_msg(
-            venue=Venue.BINANCE_USDM,
-            symbol_map={"btcusdt": make_collection().instruments[0]},
-        )
+        assert decoded.event_type == "executionReport"
+        assert decoded.order.order_id == 1
+        assert decoded.order.last_exec_qty == "0.1"
 
-        assert msg is None
+
+class TestBinancePrivateUnionDecoding:
+    """Layer 3: Mini-integration for private tagged union routing."""
+
+    decoder = msgspec.json.Decoder(OrderUpdateStreamUpdate | AccountUpdateStreamUpdate)
+
+    def test_union_decoder_routes_order_update(self) -> None:
+        """Decode order payload and assert union returns order update type."""
+        payload = {
+            "e": "ORDER_TRADE_UPDATE",
+            "E": 1,
+            "T": 2,
+            "o": {
+                "s": "BTCUSDT",
+                "c": "client_1",
+                "S": "BUY",
+                "o": "LIMIT",
+                "f": "GTC",
+                "q": "1.0",
+                "p": "30000",
+                "ap": "30000",
+                "l": "0.1",
+                "z": "0.1",
+                "L": "30000",
+                "n": "0.01",
+                "N": "USDT",
+                "T": 2,
+                "t": 1,
+                "m": True,
+                "i": 1,
+                "ps": "BOTH",
+                "X": "TRADE",
+                "R": False,
+            },
+        }
+
+        decoded = self.decoder.decode(msgspec.json.encode(payload))
+
+        assert isinstance(decoded, OrderUpdateStreamUpdate)
+        assert decoded.order.symbol == "BTCUSDT"
+
+    def test_union_decoder_routes_account_update(self) -> None:
+        """Decode account payload and assert union returns account update type."""
+        payload = {
+            "e": "ACCOUNT_UPDATE",
+            "E": 1,
+            "T": 2,
+            "a": {
+                "B": [{"a": "USDT", "wb": "1000.0", "cw": "1000.0"}],
+                "P": [],
+                "m": "1.0",
+                "mm": "0.5",
+                "u": "10.0",
+                "up": "10.0",
+            },
+        }
+
+        decoded = self.decoder.decode(msgspec.json.encode(payload))
+
+        assert isinstance(decoded, AccountUpdateStreamUpdate)
+        assert decoded.account_data.balances[0].asset == "USDT"

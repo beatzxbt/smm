@@ -16,11 +16,13 @@ from __future__ import annotations
 import pytest
 
 from framework.base.common import (
+    Asset,
     ClientOrderId,
     Instrument,
     InstrumentCollection,
     InstrumentType,
     OrderId,
+    Symbol,
     Venue,
 )
 
@@ -73,9 +75,9 @@ class TestInstrument:
         """Test creating instrument with valid data."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -95,9 +97,9 @@ class TestInstrument:
         """Test that Instrument is immutable (frozen=True)."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -111,9 +113,9 @@ class TestInstrument:
         """Test __str__ representation."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -126,9 +128,9 @@ class TestInstrument:
         """Test creating instruments for different venues."""
         bybit_inst = Instrument(
             venue=Venue.BYBIT,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -141,9 +143,9 @@ class TestInstrument:
         """Test creating instruments with different types."""
         spot_inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="USDT",
-            symbol="SOLUSDT",
+            base=Asset("SOL"),
+            quote=Asset("USDT"),
+            symbol=Symbol("SOLUSDT"),
             code=3,
             instrument_type=InstrumentType.SPOT,
             tick_size=0.01,
@@ -186,9 +188,9 @@ class TestInstrumentEdgeCases:
         """Test instrument with NULL venue."""
         inst = Instrument(
             venue=Venue.NULL,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -205,9 +207,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="BTC",
-                quote="USDT",
-                symbol="BTCUSDT",
+                base=Asset("BTC"),
+                quote=Asset("USDT"),
+                symbol=Symbol("BTCUSDT"),
                 code=1,
                 instrument_type=InstrumentType.NULL,
                 tick_size=0.01,
@@ -221,9 +223,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="BTC",
-                quote="USDT",
-                symbol="",
+                base=Asset("BTC"),
+                quote=Asset("USDT"),
+                symbol=Symbol(""),
                 code=1,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -237,9 +239,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="ETH",
-                quote="USDT",
-                symbol="BTCUSDT",
+                base=Asset("ETH"),
+                quote=Asset("USDT"),
+                symbol=Symbol("BTCUSDT"),
                 code=1,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -254,9 +256,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="BTC",
-                quote="USDC",
-                symbol="BTCUSDT",
+                base=Asset("BTC"),
+                quote=Asset("USDC"),
+                symbol=Symbol("BTCUSDT"),
                 code=1,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -270,9 +272,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="",
-                quote="USDT",
-                symbol="BTCUSDT",
+                base=Asset(""),
+                quote=Asset("USDT"),
+                symbol=Symbol("BTCUSDT"),
                 code=1,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -287,9 +289,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="BTC",
-                quote="",
-                symbol="BTCUSDT",
+                base=Asset("BTC"),
+                quote=Asset(""),
+                symbol=Symbol("BTCUSDT"),
                 code=1,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -303,9 +305,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="BTC",
-                quote="USDT",
-                symbol="BTCUSDT",
+                base=Asset("BTC"),
+                quote=Asset("USDT"),
+                symbol=Symbol("BTCUSDT"),
                 code=1,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.0,
@@ -319,9 +321,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="BTC",
-                quote="USDT",
-                symbol="BTCUSDT",
+                base=Asset("BTC"),
+                quote=Asset("USDT"),
+                symbol=Symbol("BTCUSDT"),
                 code=1,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -335,9 +337,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="BTC",
-                quote="",
-                symbol="",
+                base=Asset("BTC"),
+                quote=Asset(""),
+                symbol=Symbol(""),
                 code=1,
                 instrument_type=InstrumentType.NULL,
                 tick_size=0.0,
@@ -351,9 +353,9 @@ class TestInstrumentEdgeCases:
         ):
             Instrument(
                 venue=Venue.BINANCE_USDM,
-                base="",
-                quote="USDT",
-                symbol="",
+                base=Asset(""),
+                quote=Asset("USDT"),
+                symbol=Symbol(""),
                 code=1,
                 instrument_type=InstrumentType.NULL,
                 tick_size=0.0,
@@ -373,9 +375,9 @@ class TestInstrumentEdgeCases:
         """Test instrument with code=0."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -399,9 +401,9 @@ class TestInstrumentCollection:
         """Test creating collection with instruments."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -409,9 +411,9 @@ class TestInstrumentCollection:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -428,9 +430,9 @@ class TestInstrumentCollection:
         """Test creating collection with a single instrument."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -446,9 +448,9 @@ class TestInstrumentCollection:
         """Test duplicate instruments are deduplicated at initialization."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -463,9 +465,9 @@ class TestInstrumentCollection:
         """Test same symbol with different payload is rejected."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -473,9 +475,9 @@ class TestInstrumentCollection:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -489,9 +491,9 @@ class TestInstrumentCollection:
         """Test fast lookup by symbol for single-venue collections."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -499,14 +501,14 @@ class TestInstrumentCollection:
         )
 
         collection = InstrumentCollection([inst])
-        result = collection.get("BTCUSDT")
+        result = collection.get(Symbol("BTCUSDT"))
 
         assert result == inst
 
     def test_get_missing_returns_none(self):
         """Test get() returns None for missing instrument."""
         collection = InstrumentCollection([])
-        result = collection.get("BTCUSDT")
+        result = collection.get(Symbol("BTCUSDT"))
 
         assert result is None
 
@@ -514,9 +516,9 @@ class TestInstrumentCollection:
         """Test collection creation fails when venues are mixed."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -524,9 +526,9 @@ class TestInstrumentCollection:
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -540,9 +542,9 @@ class TestInstrumentCollection:
         """Test venue property for non-empty collections."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -550,9 +552,9 @@ class TestInstrumentCollection:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -560,9 +562,9 @@ class TestInstrumentCollection:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="USDC",
-            symbol="SOLUSDC",
+            base=Asset("SOL"),
+            quote=Asset("USDC"),
+            symbol=Symbol("SOLUSDC"),
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -580,9 +582,9 @@ class TestInstrumentCollectionFiltering:
         """Test filtering by instrument type criteria."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -590,9 +592,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -600,9 +602,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="USDT",
-            symbol="SOLUSDT",
+            base=Asset("SOL"),
+            quote=Asset("USDT"),
+            symbol=Symbol("SOLUSDT"),
             code=3,
             instrument_type=InstrumentType.SPOT,
             tick_size=0.01,
@@ -627,9 +629,9 @@ class TestInstrumentCollectionFiltering:
         """Test filtering by base asset list."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -637,9 +639,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -647,9 +649,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="USDT",
-            symbol="SOLUSDT",
+            base=Asset("SOL"),
+            quote=Asset("USDT"),
+            symbol=Symbol("SOLUSDT"),
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -657,7 +659,7 @@ class TestInstrumentCollectionFiltering:
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
-        result = collection.filter(bases=["BTC", "ETH"])
+        result = collection.filter(bases=[Asset("BTC"), Asset("ETH")])
 
         assert len(result) == 2
         assert inst1 in result
@@ -668,9 +670,9 @@ class TestInstrumentCollectionFiltering:
         """Test filtering by quote asset list."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -678,9 +680,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -688,9 +690,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="BTC",
-            symbol="SOLBTC",
+            base=Asset("SOL"),
+            quote=Asset("BTC"),
+            symbol=Symbol("SOLBTC"),
             code=3,
             instrument_type=InstrumentType.SPOT,
             tick_size=0.01,
@@ -698,7 +700,7 @@ class TestInstrumentCollectionFiltering:
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
-        result = collection.filter(quotes=["USDT", "USDC"])
+        result = collection.filter(quotes=[Asset("USDT"), Asset("USDC")])
 
         assert len(result) == 2
         assert inst1 in result
@@ -709,9 +711,9 @@ class TestInstrumentCollectionFiltering:
         """Test filtering by instrument type list."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -719,9 +721,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -729,9 +731,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="USDT",
-            symbol="SOLUSDT",
+            base=Asset("SOL"),
+            quote=Asset("USDT"),
+            symbol=Symbol("SOLUSDT"),
             code=3,
             instrument_type=InstrumentType.SPOT,
             tick_size=0.01,
@@ -752,9 +754,9 @@ class TestInstrumentCollectionFiltering:
         """Test filtering by base blacklist."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -762,9 +764,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -772,9 +774,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="DOGE",
-            quote="USDT",
-            symbol="DOGEUSDT",
+            base=Asset("DOGE"),
+            quote=Asset("USDT"),
+            symbol=Symbol("DOGEUSDT"),
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -782,7 +784,7 @@ class TestInstrumentCollectionFiltering:
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
-        result = collection.filter(base_blacklist=["DOGE"])
+        result = collection.filter(base_blacklist=[Asset("DOGE")])
 
         assert len(result) == 2
         assert inst1 in result
@@ -793,9 +795,9 @@ class TestInstrumentCollectionFiltering:
         """Test filtering by quote blacklist."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -803,9 +805,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -813,9 +815,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="BTC",
-            symbol="SOLBTC",
+            base=Asset("SOL"),
+            quote=Asset("BTC"),
+            symbol=Symbol("SOLBTC"),
             code=3,
             instrument_type=InstrumentType.SPOT,
             tick_size=0.01,
@@ -823,7 +825,7 @@ class TestInstrumentCollectionFiltering:
         )
 
         collection = InstrumentCollection([inst1, inst2, inst3])
-        result = collection.filter(quote_blacklist=["BTC"])
+        result = collection.filter(quote_blacklist=[Asset("BTC")])
 
         assert len(result) == 2
         assert inst1 in result
@@ -834,9 +836,9 @@ class TestInstrumentCollectionFiltering:
         """Test filtering with multiple criteria simultaneously."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -844,9 +846,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -854,9 +856,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDC",
-            symbol="BTCUSDC",
+            base=Asset("BTC"),
+            quote=Asset("USDC"),
+            symbol=Symbol("BTCUSDC"),
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -864,9 +866,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst4 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="USDT",
-            symbol="SOLUSDT",
+            base=Asset("SOL"),
+            quote=Asset("USDT"),
+            symbol=Symbol("SOLUSDT"),
             code=4,
             instrument_type=InstrumentType.SPOT,
             tick_size=0.01,
@@ -877,9 +879,9 @@ class TestInstrumentCollectionFiltering:
 
         # Filter: quote=USDT, type=PERPETUAL, base not SOL
         result = collection.filter(
-            quotes=["USDT"],
+            quotes=[Asset("USDT")],
             instrument_types=[InstrumentType.PERPETUAL],
-            base_blacklist=["SOL"],
+            base_blacklist=[Asset("SOL")],
         )
 
         assert len(result) == 2
@@ -892,9 +894,9 @@ class TestInstrumentCollectionFiltering:
         """Test filter with no criteria returns all instruments."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -902,9 +904,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -922,9 +924,9 @@ class TestInstrumentCollectionFiltering:
         """Test blacklist exclusion wins when also explicitly whitelisted."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -932,9 +934,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -942,7 +944,9 @@ class TestInstrumentCollectionFiltering:
         )
 
         collection = InstrumentCollection([inst1, inst2])
-        result = collection.filter(bases=["BTC", "ETH"], base_blacklist=["BTC"])
+        result = collection.filter(
+            bases=[Asset("BTC"), Asset("ETH")], base_blacklist=[Asset("BTC")]
+        )
 
         assert inst1 not in result
         assert inst2 in result
@@ -951,9 +955,9 @@ class TestInstrumentCollectionFiltering:
         """Test empty filter iterables do not exclude instruments."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -961,9 +965,9 @@ class TestInstrumentCollectionFiltering:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -985,9 +989,9 @@ class TestInstrumentCollectionEdgeCases:
         """Test __iter__ method."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -995,9 +999,9 @@ class TestInstrumentCollectionEdgeCases:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1018,9 +1022,9 @@ class TestInstrumentCollectionEdgeCases:
 
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1034,9 +1038,9 @@ class TestInstrumentCollectionEdgeCases:
         """Test __contains__ method."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1044,9 +1048,9 @@ class TestInstrumentCollectionEdgeCases:
         )
         inst2 = Instrument(
             venue=Venue.BYBIT,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1062,9 +1066,9 @@ class TestInstrumentCollectionEdgeCases:
         """Test instruments property returns list."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1082,9 +1086,9 @@ class TestInstrumentCollectionEdgeCases:
         """Test mutating returned list does not affect collection state."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1092,9 +1096,9 @@ class TestInstrumentCollectionEdgeCases:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1113,9 +1117,9 @@ class TestInstrumentCollectionEdgeCases:
         """Test venue property returns the single collection venue."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1123,9 +1127,9 @@ class TestInstrumentCollectionEdgeCases:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1133,9 +1137,9 @@ class TestInstrumentCollectionEdgeCases:
         )
         inst3 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="SOL",
-            quote="USDC",
-            symbol="SOLUSDC",
+            base=Asset("SOL"),
+            quote=Asset("USDC"),
+            symbol=Symbol("SOLUSDC"),
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1149,9 +1153,9 @@ class TestInstrumentCollectionEdgeCases:
         """Test filter returns empty list when no instruments match."""
         inst = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -1159,6 +1163,6 @@ class TestInstrumentCollectionEdgeCases:
         )
 
         collection = InstrumentCollection([inst])
-        result = collection.filter(bases=["ETH"])
+        result = collection.filter(bases=[Asset("ETH")])
 
         assert result == []

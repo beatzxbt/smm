@@ -9,7 +9,7 @@ import pytest
 
 from framework.base.trading.client import HttpMethod
 from framework.binance.trading.client import BinanceHttpClient, BinanceWsClient
-from framework.base.trading.models import ClientResponseFailure
+from framework.base.trading.models import ClientResponseFailure, ClientResponseTransport
 from mm_toolbox.logging.standard import Logger
 
 
@@ -51,6 +51,8 @@ class TestBinanceWsClientSubmit:
 
         assert isinstance(resp, ClientResponseFailure)
         assert resp.err_msg == "Client not initialized"
+        assert resp.meta.transport == ClientResponseTransport.WS
+        assert resp.meta.operation == "unknown"
 
     @pytest.mark.asyncio
     async def test_submit_without_active_connection_fails(self) -> None:
@@ -62,3 +64,5 @@ class TestBinanceWsClientSubmit:
 
         assert isinstance(resp, ClientResponseFailure)
         assert resp.err_msg == "No active connection"
+        assert resp.meta.transport == ClientResponseTransport.WS
+        assert resp.meta.operation == "unknown"

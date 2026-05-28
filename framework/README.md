@@ -1,81 +1,153 @@
-# Exchange Interface (Framework)
+# Framework
 
-Generally in a trading system, there are three steps
-Here is where the code is written for two 
+This folder contains the exchange framework used by strategy authors and by contributors
+implementing new exchange adapters. The framework is split into two interfaces: stream
+(websocket ingestion) and trading (REST/order flow). Both are designed around small,
+explicit components with clear contracts to keep strategy code stable and adapter logic
+predictable.
 
+## Quick map
+- `framework/<exchange>/stream/`: stream models, handlers, manager
+- `framework/<exchange>/trading/`: trading models, exchange, client
+- `framework/base/README.md`: deeper background and rationale
+- Base stream building blocks: [base/stream/](base/stream/)
+- Base trading building blocks: [base/trading/](base/trading/)
 
+## High-level architecture
 
-## Architecture Overview
+### Stream interface (Mermaid flow)
 
-The framework is built around a modular architecture with clear separation of concerns:
+The stream pipeline consumes raw websocket payloads, validates and models them, then
+publishes typed state into the shared data layer. Each handler owns its own websocket
+connection (market streams often run on dedicated connections, as in Binance), while the
+manager coordinates subscriptions and lifecycle events. This keeps the wire protocol
+isolated from strategy code while preserving low-latency updates.
 
-### Base Classes
+Handler internal flow:
 
-#### `BaseExchange`
-The core exchange interface that provides:
-- **Order Management**: Create, amend, and cancel orders with unified parameters
-- **Account Operations**: Position and balance monitoring
-- **Client Management**: REST and WebSocket client lifecycle management
-- **Error Handling**: Standardized error propagation and retry logic
-- **Rate Limiting**: Built-in protection against API rate limits
+```mermaid
+flowchart TD
+    WS["Exchange WS"] --> Conn["WebSocketConnection"]
+    Conn -->|raw bytes| Loop["Message Loop"]
+    Loop --> H["Handler"]
+    H --> Decode["msgspec Decoder"]
+    Decode --> Models["Typed Models"]
+    Models -->|broadcast| Q["Consumer Queues"]
 
-#### `BaseMarketData`
-Handles real-time market data streaming:
-- **Multi-Symbol Support**: Concurrent data streams for multiple trading pairs
-- **Data Normalization**: Converts exchange-specific formats to common structures
-- **Broadcasting**: Distributes data to multiple consumer queues
-- **Reconnection Logic**: Automatic reconnection with exponential backoff
-- **Message Routing**: Topic-based message handling for different data types
+    H -->|build auth| Auth["Auth Payload"]
+    Auth --> Conn
+    H -->|build sub/unsub| Sub["Subscribe Payloads"]
+    Sub --> Conn
+    Conn -->|reconnect| Reconn["Reconnect Callback"]
+    Reconn --> H
+```
 
-#### `BasePrivateData`
-Manages private data streams:
-- **Authentication**: Secure WebSocket authentication for private channels
-- **Order Updates**: Real-time order status and execution notifications
-- **Position Tracking**: Live position and balance updates
-- **Account Events**: Account-level notifications and changes
+Manager + handlers (high-level):
 
-### Internal Data Structures
+```mermaid
+flowchart TD
+    M["Stream Manager"] -->|start/stop/sub/unsub| HT["Ticker Handler"]
+    M -->|start/stop/sub/unsub| HB["BBO Handler"]
+    M -->|start/stop/sub/unsub| HO["Orderbook Handler"]
+    M -->|start/stop/sub/unsub| HTr["Trades Handler"]
+    M -->|start/stop/sub/unsub| HP["Private Handler"]
 
-The framework uses standardized internal structures to maintain consistency across exchanges:
+    HT --> Q["Consumer Queues"]
+    HB --> Q
+    HO --> Q
+    HTr --> Q
+    HP --> Q
+```
 
-- **`TickerMsg`**: Price and volume snapshots
-- **`OrderbookMsg`**: Bid/ask depth data
-- **`TradeMsg`**: Public trade executions
-- **`OrderMsg`**: Order status and lifecycle events
-- **`ExecutionMsg`**: Trade execution details
-- **`PositionMsg`**: Position size and PnL updates
-- **`AccountMsg`**: Account balance and margin information
+Roles:
+- Connections: owned by handlers; manage websocket lifecycle and reconnects.
+- Handlers: decode, validate, and map payloads into internal models.
+- Models: strict, typed representations of each payload shape.
+- Manager: tracks subscriptions, starts/stops handlers, and emits lifecycle events.
+- Stream interface: stable surface for strategies to subscribe and consume.
 
-### Design Philosophy
+More detail: [base/stream/connection.py](base/stream/connection.py),
+[base/stream/handlers.py](base/stream/handlers.py),
+[base/stream/manager.py](base/stream/manager.py), and
+[base/stream/models.py](base/stream/models.py). Example implementation:
+[binance/stream/](binance/stream/).
 
-The framework balances **implementation specificity** with **interface uniformity**. While each exchange has unique characteristics and API quirks, the framework abstracts these differences behind common data structures and method signatures. This approach provides:
+### Trading interface (Mermaid flow)
 
-- **Strategy Simplicity**: Trading strategies work with consistent data formats regardless of the underlying exchange
-- **Exchange Optimization**: Each exchange implementation can leverage native features and optimizations
-- **Maintainability**: Clear separation between exchange-specific logic and common functionality
-- **Extensibility**: New exchanges can be added by implementing the base interfaces
+The trading side exposes a strategy-facing API while isolating exchange-specific
+transport and signing logic. Models define the contract, the exchange class provides
+high-level operations, and the client owns low-level HTTP behavior.
 
-## Supported Exchanges
+Client + exchange internal flow:
 
-### OKX
-- **Margin Mode**: Cross margin only
-- **Order Types**: Market and limit orders with various time-in-force options
-- **Authentication**: API key, secret, and passphrase required
+```mermaid
+flowchart TD
+    Ex["Exchange method"] --> Req["Build endpoint + params"]
+    Req -->|HTTP| Http["HttpClient.request"]
+    Req -->|WS| Ws["WsClient.submit"]
 
-### Bybit
-- **Account Type**: Unified Trading Account (UTA) only
-- **Margin Mode**: Cross margin only
-- **Order Types**: Market, limit, and conditional orders
-- **Authentication**: API key and secret authentication
+    Http --> Sign["sign(...) if required"]
+    Sign --> HttpSend["HTTP request"]
+    Ws --> WsAuth["WS auth / heartbeat"]
+    WsAuth --> WsSend["WS request"]
 
-## Getting Started
+    HttpSend --> Decode["msgspec decoder"]
+    WsSend --> Decode
+    Decode --> Resp["ClientResponse<T>"]
+    Resp --> Map["Exchange response model"]
+```
 
-Each exchange implementation follows the same pattern:
+High-level flow:
 
-1. **Initialize the exchange client** with API credentials
-2. **Set up market data streams** for required symbols
-3. **Configure private data feeds** for order and position updates
-4. **Implement strategy logic** using the unified data structures
+```mermaid
+flowchart TD
+    S[Strategy / User] --> E[Exchange]
+    E --> C[Client]
+    C --> API[Exchange REST API]
+    M[Models] --> E
+    M --> C
+```
 
-The framework handles all the low-level details of connection management, authentication, and data normalization, allowing you to focus on trading logic.
+Data flows down for order creation/amend/cancel and back up for responses,
+acknowledgements, and snapshots.
 
+More info: [base/trading/models.py](base/trading/models.py),
+[base/trading/exchange.py](base/trading/exchange.py), and
+[base/trading/client.py](base/trading/client.py). Example implementation:
+[binance/trading/](binance/trading/).
+
+## Low-level design choices
+
+### Strict payloads via msgspec
+
+Handlers decode raw payloads into msgspec structs to enforce strict typing at the
+boundary. Shape mismatches fail fast, preventing silent drift between exchange payloads
+and internal state. Conversions remain localized (decode -> map -> state), which keeps
+transformations explicit and auditable.
+
+### Minimal error propagation layers
+
+Errors are handled as close to their origin as possible. If a model/decoder raises, the
+handler decides what it can normalize or retry. Known issues are converted into controlled
+responses; unknown issues are re-raised to the manager/stream boundary. This keeps error
+paths short and observable, without implicit recovery.
+
+## Why a custom framework (vs CCXT)
+
+CCXT optimizes for breadth and flexibility; this framework optimizes for strictness and
+speed in a controlled execution environment. Inputs are expected to be correct and errors
+should surface early, rather than being obscured. Scope is intentionally narrow (trading
+and market data only), and we avoid generalized features that add overhead on the critical
+path.
+
+Adapters can still rely on official exchange clients when it improves performance or
+signing correctness, but everything is normalized through a single internal API so
+strategies remain consistent across exchanges. Background notes live in
+[base/README.md](base/README.md).
+
+## For contributors
+
+Start with [base/README.md](base/README.md) to understand core concepts and tradeoffs.
+Implement stream parts first (models -> handlers -> manager), then trading. Keep
+interfaces minimal and keep type boundaries explicit so behavior remains easy to reason
+about.

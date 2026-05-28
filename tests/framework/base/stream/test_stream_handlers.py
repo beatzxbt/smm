@@ -12,9 +12,11 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 import pytest
 
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
 from framework.base.stream.handlers import SubscriptionTransport, TickerStreamHandler
@@ -27,6 +29,7 @@ from framework.base.stream.models import (
 from framework.base.tools import SimpleCache
 from mm_toolbox.logging.standard import Logger
 from mm_toolbox.ringbuffer import GenericRingBuffer
+from mm_toolbox.time import time_ns
 
 
 class FakeConnection:
@@ -112,13 +115,14 @@ class FakeConnection:
         """
         if not self.connected:
             raise ConnectionError("WebSocket is not connected.")
-        self._queue.insert(data)
+        self._queue.insert((time_ns(), data))
 
-    async def __aiter__(self) -> AsyncIterator[bytes]:
+    async def __aiter__(self) -> AsyncIterator[tuple[int, bytes]]:
         """Yield queued websocket payloads.
 
         Returns:
-            AsyncIterator[bytes]: Iterator over queued payloads.
+            AsyncIterator[tuple[int, bytes]]: Iterator over receive timestamp and
+            queued payload bytes.
         """
         while True:
             data = await self._queue.aconsume()
@@ -193,13 +197,20 @@ class DummyHandler(TickerStreamHandler):
         """
         return b"unsubscribe"
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Increment decode count and broadcast a stub message.
 
         Args:
             raw_msg: Raw websocket payload bytes.
+            recv_time_ns: Receive timestamp captured when the websocket payload
+                arrived.
 
         """
+        del raw_msg, recv_time_ns
         self.decode_calls += 1
         self.broadcast(
             DataStreamEventMsg(
@@ -299,13 +310,19 @@ class UrlQueryDummyHandler(TickerStreamHandler):
         streams = "&".join(f"{inst.symbol.lower()}@aggTrade" for inst in instruments)
         return f"wss://example/ws/stream?{streams}"
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """No-op decoder for test handler.
 
         Args:
             raw_msg: Raw websocket payload bytes.
+            recv_time_ns: Receive timestamp captured when the websocket payload
+                arrived.
         """
-        del raw_msg
+        del raw_msg, recv_time_ns
 
 
 class MissingUrlBuilderDummyHandler(UrlQueryDummyHandler):
@@ -404,13 +421,19 @@ class SharedContextDummyHandler(TickerStreamHandler):
         del instruments, stream_types
         return b"unsubscribe"
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """No-op decoder for shared-context tests.
 
         Args:
             raw_msg: Raw websocket payload bytes.
+            recv_time_ns: Receive timestamp captured when the websocket payload
+                arrived.
         """
-        del raw_msg
+        del raw_msg, recv_time_ns
 
 
 class TestBaseStreamHandler:
@@ -422,9 +445,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -451,9 +474,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -483,9 +506,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -509,9 +532,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=3,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -534,9 +557,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=4,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -563,9 +586,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         btc = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=5,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -573,9 +596,9 @@ class TestBaseStreamHandler:
         )
         eth = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=6,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -606,9 +629,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=7,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -635,9 +658,9 @@ class TestBaseStreamHandler:
         connection = FakeConnection()
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=17,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -658,9 +681,9 @@ class TestBaseStreamHandler:
         """Test handlers use separate shared objects when no context is passed."""
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=8,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -684,9 +707,9 @@ class TestBaseStreamHandler:
         """Test handlers reuse the same shared object with a shared context."""
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=9,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,

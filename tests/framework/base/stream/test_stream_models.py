@@ -19,10 +19,12 @@ from __future__ import annotations
 import pytest
 
 from framework.base.common import (
+    Asset,
     ClientOrderId,
     Instrument,
     InstrumentType,
     OrderId,
+    Symbol,
     Venue,
 )
 from framework.base.schema import MessageId, Moments
@@ -54,9 +56,9 @@ def sample_instrument():
     """Reusable instrument for stream schema tests."""
     return Instrument(
         venue=Venue.BINANCE_USDM,
-        base="BTC",
-        quote="USDT",
-        symbol="BTCUSDT",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTCUSDT"),
         code=1,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,

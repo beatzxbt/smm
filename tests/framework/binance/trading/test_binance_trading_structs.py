@@ -5,7 +5,7 @@ from __future__ import annotations
 import msgspec
 import pytest
 
-from framework.binance.trading.structs import (
+from framework.binance.trading.models import (
     BinanceHttpCancelAllOrdersResponse,
     BinanceHttpOrderbookResponse,
     BinanceHttpTradeResponse,

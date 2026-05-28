@@ -1,7 +1,7 @@
 import msgspec
 import pytest
 
-from framework.bybit.trading.structs import (
+from framework.bybit.trading.models import (
     BybitWsCreateOrderResult,
     BybitWsOrderResponse,
 )

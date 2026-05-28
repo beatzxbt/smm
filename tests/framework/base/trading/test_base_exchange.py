@@ -14,7 +14,7 @@ import pytest
 from framework.base.common import Instrument, InstrumentCollection, Venue
 from framework.base.schema import Moments, MessageId
 from framework.base.trading.client import HttpClient, HttpMethod, WsClient
-from framework.base.trading.exchange import Exchange
+from framework.base.trading.exchange import AllowedOrderIdChars, Exchange
 from framework.base.trading.models import (
     AmendOrder,
     AmendOrderResponse,
@@ -393,7 +393,9 @@ class TestExchangeCloid:
             monkeypatch: Pytest monkeypatch fixture.
             test_logger: Logger fixture for the exchange.
         """
-        monkeypatch.setattr("framework.base.trading.exchange.time_ns", lambda: 123)
+        monkeypatch.setattr(
+            "framework.base.trading.exchange.time_monotonic_ns", lambda: 123
+        )
         exchange = DummyExchange(logger=test_logger)
         exchange.max_cloid_length = 6
 
@@ -409,11 +411,13 @@ class TestExchangeCloid:
             monkeypatch: Pytest monkeypatch fixture.
             test_logger: Logger fixture for the exchange.
         """
-        monkeypatch.setattr("framework.base.trading.exchange.time_ns", lambda: 123456)
+        monkeypatch.setattr(
+            "framework.base.trading.exchange.time_monotonic_ns", lambda: 123456
+        )
         exchange = DummyExchange(logger=test_logger)
         exchange.max_cloid_length = 10
 
-        cloid = exchange.generate_cloid(start="AA", end="ZZ")
+        cloid = exchange.generate_cloid(prefix="AA", suffix="ZZ")
         assert cloid.startswith("AA")
         assert cloid.endswith("ZZ")
         assert len(cloid) == 10
@@ -428,7 +432,103 @@ class TestExchangeCloid:
         exchange.max_cloid_length = 4
 
         with pytest.raises(ValueError, match="Invalid cloid length"):
-            exchange.generate_cloid(start="AB", end="CD")
+            exchange.generate_cloid(prefix="AB", suffix="CD")
+
+    def test_generate_cloid_returns_client_order_id(
+        self, monkeypatch, test_logger: Logger
+    ) -> None:
+        """Test generate_cloid returns a ClientOrderId typed value.
+
+        Args:
+            monkeypatch: Pytest monkeypatch fixture.
+            test_logger: Logger fixture for the exchange.
+        """
+        monkeypatch.setattr(
+            "framework.base.trading.exchange.time_monotonic_ns", lambda: 123
+        )
+        exchange = DummyExchange(logger=test_logger)
+
+        cloid = exchange.generate_cloid()
+        assert isinstance(cloid, str)
+        assert cloid == "000000000000000000000000000000000123"
+
+    def test_generate_cloid_numeric_raises_on_string_prefix(
+        self, monkeypatch, test_logger: Logger
+    ) -> None:
+        """Test generate_cloid with NUMERIC chars raises on string prefix.
+
+        Args:
+            monkeypatch: Pytest monkeypatch fixture.
+            test_logger: Logger fixture for the exchange.
+        """
+        monkeypatch.setattr(
+            "framework.base.trading.exchange.time_monotonic_ns", lambda: 123
+        )
+        exchange = DummyExchange(logger=test_logger)
+        exchange.allowed_cloid_chars = AllowedOrderIdChars.NUMERIC
+
+        with pytest.raises(ValueError, match="must be integers"):
+            exchange.generate_cloid(prefix="ABC")
+
+    def test_generate_cloid_numeric_accepts_int_affixes(
+        self, monkeypatch, test_logger: Logger
+    ) -> None:
+        """Test generate_cloid with NUMERIC chars accepts integer prefix/suffix.
+
+        Args:
+            monkeypatch: Pytest monkeypatch fixture.
+            test_logger: Logger fixture for the exchange.
+        """
+        monkeypatch.setattr(
+            "framework.base.trading.exchange.time_monotonic_ns", lambda: 12345
+        )
+        exchange = DummyExchange(logger=test_logger)
+        exchange.allowed_cloid_chars = AllowedOrderIdChars.NUMERIC
+        exchange.max_cloid_length = 12
+
+        cloid = exchange.generate_cloid(prefix=99, suffix=1)
+        assert cloid.startswith("99")
+        assert cloid.endswith("1")
+
+    def test_generate_cloid_alphabetic_raises_on_int_prefix(
+        self, monkeypatch, test_logger: Logger
+    ) -> None:
+        """Test generate_cloid with ALPHABETIC chars raises on int prefix.
+
+        Args:
+            monkeypatch: Pytest monkeypatch fixture.
+            test_logger: Logger fixture for the exchange.
+        """
+        monkeypatch.setattr(
+            "framework.base.trading.exchange.time_monotonic_ns", lambda: 123
+        )
+        exchange = DummyExchange(logger=test_logger)
+        exchange.allowed_cloid_chars = AllowedOrderIdChars.ALPHABETIC
+
+        with pytest.raises(ValueError, match="must be strings"):
+            exchange.generate_cloid(prefix=123)
+
+    def test_generate_cloid_truncates_long_timestamp(
+        self, monkeypatch, test_logger: Logger
+    ) -> None:
+        """Test generate_cloid left-truncates timestamp when longer than available space.
+
+        Args:
+            monkeypatch: Pytest monkeypatch fixture.
+            test_logger: Logger fixture for the exchange.
+        """
+        monkeypatch.setattr(
+            "framework.base.trading.exchange.time_monotonic_ns",
+            lambda: 12345678901234567890,
+        )
+        exchange = DummyExchange(logger=test_logger)
+        exchange.max_cloid_length = 10
+
+        cloid = exchange.generate_cloid(prefix="A", suffix="Z")
+        assert len(cloid) == 10
+        assert cloid.startswith("A")
+        assert cloid.endswith("Z")
+        assert cloid[1:-1].isdigit()
 
 
 class TestExchangeResponseHelpers:

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from framework.base.common import Instrument, InstrumentType, Venue
+from framework.base.common import Asset, Instrument, InstrumentType, Symbol, Venue
 from framework.base.stream.models import OrderTimeInForce
 from framework.base.tools.map import EnumMap, SimpleMap
 
@@ -167,9 +167,9 @@ class TestSimpleMap:
         """Test SimpleMap with Instrument objects."""
         inst1 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -177,9 +177,9 @@ class TestSimpleMap:
         )
         inst2 = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDC",
-            symbol="ETHUSDC",
+            base=Asset("ETH"),
+            quote=Asset("USDC"),
+            symbol=Symbol("ETHUSDC"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -203,9 +203,9 @@ class TestSimpleMap:
         instruments = [
             Instrument(
                 venue=Venue.BYBIT,
-                symbol="BTCUSDT",
-                base="BTC",
-                quote="USDT",
+                symbol=Symbol("BTCUSDT"),
+                base=Asset("BTC"),
+                quote=Asset("USDT"),
                 code=0,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -213,9 +213,9 @@ class TestSimpleMap:
             ),
             Instrument(
                 venue=Venue.BYBIT,
-                symbol="ETHUSDT",
-                base="ETH",
-                quote="USDT",
+                symbol=Symbol("ETHUSDT"),
+                base=Asset("ETH"),
+                quote=Asset("USDT"),
                 code=0,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -223,9 +223,9 @@ class TestSimpleMap:
             ),
             Instrument(
                 venue=Venue.BYBIT,
-                symbol="SOLUSDT",
-                base="SOL",
-                quote="USDT",
+                symbol=Symbol("SOLUSDT"),
+                base=Asset("SOL"),
+                quote=Asset("USDT"),
                 code=0,
                 instrument_type=InstrumentType.PERPETUAL,
                 tick_size=0.01,
@@ -248,9 +248,9 @@ class TestSimpleMap:
 
         btc_binance = Instrument(
             venue=Venue.BINANCE_USDM,
-            symbol="btcusdt",
-            base="btc",
-            quote="usdt",
+            symbol=Symbol("btcusdt"),
+            base=Asset("btc"),
+            quote=Asset("usdt"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -258,9 +258,9 @@ class TestSimpleMap:
         )
         btc_bybit = Instrument(
             venue=Venue.BYBIT,
-            symbol="BTCUSDT",
-            base="BTC",
-            quote="USDT",
+            symbol=Symbol("BTCUSDT"),
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,

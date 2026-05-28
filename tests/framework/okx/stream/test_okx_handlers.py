@@ -6,15 +6,17 @@ Validates mixin methods, market handler decoding, and private handler auth/routi
 
 from __future__ import annotations
 
-import asyncio
+from collections.abc import Awaitable, Callable
 
 import msgspec
 import pytest
 
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
 from framework.base.stream.models import (
@@ -31,6 +33,7 @@ from framework.okx.stream.handlers import (
     _OkxStreamHandler,
 )
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 
 class DummyConnection:
@@ -39,31 +42,55 @@ class DummyConnection:
     def __init__(self) -> None:
         """Initialize the dummy connection."""
         self.sent: list[bytes] = []
-        self._callbacks: list = []
+        self.connected = False
+        self.url = "wss://example/ws"
+        self._callbacks: list[Callable[[], Awaitable[None]]] = []
 
     async def connect(self) -> None:
-        """No-op connect."""
-        return None
+        """Mark the connection as established."""
+        if self.connected:
+            return
+        self.connected = True
 
     async def disconnect(self) -> None:
-        """No-op disconnect."""
-        return None
+        """Mark the connection as closed."""
+        if not self.connected:
+            return
+        self.connected = False
 
     async def send(self, data: bytes) -> None:
         """Capture outbound payloads.
 
         Args:
             data: Serialized payload bytes.
+
+        Raises:
+            ConnectionError: If the websocket is not connected.
         """
+        if not self.connected:
+            raise ConnectionError("WebSocket is not connected.")
         self.sent.append(data)
 
-    def add_reconnect_callback(self, callback) -> None:
+    def add_reconnect_callback(self, callback: Callable[[], Awaitable[None]]) -> None:
         """Register reconnect callbacks.
 
         Args:
             callback: Callback to invoke on reconnect.
         """
         self._callbacks.append(callback)
+
+    def set_url(self, url: str) -> None:
+        """Update the websocket URL.
+
+        Args:
+            url: New websocket URL.
+
+        Raises:
+            ValueError: If the URL is empty.
+        """
+        if not url:
+            raise ValueError("Invalid url; expected non-empty string.")
+        self.url = url
 
 
 class ConcreteOkxHandler(_OkxStreamHandler):
@@ -86,9 +113,9 @@ def make_collection() -> InstrumentCollection:
     """
     instrument = Instrument(
         venue=Venue.OKX,
-        base="BTC",
-        quote="USDT",
-        symbol="BTC-USDT-SWAP",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTC-USDT-SWAP"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
@@ -153,14 +180,14 @@ class TestOkxTickerHandler:
     @pytest.mark.asyncio
     async def test_ticker_decoding(self) -> None:
         """Test ticker messages decode to TickerMsg."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         collection = make_collection()
         handler = OkxTickerHandler(
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
             venue=Venue.OKX,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         payload = {
             "arg": {"channel": "tickers", "instId": "BTC-USDT-SWAP"},
@@ -189,8 +216,8 @@ class TestOkxTickerHandler:
                 }
             ],
         }
-        await handler.decode_and_broadcast(msgspec.json.encode(payload))
-        msg = queue.get_nowait()
+        await handler.decode_and_broadcast(1, msgspec.json.encode(payload))
+        msg = queue.consume()
         assert isinstance(msg, TickerMsg)
         assert msg.mark_price == 30000.0
         assert msg.funding_rate == 0.0001
@@ -198,18 +225,18 @@ class TestOkxTickerHandler:
     @pytest.mark.asyncio
     async def test_ticker_ack_is_skipped(self) -> None:
         """Test ACK messages are handled without error."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         collection = make_collection()
         handler = OkxTickerHandler(
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
             venue=Venue.OKX,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         ack_payload = b'{"event": "subscribe", "arg": {"channel": "tickers"}}'
-        await handler.decode_and_broadcast(ack_payload)
-        assert queue.empty()
+        await handler.decode_and_broadcast(1, ack_payload)
+        assert queue.is_empty()
 
     def test_build_subscribe_payload(self) -> None:
         """Test subscribe payload format."""
@@ -219,7 +246,7 @@ class TestOkxTickerHandler:
             instrument_collection=collection,
             venue=Venue.OKX,
             logger=Logger(name="test"),
-            consumer_queues=[],
+            consumer_buffer=GenericRingBuffer(1),
         )
         instruments = list(collection.instruments)
         payload = handler.build_subscribe_payload(instruments)
@@ -235,14 +262,14 @@ class TestOkxBBOHandler:
     @pytest.mark.asyncio
     async def test_bbo_decoding(self) -> None:
         """Test BBO messages decode to OrderbookMsg with is_bbo=True."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         collection = make_collection()
         handler = OkxBBOHandler(
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
             venue=Venue.OKX,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         payload = {
             "arg": {"channel": "bbo-tbt", "instId": "BTC-USDT-SWAP"},
@@ -256,8 +283,8 @@ class TestOkxBBOHandler:
                 }
             ],
         }
-        await handler.decode_and_broadcast(msgspec.json.encode(payload))
-        msg = queue.get_nowait()
+        await handler.decode_and_broadcast(1, msgspec.json.encode(payload))
+        msg = queue.consume()
         assert isinstance(msg, OrderbookMsg)
         assert msg.is_bbo is True
         assert msg.is_snapshot is True
@@ -269,14 +296,14 @@ class TestOkxOrderbookHandler:
     @pytest.mark.asyncio
     async def test_orderbook_decoding(self) -> None:
         """Test orderbook messages decode to OrderbookMsg with is_bbo=False."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         collection = make_collection()
         handler = OkxOrderbookHandler(
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
             venue=Venue.OKX,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         payload = {
             "arg": {"channel": "books5", "instId": "BTC-USDT-SWAP"},
@@ -296,8 +323,8 @@ class TestOkxOrderbookHandler:
                 }
             ],
         }
-        await handler.decode_and_broadcast(msgspec.json.encode(payload))
-        msg = queue.get_nowait()
+        await handler.decode_and_broadcast(1, msgspec.json.encode(payload))
+        msg = queue.consume()
         assert isinstance(msg, OrderbookMsg)
         assert msg.is_bbo is False
         assert msg.is_snapshot is False
@@ -311,14 +338,14 @@ class TestOkxTradesHandler:
     @pytest.mark.asyncio
     async def test_trades_decoding(self) -> None:
         """Test trade messages decode to TradeMsg."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         collection = make_collection()
         handler = OkxTradesHandler(
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
             venue=Venue.OKX,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         payload = {
             "arg": {"channel": "trades", "instId": "BTC-USDT-SWAP"},
@@ -333,8 +360,8 @@ class TestOkxTradesHandler:
                 }
             ],
         }
-        await handler.decode_and_broadcast(msgspec.json.encode(payload))
-        msg = queue.get_nowait()
+        await handler.decode_and_broadcast(1, msgspec.json.encode(payload))
+        msg = queue.consume()
         assert isinstance(msg, TradeMsg)
         assert len(msg.trades) == 1
         assert msg.trades[0].price == 30000.5
@@ -352,7 +379,7 @@ class TestOkxPrivateHandler:
             logger=Logger(name="test"),
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
-            consumer_queues=[],
+            consumer_buffer=GenericRingBuffer(1),
             api_key="test_key",
             api_secret="test_secret",
             passphrase="test_passphrase",
@@ -374,7 +401,7 @@ class TestOkxPrivateHandler:
             logger=Logger(name="test"),
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
-            consumer_queues=[],
+            consumer_buffer=GenericRingBuffer(1),
             api_key="test_key",
             api_secret="test_secret",
             passphrase="test_passphrase",
@@ -396,13 +423,13 @@ class TestOkxPrivateHandler:
             logger=Logger(name="test"),
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
-            consumer_queues=[],
+            consumer_buffer=GenericRingBuffer(1),
             api_key="test_key",
             api_secret="test_secret",
             passphrase="test_passphrase",
         )
         login_response = b'{"event": "login", "code": "0", "msg": ""}'
-        await handler.decode_and_broadcast(login_response)
+        await handler.decode_and_broadcast(1, login_response)
         assert handler._is_authenticated is True
 
     @pytest.mark.asyncio
@@ -422,13 +449,13 @@ class TestOkxPrivateHandler:
             logger=logger,
             connection=DummyConnection(),  # type: ignore[arg-type]
             instrument_collection=collection,
-            consumer_queues=[],
+            consumer_buffer=GenericRingBuffer(1),
             api_key="test_key",
             api_secret="test_secret",
             passphrase="test_passphrase",
         )
         login_response = b'{"event": "login", "code": "60001", "msg": "Invalid key"}'
-        await handler.decode_and_broadcast(login_response)
+        await handler.decode_and_broadcast(1, login_response)
         assert handler._is_authenticated is False
         assert len(error_calls) == 1
         assert "auth failed" in error_calls[0]

@@ -10,29 +10,31 @@ import msgspec
 import pytest
 
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
-from framework.base.stream.models import OrderTimeInForce
+from framework.base.stream.models import OrderTimeInForce, OrderbookLevel
 from framework.base.tools import SimpleCache
-from framework.bybit.stream.structs import (
+from framework.bybit.stream.models import (
     BybitExecutionMsg,
-    BybitOrderbookLevel,
-    BybitOrderbookMsg,
     BybitOrderMsg,
+    BybitOrderbookMsg,
     BybitPositionMsg,
-    BybitPublicMsg,
+    BybitTickerPublicMsg,
+    BybitOrderbookPublicMsg,
     BybitTickerMsg,
+    BybitTrade,
     BybitTradeMsg,
-    BybitTradePublicMsg,
     BybitWalletMsg,
 )
 
 
 class TestBybitTickerStructs:
-    decoder = msgspec.json.Decoder(BybitPublicMsg[BybitTickerMsg])
+    decoder = msgspec.json.Decoder(BybitTickerPublicMsg)
 
     @pytest.mark.parametrize(
         "topic_suffix, mark_price, index_price, funding_rate",
@@ -77,7 +79,7 @@ class TestBybitTickerStructs:
 
 
 class TestBybitOrderbookStructs:
-    decoder = msgspec.json.Decoder(BybitPublicMsg[BybitOrderbookMsg])
+    decoder = msgspec.json.Decoder(BybitOrderbookPublicMsg)
 
     @pytest.mark.parametrize(
         "levels, expected_bid, expected_ask",
@@ -116,7 +118,7 @@ class TestBybitOrderbookStructs:
         msg = self.decoder.decode(msgspec.json.encode(payload))
 
         assert msg.topic == "orderbook.1.BTCUSDT"
-        assert isinstance(msg.data.bids[0], BybitOrderbookLevel)
+        assert isinstance(msg.data.bids[0], OrderbookLevel)
         assert msg.data.bids[0].price == pytest.approx(expected_bid[0])
         assert msg.data.bids[0].size == pytest.approx(expected_bid[1])
         assert msg.data.asks[0].price == pytest.approx(expected_ask[0])
@@ -126,8 +128,8 @@ class TestBybitOrderbookStructs:
 class TestBybitTradeStructs:
     """Test Bybit trade message structures."""
 
-    decoder_single = msgspec.json.Decoder(BybitTradeMsg)
-    decoder_public = msgspec.json.Decoder(BybitTradePublicMsg)
+    decoder_single = msgspec.json.Decoder(BybitTrade)
+    decoder_public = msgspec.json.Decoder(BybitTradeMsg)
 
     def test_decode_single_trade(self):
         """Test decoding a single trade with field name mappings."""
@@ -498,9 +500,9 @@ class TestBybitTickerConversion:
         """Test BybitTickerMsg converts to TickerMsg."""
         instrument = Instrument(
             venue=Venue.BYBIT,
-            symbol="BTCUSDT",
-            base="BTC",
-            quote="USDT",
+            symbol=Symbol("BTCUSDT"),
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -530,6 +532,7 @@ class TestBybitTickerConversion:
             venue=Venue.BYBIT,
             instrument_collection=collection,
             exch_time_ns=1,
+            is_snapshot=True,
         )
 
         assert msg.instrument == instrument
@@ -544,9 +547,9 @@ class TestBybitOrderbookConversion:
         """Test BybitOrderbookMsg sorts bids/asks by price."""
         instrument = Instrument(
             venue=Venue.BYBIT,
-            symbol="BTCUSDT",
-            base="BTC",
-            quote="USDT",
+            symbol=Symbol("BTCUSDT"),
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -557,12 +560,12 @@ class TestBybitOrderbookConversion:
         orderbook = BybitOrderbookMsg(
             symbol="BTCUSDT",
             bids=[
-                BybitOrderbookLevel(price=30000.0, size=1.0),
-                BybitOrderbookLevel(price=29900.0, size=2.0),
+                OrderbookLevel(price=30000.0, size=1.0),
+                OrderbookLevel(price=29900.0, size=2.0),
             ],
             asks=[
-                BybitOrderbookLevel(price=30100.0, size=1.0),
-                BybitOrderbookLevel(price=30050.0, size=1.5),
+                OrderbookLevel(price=30100.0, size=1.0),
+                OrderbookLevel(price=30050.0, size=1.5),
             ],
             update_id=1,
             seq=1,
@@ -587,9 +590,9 @@ class TestBybitTradeConversion:
         """Test duplicate sequence trades are filtered."""
         instrument = Instrument(
             venue=Venue.BYBIT,
-            symbol="BTCUSDT",
-            base="BTC",
-            quote="USDT",
+            symbol=Symbol("BTCUSDT"),
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -598,12 +601,12 @@ class TestBybitTradeConversion:
         collection = InstrumentCollection([instrument])
         cache = SimpleCache()
 
-        public_msg = BybitTradePublicMsg(
+        public_msg = BybitTradeMsg(
             topic="publicTrade.BTCUSDT",
             type="snapshot",
             ts=123,
             data=[
-                BybitTradeMsg(
+                BybitTrade(
                     time_ms=1,
                     symbol="BTCUSDT",
                     side="Buy",
@@ -612,7 +615,7 @@ class TestBybitTradeConversion:
                     id="1",
                     seq=1,
                 ),
-                BybitTradeMsg(
+                BybitTrade(
                     time_ms=2,
                     symbol="BTCUSDT",
                     side="Buy",
@@ -633,13 +636,13 @@ class TestBybitTradeConversion:
         assert msg is not None
         assert len(msg.trades) == 1
 
-    def test_to_trade_msg_returns_none_when_filtered(self):
-        """Test to_trade_msg returns None when all trades are filtered."""
+    def test_to_trade_msg_raises_when_filtered(self):
+        """Test to_trade_msg raises when all trades are filtered."""
         instrument = Instrument(
             venue=Venue.BYBIT,
-            symbol="BTCUSDT",
-            base="BTC",
-            quote="USDT",
+            symbol=Symbol("BTCUSDT"),
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -649,12 +652,12 @@ class TestBybitTradeConversion:
         cache = SimpleCache()
         cache.is_higher("BTCUSDT_1", 1)
 
-        public_msg = BybitTradePublicMsg(
+        public_msg = BybitTradeMsg(
             topic="publicTrade.BTCUSDT",
             type="snapshot",
             ts=123,
             data=[
-                BybitTradeMsg(
+                BybitTrade(
                     time_ms=1,
                     symbol="BTCUSDT",
                     side="Buy",
@@ -666,13 +669,12 @@ class TestBybitTradeConversion:
             ],
         )
 
-        msg = public_msg.to_trade_msg(
-            venue=Venue.BYBIT,
-            instrument_collection=collection,
-            symbol_to_seq_cache=cache,
-        )
-
-        assert msg is None
+        with pytest.raises(ValueError):
+            public_msg.to_trade_msg(
+                venue=Venue.BYBIT,
+                instrument_collection=collection,
+                symbol_to_seq_cache=cache,
+            )
 
 
 class TestBybitPositionConversion:
@@ -682,9 +684,9 @@ class TestBybitPositionConversion:
         """Test BybitPositionMsg converts to PositionMsg."""
         instrument = Instrument(
             venue=Venue.BYBIT,
-            symbol="BTCUSDT",
-            base="BTC",
-            quote="USDT",
+            symbol=Symbol("BTCUSDT"),
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -735,6 +737,7 @@ class TestBybitPositionConversion:
             venue=Venue.BYBIT,
             instrument_collection=collection,
             exch_time_ns=1,
+            is_snapshot=False,
         )
 
         assert msg is not None
@@ -745,9 +748,9 @@ class TestBybitPositionConversion:
         """Test zero size positions return None."""
         instrument = Instrument(
             venue=Venue.BYBIT,
-            symbol="BTCUSDT",
-            base="BTC",
-            quote="USDT",
+            symbol=Symbol("BTCUSDT"),
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -798,6 +801,7 @@ class TestBybitPositionConversion:
             venue=Venue.BYBIT,
             instrument_collection=collection,
             exch_time_ns=1,
+            is_snapshot=False,
         )
 
         assert msg is None
@@ -903,7 +907,11 @@ class TestBybitWalletConversion:
             total_perp_upl="10",
         )
 
-        msg = wallet.to_account_msg(venue=Venue.BYBIT, exch_time_ns=1)
+        msg = wallet.to_account_msg(
+            venue=Venue.BYBIT,
+            exch_time_ns=1,
+            is_snapshot=False,
+        )
 
-        assert msg.balance == 1000.0
+        assert msg.balances[msg.instrument].amount == 1000.0
         assert msg.initial_margin == 0.1

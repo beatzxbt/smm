@@ -1,9 +1,9 @@
-"""Tests for BybitMarketDataStream trade streaming functionality."""
+"""Tests for Bybit trade stream message parsing and conversions."""
 
 import msgspec
-from framework.base.common import Instrument, InstrumentType, Venue
-from framework.bybit.stream.market import BybitMarketDataStream
-from framework.bybit.stream.structs import BybitTradePublicMsg
+from framework.base.common import Asset, Instrument, InstrumentType, Symbol, Venue
+from framework.bybit.stream.models import BybitTrade, BybitTradeMsg
+from framework.bybit.trading.exchange import BybitExchange
 from mm_toolbox.logging.standard import Logger
 
 
@@ -35,7 +35,7 @@ def test_bybit_trade_public_msg_parsing():
         ]
     }"""
 
-    decoder = msgspec.json.Decoder(BybitTradePublicMsg)
+    decoder = msgspec.json.Decoder(BybitTradeMsg)
     msg = decoder.decode(json_str.encode())
 
     assert msg.topic == "publicTrade.BTCUSDT"
@@ -48,9 +48,7 @@ def test_bybit_trade_public_msg_parsing():
 
 def test_bybit_trade_msg_conversion():
     """Test conversion of BybitTradeMsg to framework Trade struct."""
-    from framework.bybit.stream.structs import BybitTradeMsg
-
-    trade_msg = BybitTradeMsg(
+    trade_msg = BybitTrade(
         time_ms=1234567890000,
         symbol="BTCUSDT",
         side="Buy",
@@ -74,20 +72,20 @@ def test_bybit_instrument_to_symbol():
     """Test Bybit symbol formatting."""
 
     logger = Logger()
-    stream = BybitMarketDataStream(logger=logger, consumer_queues=[])
+    exchange = BybitExchange(logger=logger, load_secrets=False)
 
     instrument = Instrument(
         venue=Venue.BYBIT,
-        symbol="BTCUSDT",
-        base="BTC",
-        quote="USDT",
+        symbol=Symbol("BTCUSDT"),
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
         lot_size=0.001,
     )
 
-    symbol = stream.instrument_to_symbol(instrument)
+    symbol = exchange.instrument_to_symbol(instrument)
     assert symbol == "BTCUSDT"
 
 
@@ -104,7 +102,7 @@ def test_bybit_multi_trade_in_single_message():
         ]
     }"""
 
-    decoder = msgspec.json.Decoder(BybitTradePublicMsg)
+    decoder = msgspec.json.Decoder(BybitTradeMsg)
     msg = decoder.decode(json_str.encode())
 
     assert len(msg.data) == 3

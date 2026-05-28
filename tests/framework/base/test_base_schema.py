@@ -18,7 +18,7 @@ from multiprocessing.connection import Connection
 
 import pytest
 
-from framework.base.common import Instrument, InstrumentType, Venue
+from framework.base.common import Asset, Instrument, InstrumentType, Symbol, Venue
 from framework.base.schema import CorrelatedSchema, EnvelopeSchema, MessageId, Moments
 
 
@@ -43,9 +43,9 @@ def sample_instrument() -> Instrument:
     """
     return Instrument(
         venue=Venue.BINANCE_USDM,
-        base="BTC",
-        quote="USDT",
-        symbol="BTCUSDT",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTCUSDT"),
         code=1,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
@@ -227,9 +227,9 @@ class TestEnvelopeSchema:
         """Test EnvelopeSchema.venue delegates to the instrument venue field."""
         instrument = Instrument(
             venue=Venue.BYBIT,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=2,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,

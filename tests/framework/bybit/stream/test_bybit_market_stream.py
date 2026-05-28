@@ -2,88 +2,34 @@
 
 from __future__ import annotations
 
-import asyncio
 
 import msgspec
 import pytest
 
-from framework.base.stream.models import OrderbookMsg, TickerMsg, TradeMsg
-from framework.bybit.stream.market import BybitMarketDataStream
-from framework.bybit.stream.structs import (
-    BybitOrderbookLevel,
+from framework.base.common import InstrumentCollection
+from framework.base.stream.connection import WebSocketConnection
+from framework.base.stream.models import (
+    OrderbookLevel,
+    OrderbookMsg,
+    TickerMsg,
+    TradeMsg,
+)
+from framework.bybit.stream.handlers import (
+    BybitBBOHandler,
+    BybitOrderbookHandler,
+    BybitTickerHandler,
+    BybitTradesHandler,
+)
+from framework.bybit.stream.models import (
     BybitOrderbookMsg,
-    BybitPublicMsg,
+    BybitTickerPublicMsg,
+    BybitOrderbookPublicMsg,
     BybitTickerMsg,
+    BybitTrade,
     BybitTradeMsg,
-    BybitTradePublicMsg,
 )
 from mm_toolbox.logging.standard import Logger
-
-
-def make_fake_ws_single(messages: list[bytes]):
-    """Create a WsSingle test double for queued messages.
-
-    Args:
-        messages: Encoded websocket payloads to yield.
-
-    Returns:
-        type: WsSingle-compatible class.
-    """
-
-    class FakeWsSingle:
-        """Async iterable yielding preset websocket messages."""
-
-        def __init__(self, _config) -> None:
-            """Initialize the fake websocket.
-
-            Args:
-                _config: Websocket configuration (unused).
-            """
-            self._messages = list(messages)
-
-        async def __aenter__(self):
-            """Enter the async context.
-
-            Returns:
-                FakeWsSingle: Self instance.
-            """
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            """Exit the async context.
-
-            Args:
-                exc_type: Exception type, if raised.
-                exc: Exception instance, if raised.
-                tb: Traceback, if raised.
-
-            Returns:
-                bool: False to propagate exceptions.
-            """
-            return False
-
-        def __aiter__(self):
-            """Return async iterator.
-
-            Returns:
-                FakeWsSingle: Iterator instance.
-            """
-            return self
-
-        async def __anext__(self):
-            """Return the next websocket message.
-
-            Returns:
-                bytes: Encoded websocket payload.
-
-            Raises:
-                StopAsyncIteration: When messages are exhausted.
-            """
-            if not self._messages:
-                raise StopAsyncIteration
-            return self._messages.pop(0)
-
-    return FakeWsSingle
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 
 class TestBybitMarketDataStream:
@@ -93,20 +39,22 @@ class TestBybitMarketDataStream:
     async def test_stream_ticker_broadcasts_message(
         self,
         bybit_instrument,
-        monkeypatch,
     ) -> None:
         """Test ticker stream decodes payloads and broadcasts messages.
 
         Args:
             bybit_instrument: Bybit instrument fixture.
-            monkeypatch: Pytest monkeypatch fixture.
         """
-        queue = asyncio.Queue()
-        stream = BybitMarketDataStream(
-            logger=Logger(name="test"),
-            consumer_queues=[queue],
+        queue = GenericRingBuffer(16)
+        logger = Logger(name="test")
+        instrument_collection = InstrumentCollection([bybit_instrument])
+        handler = BybitTickerHandler(
+            connection=WebSocketConnection("wss://example.test", logger),
+            instrument_collection=instrument_collection,
+            venue=bybit_instrument.venue,
+            logger=logger,
+            consumer_buffer=queue,
         )
-        stream._instruments = [bybit_instrument]
 
         ticker_msg = BybitTickerMsg(
             symbol="BTCUSDT",
@@ -126,7 +74,7 @@ class TestBybitMarketDataStream:
             next_funding_time=1234567890,
             funding_rate=0.0001,
         )
-        payload = BybitPublicMsg(
+        payload = BybitTickerPublicMsg(
             topic="tickers.BTCUSDT",
             type="snapshot",
             data=ticker_msg,
@@ -134,15 +82,10 @@ class TestBybitMarketDataStream:
         )
         encoded = msgspec.json.encode(payload)
 
-        monkeypatch.setattr(
-            "framework.bybit.stream.market.WsSingle",
-            make_fake_ws_single([encoded]),
-        )
+        await handler.decode_and_broadcast(1, encoded)
 
-        await stream.stream_ticker([bybit_instrument])
-
-        assert not queue.empty()
-        msg = queue.get_nowait()
+        assert not queue.is_empty()
+        msg = queue.consume()
         assert isinstance(msg, TickerMsg)
         assert msg.instrument.symbol == "BTCUSDT"
         assert msg.mark_price == pytest.approx(30000.0)
@@ -152,37 +95,46 @@ class TestBybitMarketDataStream:
     async def test_stream_orderbook_broadcasts_bbo_and_full(
         self,
         bybit_instrument,
-        monkeypatch,
     ) -> None:
         """Test orderbook stream emits both BBO and full depth messages.
 
         Args:
             bybit_instrument: Bybit instrument fixture.
-            monkeypatch: Pytest monkeypatch fixture.
         """
-        queue = asyncio.Queue()
-        stream = BybitMarketDataStream(
-            logger=Logger(name="test"),
-            consumer_queues=[queue],
+        queue = GenericRingBuffer(16)
+        logger = Logger(name="test")
+        instrument_collection = InstrumentCollection([bybit_instrument])
+        bbo_handler = BybitBBOHandler(
+            connection=WebSocketConnection("wss://example.test", logger),
+            instrument_collection=instrument_collection,
+            venue=bybit_instrument.venue,
+            logger=logger,
+            consumer_buffer=queue,
         )
-        stream._instruments = [bybit_instrument]
+        orderbook_handler = BybitOrderbookHandler(
+            connection=WebSocketConnection("wss://example.test", logger),
+            instrument_collection=instrument_collection,
+            venue=bybit_instrument.venue,
+            logger=logger,
+            consumer_buffer=queue,
+        )
 
         orderbook_msg = BybitOrderbookMsg(
             symbol="BTCUSDT",
-            bids=[BybitOrderbookLevel(price=30000.0, size=1.0)],
-            asks=[BybitOrderbookLevel(price=30001.0, size=2.0)],
+            bids=[OrderbookLevel(price=30000.0, size=1.0)],
+            asks=[OrderbookLevel(price=30001.0, size=2.0)],
             update_id=1,
             seq=2,
         )
         payloads = [
-            BybitPublicMsg(
+            BybitOrderbookPublicMsg(
                 topic="orderbook.1.BTCUSDT",
                 type="snapshot",
                 data=orderbook_msg,
                 ts=1,
             ),
-            BybitPublicMsg(
-                topic="orderbook.500.BTCUSDT",
+            BybitOrderbookPublicMsg(
+                topic="orderbook.1000.BTCUSDT",
                 type="snapshot",
                 data=orderbook_msg,
                 ts=1,
@@ -190,16 +142,12 @@ class TestBybitMarketDataStream:
         ]
         encoded_messages = [msgspec.json.encode(payload) for payload in payloads]
 
-        monkeypatch.setattr(
-            "framework.bybit.stream.market.WsSingle",
-            make_fake_ws_single(encoded_messages),
-        )
-
-        await stream.stream_orderbook([bybit_instrument])
+        await bbo_handler.decode_and_broadcast(1, encoded_messages[0])
+        await orderbook_handler.decode_and_broadcast(1, encoded_messages[1])
 
         messages = []
-        while not queue.empty():
-            messages.append(queue.get_nowait())
+        while not queue.is_empty():
+            messages.append(queue.consume())
 
         assert len(messages) == 2
         assert all(isinstance(msg, OrderbookMsg) for msg in messages)
@@ -212,22 +160,24 @@ class TestBybitMarketDataStream:
     async def test_stream_trades_dedupes_by_seq(
         self,
         bybit_instrument,
-        monkeypatch,
     ) -> None:
         """Test trade stream skips duplicate sequence IDs.
 
         Args:
             bybit_instrument: Bybit instrument fixture.
-            monkeypatch: Pytest monkeypatch fixture.
         """
-        queue = asyncio.Queue()
-        stream = BybitMarketDataStream(
-            logger=Logger(name="test"),
-            consumer_queues=[queue],
+        queue = GenericRingBuffer(16)
+        logger = Logger(name="test")
+        instrument_collection = InstrumentCollection([bybit_instrument])
+        handler = BybitTradesHandler(
+            connection=WebSocketConnection("wss://example.test", logger),
+            instrument_collection=instrument_collection,
+            venue=bybit_instrument.venue,
+            logger=logger,
+            consumer_buffer=queue,
         )
-        stream._instruments = [bybit_instrument]
 
-        trade = BybitTradeMsg(
+        trade = BybitTrade(
             time_ms=1234567890000,
             symbol="BTCUSDT",
             side="Buy",
@@ -237,13 +187,13 @@ class TestBybitMarketDataStream:
             seq=1,
         )
         payloads = [
-            BybitTradePublicMsg(
+            BybitTradeMsg(
                 topic="publicTrade.BTCUSDT",
                 type="snapshot",
                 ts=1234567890,
                 data=[trade],
             ),
-            BybitTradePublicMsg(
+            BybitTradeMsg(
                 topic="publicTrade.BTCUSDT",
                 type="snapshot",
                 ts=1234567891,
@@ -252,16 +202,12 @@ class TestBybitMarketDataStream:
         ]
         encoded_messages = [msgspec.json.encode(payload) for payload in payloads]
 
-        monkeypatch.setattr(
-            "framework.bybit.stream.market.WsSingle",
-            make_fake_ws_single(encoded_messages),
-        )
-
-        await stream.stream_trades([bybit_instrument])
+        await handler.decode_and_broadcast(1, encoded_messages[0])
+        await handler.decode_and_broadcast(1, encoded_messages[1])
 
         messages = []
-        while not queue.empty():
-            messages.append(queue.get_nowait())
+        while not queue.is_empty():
+            messages.append(queue.consume())
 
         assert len(messages) == 1
         msg = messages[0]

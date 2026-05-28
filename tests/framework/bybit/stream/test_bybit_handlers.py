@@ -6,15 +6,17 @@ Validates typed decoding, partial cache behavior, and deduplication logic.
 
 from __future__ import annotations
 
-import asyncio
+from collections.abc import Awaitable, Callable
 
 import msgspec
 import pytest
 
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
 from framework.base.stream.models import OrderbookMsg, TickerMsg, TradeMsg
@@ -25,6 +27,7 @@ from framework.bybit.stream.handlers import (
     BybitTradesHandler,
 )
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 
 class DummyConnection:
@@ -33,31 +36,55 @@ class DummyConnection:
     def __init__(self) -> None:
         """Initialize the dummy connection."""
         self.sent: list[bytes] = []
-        self._callbacks: list[callable] = []
+        self.connected = False
+        self.url = "wss://example/ws"
+        self._callbacks: list[Callable[[], Awaitable[None]]] = []
 
     async def connect(self) -> None:
-        """No-op connect."""
-        return None
+        """Mark the connection as established."""
+        if self.connected:
+            return
+        self.connected = True
 
     async def disconnect(self) -> None:
-        """No-op disconnect."""
-        return None
+        """Mark the connection as closed."""
+        if not self.connected:
+            return
+        self.connected = False
 
     async def send(self, data: bytes) -> None:
         """Capture outbound payloads.
 
         Args:
             data: Serialized payload bytes.
+
+        Raises:
+            ConnectionError: If the websocket is not connected.
         """
+        if not self.connected:
+            raise ConnectionError("WebSocket is not connected.")
         self.sent.append(data)
 
-    def add_reconnect_callback(self, callback) -> None:
+    def add_reconnect_callback(self, callback: Callable[[], Awaitable[None]]) -> None:
         """Register reconnect callbacks.
 
         Args:
             callback: Callback to invoke on reconnect.
         """
         self._callbacks.append(callback)
+
+    def set_url(self, url: str) -> None:
+        """Update the websocket URL.
+
+        Args:
+            url: New websocket URL.
+
+        Raises:
+            ValueError: If the URL is empty.
+        """
+        if not url:
+            raise ValueError("Invalid url; expected non-empty string.")
+        self.url = url
 
 
 def make_instrument_collection() -> InstrumentCollection:
@@ -68,9 +95,9 @@ def make_instrument_collection() -> InstrumentCollection:
     """
     instrument = Instrument(
         venue=Venue.BYBIT,
-        base="BTC",
-        quote="USDT",
-        symbol="BTCUSDT",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTCUSDT"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
@@ -85,13 +112,13 @@ class TestBybitTickerHandler:
     @pytest.mark.asyncio
     async def test_partial_cache_uses_previous_values(self) -> None:
         """Test delta updates merge with cached values."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         handler = BybitTickerHandler(
             connection=DummyConnection(),
             instrument_collection=make_instrument_collection(),
             venue=Venue.BYBIT,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
 
         snapshot_payload = {
@@ -139,12 +166,18 @@ class TestBybitTickerHandler:
             },
         }
 
-        await handler.decode_and_broadcast(msgspec.json.encode(snapshot_payload))
-        await handler.decode_and_broadcast(msgspec.json.encode(delta_payload))
+        await handler.decode_and_broadcast(
+            1,
+            msgspec.json.encode(snapshot_payload),
+        )
+        await handler.decode_and_broadcast(
+            1,
+            msgspec.json.encode(delta_payload),
+        )
 
         last_msg = None
-        while not queue.empty():
-            last_msg = queue.get_nowait()
+        while not queue.is_empty():
+            last_msg = queue.consume()
         assert isinstance(last_msg, TickerMsg)
         assert last_msg.mark_price == pytest.approx(30000.0)
         assert last_msg.index_price == pytest.approx(29950.0)
@@ -156,21 +189,21 @@ class TestBybitOrderbookHandlers:
     @pytest.mark.asyncio
     async def test_bbo_and_orderbook_flags(self) -> None:
         """Test BBO and orderbook handlers set is_bbo correctly."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         collection = make_instrument_collection()
         bbo_handler = BybitBBOHandler(
             connection=DummyConnection(),
             instrument_collection=collection,
             venue=Venue.BYBIT,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         orderbook_handler = BybitOrderbookHandler(
             connection=DummyConnection(),
             instrument_collection=collection,
             venue=Venue.BYBIT,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         payload = {
             "topic": "orderbook.1.BTCUSDT",
@@ -183,13 +216,19 @@ class TestBybitOrderbookHandlers:
                 "seq": 2,
             },
         }
-        await bbo_handler.decode_and_broadcast(msgspec.json.encode(payload))
-        bbo_msg = queue.get_nowait()
+        await bbo_handler.decode_and_broadcast(
+            1,
+            msgspec.json.encode(payload),
+        )
+        bbo_msg = queue.consume()
         assert isinstance(bbo_msg, OrderbookMsg)
         assert bbo_msg.is_bbo is True
 
-        await orderbook_handler.decode_and_broadcast(msgspec.json.encode(payload))
-        ob_msg = queue.get_nowait()
+        await orderbook_handler.decode_and_broadcast(
+            1,
+            msgspec.json.encode(payload),
+        )
+        ob_msg = queue.consume()
         assert isinstance(ob_msg, OrderbookMsg)
         assert ob_msg.is_bbo is False
 
@@ -200,13 +239,13 @@ class TestBybitTradesHandler:
     @pytest.mark.asyncio
     async def test_deduplicates_by_sequence(self) -> None:
         """Test duplicate trades are ignored."""
-        queue: asyncio.Queue = asyncio.Queue()
+        queue = GenericRingBuffer(16)
         handler = BybitTradesHandler(
             connection=DummyConnection(),
             instrument_collection=make_instrument_collection(),
             venue=Venue.BYBIT,
             logger=Logger(name="test"),
-            consumer_queues=[queue],
+            consumer_buffer=queue,
         )
         payload = {
             "topic": "publicTrade.BTCUSDT",
@@ -225,8 +264,8 @@ class TestBybitTradesHandler:
             ],
         }
         encoded = msgspec.json.encode(payload)
-        await handler.decode_and_broadcast(encoded)
-        await handler.decode_and_broadcast(encoded)
+        await handler.decode_and_broadcast(1, encoded)
+        await handler.decode_and_broadcast(1, encoded)
 
-        received = [queue.get_nowait() for _ in range(queue.qsize())]
+        received = queue.consume_all()
         assert len([msg for msg in received if isinstance(msg, TradeMsg)]) == 1

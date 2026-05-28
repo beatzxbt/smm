@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from framework.base.common import Instrument, InstrumentType, Venue
+from framework.base.common import (
+    Asset,
+    ClientOrderId,
+    Instrument,
+    InstrumentType,
+    OrderId,
+    Symbol,
+    Venue,
+)
 from framework.base.trading.models import (
     AmendOrder,
     CancelAllOrders,
@@ -41,9 +49,9 @@ def make_instrument() -> Instrument:
     """
     return Instrument(
         venue=Venue.BINANCE_USDM,
-        symbol="BTCUSDT",
-        base="BTC",
-        quote="USDT",
+        symbol=Symbol("BTCUSDT"),
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
@@ -80,7 +88,7 @@ class TestBinanceExchangeOrderActions:
             is_maker=True,
             tif=OrderTimeInForce.GTC,
             reduce_only=False,
-            client_order_id="client_1",
+            client_order_id=ClientOrderId("client_1"),
         )
 
         resp = await binance_exchange_mocked.create_order(create_order)
@@ -113,7 +121,7 @@ class TestBinanceExchangeOrderActions:
             instrument=make_instrument(),
             size=2.0,
             price=30100.0,
-            order_id="order_1",
+            order_id=OrderId("order_1"),
         )
 
         resp = await binance_exchange_mocked.amend_order(amend_order)
@@ -143,7 +151,7 @@ class TestBinanceExchangeOrderActions:
 
         cancel_order = CancelOrder(
             instrument=make_instrument(),
-            order_id="order_1",
+            order_id=OrderId("order_1"),
         )
 
         resp = await binance_exchange_mocked.cancel_order(cancel_order)
@@ -173,8 +181,8 @@ class TestBinanceExchangeOrderActions:
         )
 
         assert resp.is_successful
-        assert resp.data.order_ids == ["1"]
-        assert resp.data.client_order_ids == ["client_1"]
+        assert resp.data.order_ids == ("1",)
+        assert resp.data.client_order_ids == ("client_1",)
 
 
 class TestBinanceExchangePublicEndpoints:

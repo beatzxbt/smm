@@ -8,7 +8,7 @@ from typing import Any
 import msgspec
 import pytest
 
-from framework.base.common import Instrument, InstrumentType, Venue
+from framework.base.common import Asset, Instrument, InstrumentType, Symbol, Venue
 from framework.base.trading.models import ClientResponseFailure, ClientResponseSuccess
 
 
@@ -21,9 +21,9 @@ def binance_instrument():
     """
     return Instrument(
         venue=Venue.BINANCE_USDM,
-        symbol="BTCUSDT",
-        base="BTC",
-        quote="USDT",
+        symbol=Symbol("BTCUSDT"),
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,

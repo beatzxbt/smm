@@ -12,9 +12,11 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 import pytest
 
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
 from framework.base.schema import MessageId, Moments
@@ -124,13 +126,14 @@ class PushConnection:
         """
         if not self.connected:
             raise ConnectionError("WebSocket is not connected.")
-        self._queue.insert(data)
+        self._queue.insert((time_ns(), data))
 
-    async def __aiter__(self) -> AsyncIterator[bytes]:
+    async def __aiter__(self) -> AsyncIterator[tuple[int, bytes]]:
         """Yield queued websocket payloads.
 
         Returns:
-            AsyncIterator[bytes]: Iterator over queued payloads.
+            AsyncIterator[tuple[int, bytes]]: Iterator over receive timestamp and
+            queued payload bytes.
         """
         while True:
             data = await self._queue.aconsume()
@@ -207,14 +210,20 @@ class SimpleTickerHandler(TickerStreamHandler):
         """
         return b"unsubscribe"
 
-    async def decode_and_broadcast(self, raw_msg: bytes) -> None:
+    async def decode_and_broadcast(
+        self,
+        recv_time_ns: int,
+        raw_msg: bytes,
+    ) -> None:
         """Broadcast a deterministic ticker message.
 
         Args:
             raw_msg: Raw websocket payload bytes.
+            recv_time_ns: Receive timestamp captured when the websocket payload
+                arrived.
 
         """
-        recv_time_ns = time_ns()
+        del raw_msg
         msg_id = MessageId(recv_time_ns=recv_time_ns)
         msg = TickerMsg(
             id=msg_id,
@@ -274,9 +283,9 @@ class TestMarketStreamManagerLifecycle:
         queue = GenericRingBuffer(16)
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -327,9 +336,9 @@ class TestMarketStreamManagerLifecycle:
         queue = GenericRingBuffer(16)
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=1,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -382,9 +391,9 @@ class TestMarketStreamManagerLazyHandlerLifecycle:
         queue = GenericRingBuffer(16)
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=7,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -449,9 +458,9 @@ class TestMarketStreamManagerLazyHandlerLifecycle:
         queue = GenericRingBuffer(16)
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="ETH",
-            quote="USDT",
-            symbol="ETHUSDT",
+            base=Asset("ETH"),
+            quote=Asset("USDT"),
+            symbol=Symbol("ETHUSDT"),
             code=8,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,
@@ -509,9 +518,9 @@ class TestMessageFlowEndToEnd:
         queue = GenericRingBuffer(16)
         instrument = Instrument(
             venue=Venue.BINANCE_USDM,
-            base="BTC",
-            quote="USDT",
-            symbol="BTCUSDT",
+            base=Asset("BTC"),
+            quote=Asset("USDT"),
+            symbol=Symbol("BTCUSDT"),
             code=0,
             instrument_type=InstrumentType.PERPETUAL,
             tick_size=0.01,

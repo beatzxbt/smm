@@ -11,9 +11,11 @@ import asyncio
 import pytest
 
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
 from framework.okx.stream.handlers import (
@@ -28,6 +30,7 @@ from framework.okx.stream.manager import (
     OkxPrivateStreamManager,
 )
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 
 class FakeOkxHttpClient:
@@ -75,9 +78,9 @@ def make_collection() -> InstrumentCollection:
     """
     instrument = Instrument(
         venue=Venue.OKX,
-        base="BTC",
-        quote="USDT",
-        symbol="BTC-USDT-SWAP",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTC-USDT-SWAP"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
@@ -96,7 +99,7 @@ class TestOkxMarketStreamManager:
             OkxMarketStreamManager.create(
                 exchange=exchange,  # type: ignore[arg-type]
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
         assert isinstance(manager._ticker_handler, OkxTickerHandler)
@@ -115,7 +118,7 @@ class TestOkxMarketStreamManager:
                 OkxMarketStreamManager.create(
                     exchange=WrongExchange(),  # type: ignore[arg-type]
                     logger=Logger(name="test"),
-                    consumer_queues=[asyncio.Queue()],
+                    consumer_buffer=GenericRingBuffer(1),
                 )
             )
 
@@ -126,7 +129,7 @@ class TestOkxMarketStreamManager:
             OkxMarketStreamManager.create(
                 exchange=exchange,  # type: ignore[arg-type]
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
         connections = [
@@ -148,7 +151,7 @@ class TestOkxPrivateStreamManager:
             OkxPrivateStreamManager.create(
                 exchange=exchange,  # type: ignore[arg-type]
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
         assert isinstance(manager._handler, OkxPrivateHandler)
@@ -160,7 +163,7 @@ class TestOkxPrivateStreamManager:
             OkxPrivateStreamManager.create(
                 exchange=exchange,  # type: ignore[arg-type]
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
         handler: OkxPrivateHandler = manager._handler  # type: ignore[assignment]
@@ -179,6 +182,6 @@ class TestOkxPrivateStreamManager:
                 OkxPrivateStreamManager.create(
                     exchange=WrongExchange(),  # type: ignore[arg-type]
                     logger=Logger(name="test"),
-                    consumer_queues=[asyncio.Queue()],
+                    consumer_buffer=GenericRingBuffer(1),
                 )
             )

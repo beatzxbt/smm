@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from framework.base.common import ClientOrderId, OrderId
 from framework.base.trading.models import (
     AmendOrder,
     CancelAllOrders,
@@ -84,7 +85,7 @@ class TestBybitExchangePublic:
 
         resp = await bybit_exchange_mocked.get_instrument_collection()
         assert resp.is_successful
-        assert resp.data.get(bybit_exchange_mocked.venue, "BTCUSDT") is not None
+        assert resp.data.get("BTCUSDT") is not None
 
     @pytest.mark.asyncio
     async def test_get_ticker(
@@ -202,7 +203,7 @@ class TestBybitExchangeOrderActions:
             is_maker=True,
             tif=OrderTimeInForce.PO,
             reduce_only=False,
-            client_order_id="client_1",
+            client_order_id=ClientOrderId("client_1"),
         )
 
         resp = await bybit_exchange_mocked.create_order(create_order)
@@ -242,7 +243,7 @@ class TestBybitExchangeOrderActions:
             instrument=bybit_instrument,
             size=2.0,
             price=30100.0,
-            order_id="order_1",
+            order_id=OrderId("order_1"),
         )
 
         resp = await bybit_exchange_mocked.amend_order(amend_order)
@@ -278,7 +279,7 @@ class TestBybitExchangeOrderActions:
 
         cancel_order = CancelOrder(
             instrument=bybit_instrument,
-            order_id="order_1",
+            order_id=OrderId("order_1"),
         )
 
         resp = await bybit_exchange_mocked.cancel_order(cancel_order)

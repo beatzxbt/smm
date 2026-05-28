@@ -11,9 +11,11 @@ import asyncio
 import pytest
 
 from framework.base.common import (
+    Asset,
     Instrument,
     InstrumentCollection,
     InstrumentType,
+    Symbol,
     Venue,
 )
 from framework.base.stream.models import PrivateDataStreamType
@@ -35,6 +37,7 @@ from framework.binance.stream.models import (
 )
 from framework.binance.trading.exchange import BinanceExchange
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 
 
 class FakeResponse:
@@ -88,9 +91,9 @@ def make_collection() -> InstrumentCollection:
     """
     instrument = Instrument(
         venue=Venue.BINANCE_USDM,
-        base="BTC",
-        quote="USDT",
-        symbol="BTCUSDT",
+        base=Asset("BTC"),
+        quote=Asset("USDT"),
+        symbol=Symbol("BTCUSDT"),
         code=0,
         instrument_type=InstrumentType.PERPETUAL,
         tick_size=0.01,
@@ -109,13 +112,17 @@ class TestBinanceMarketStreamManager:
             BinanceMarketStreamManager.create(
                 exchange=exchange,
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
         assert isinstance(manager._ticker_handler, BinanceTickerHandler)
         assert isinstance(manager._bbo_handler, BinanceBBOHandler)
         assert isinstance(manager._orderbook_handler, BinanceOrderbookHandler)
         assert isinstance(manager._trades_handler, BinanceTradesHandler)
+        assert (
+            manager._bbo_handler._orderbook_seq_id_cache
+            is manager._orderbook_handler._orderbook_seq_id_cache
+        )
 
 
 class TestBinancePrivateStreamManager:
@@ -129,7 +136,7 @@ class TestBinancePrivateStreamManager:
             BinancePrivateStreamManager.create(
                 exchange=exchange,
                 logger=Logger(name="test"),
-                consumer_queues=[asyncio.Queue()],
+                consumer_buffer=GenericRingBuffer(1),
             )
         )
         order_payload = OrderUpdateStreamUpdate(
