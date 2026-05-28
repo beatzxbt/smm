@@ -20,11 +20,7 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.
 
 
 async def run() -> None:
-    """Run the configured trader.
-
-    Returns:
-        None.
-    """
+    """Run the configured trader."""
     logger = Logger(
         name="SMM",
         handlers=[

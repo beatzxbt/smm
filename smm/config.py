@@ -12,7 +12,7 @@ import tomllib
 
 import msgspec
 
-from framework.base.common import Venue
+from framework.base.common import Symbol, Venue
 
 
 class TraderId(StrEnum):
@@ -48,9 +48,9 @@ class CoreConfig(msgspec.Struct):
         trader (TraderId): Trader identifier.
     """
 
-    venue: Venue = Venue.BYBIT
-    symbol: str = "SOLUSDT"
-    trader: TraderId = TraderId.PLAIN
+    venue: Venue
+    symbol: Symbol
+    trader: TraderId
 
     def __post_init__(self) -> None:
         """Validate core configuration."""
@@ -97,12 +97,10 @@ class PricingConfig(msgspec.Struct):
         inventory_spread_ladder (list[tuple[float, float]]): Spread multipliers by utilization.
     """
 
-    levels: int = 5
-    base_spread_bps: float = 15.0
-    max_inventory_quote: float = 500.0
-    inventory_spread_ladder: list[tuple[float, float]] = msgspec.field(
-        default_factory=lambda: [(2.0, 0.5), (3.0, 0.8)]
-    )
+    levels: int
+    base_spread_bps: float
+    max_inventory_quote: float
+    inventory_spread_ladder: list[tuple[float, float]]
 
     def __post_init__(self) -> None:
         """Validate pricing settings."""

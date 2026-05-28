@@ -10,7 +10,7 @@ from typing import Self
 
 import msgspec
 
-from framework.base.common import Instrument
+from framework.base.common import ClientOrderId, Instrument
 
 
 class DesiredOrder(msgspec.Struct):
@@ -22,7 +22,7 @@ class DesiredOrder(msgspec.Struct):
         size (float): Order size in base units.
         is_maker (bool): True for maker orders.
         reduce_only (bool): True to prevent position flips.
-        client_order_id (str | None): Optional client order id.
+        client_order_id (ClientOrderId | None): Optional client order id.
     """
 
     price: float
@@ -30,14 +30,10 @@ class DesiredOrder(msgspec.Struct):
     size: float
     is_maker: bool
     reduce_only: bool
-    client_order_id: str | None = None
+    client_order_id: ClientOrderId | None = None
 
     def __post_init__(self) -> None:
-        """Validate desired order fields.
-
-        Returns:
-            None.
-        """
+        """Validate desired order fields."""
         if self.price <= 0.0 and self.is_maker:
             raise ValueError("price must be > 0 for maker orders")
         if self.size <= 0.0:

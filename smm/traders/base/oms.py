@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 from framework.base.trading.exchange import Exchange
 from framework.base.tools.rate_limiter import RateLimiter
-from framework.base.stream.models import ExecutionMsg, OrderMsg, PositionMsg
+from framework.base.stream.models import DataMsg
 from mm_toolbox.logging.standard import Logger
 
 from smm.config import OmsBudgetConfig, OmsConfig, RateWindow
@@ -110,36 +110,12 @@ class BaseOrderManagementSystem(ABC):
         return self._cancel_limiter.try_acquire(tokens)
 
     @abstractmethod
-    def consume_order(self, msg: OrderMsg) -> None:
-        """Consume an order update message.
+    def consume_msg(self, msg: DataMsg) -> None:
+        """Consume an OMS-relevant stream message.
 
         Args:
-            msg (OrderMsg): Order update message.
+            msg (DataMsg): Stream message consumed by the OMS.
 
-        Returns:
-            None.
-        """
-
-    @abstractmethod
-    def consume_position(self, msg: PositionMsg) -> None:
-        """Consume a position update message.
-
-        Args:
-            msg (PositionMsg): Position update message.
-
-        Returns:
-            None.
-        """
-
-    @abstractmethod
-    def consume_execution(self, msg: ExecutionMsg) -> None:
-        """Consume an execution update message.
-
-        Args:
-            msg (ExecutionMsg): Execution update message.
-
-        Returns:
-            None.
         """
 
     @abstractmethod
@@ -149,14 +125,8 @@ class BaseOrderManagementSystem(ABC):
         Args:
             desired_state (DesiredState): Desired state produced by pricing.
 
-        Returns:
-            None.
         """
 
     @abstractmethod
     async def kill_switch(self) -> None:
-        """Cancel all orders and attempt to flatten positions.
-
-        Returns:
-            None.
-        """
+        """Cancel all orders and attempt to flatten positions."""

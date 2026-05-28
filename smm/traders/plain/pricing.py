@@ -6,8 +6,14 @@ Components: mid-price tracking, volatility spreads, inventory adjustments.
 
 from __future__ import annotations
 
-from framework.base.common import Instrument
-from framework.base.stream.models import OrderbookMsg, PositionMsg, TickerMsg, TradeMsg
+from framework.base.common import ClientOrderId, Instrument
+from framework.base.stream.models import (
+    DataMsg,
+    OrderbookMsg,
+    PositionMsg,
+    TickerMsg,
+    TradeMsg,
+)
 from mm_toolbox.rounding import Rounder
 
 from smm.config import PlainConfig, PricingConfig
@@ -50,53 +56,26 @@ class PlainPricingEngine(BasePricingEngine):
         self._mid_price: float = 0.0
         self._position_size: float = 0.0
 
-    def consume_trade(self, msg: TradeMsg) -> None:
-        """Consume a trade message.
+    def consume_msg(self, msg: DataMsg) -> None:
+        """Consume a pricing-relevant stream message.
 
         Args:
-            msg (TradeMsg): Trade message.
+            msg (DataMsg): Stream message consumed by pricing.
 
-        Returns:
-            None.
         """
-        self._volatility.update_msg(msg)
-
-    def consume_orderbook(self, msg: OrderbookMsg) -> None:
-        """Consume an orderbook message.
-
-        Args:
-            msg (OrderbookMsg): Orderbook message.
-
-        Returns:
-            None.
-        """
-        if not msg.bids or not msg.asks:
-            return
-        best_bid = msg.bids[-1].price
-        best_ask = msg.asks[0].price
-        self._mid_price = (best_bid + best_ask) / 2.0
-
-    def consume_ticker(self, msg: TickerMsg) -> None:
-        """Consume a ticker message.
-
-        Args:
-            msg (TickerMsg): Ticker message.
-
-        Returns:
-            None.
-        """
-        return
-
-    def consume_position(self, msg: PositionMsg) -> None:
-        """Consume a position message.
-
-        Args:
-            msg (PositionMsg): Position message.
-
-        Returns:
-            None.
-        """
-        self._position_size = msg.size if msg.is_long else -msg.size
+        match msg:
+            case TradeMsg():
+                self._volatility.update_msg(msg)
+            case OrderbookMsg():
+                if not msg.bids or not msg.asks:
+                    return
+                best_bid = msg.bids[-1].price
+                best_ask = msg.asks[0].price
+                self._mid_price = (best_bid + best_ask) / 2.0
+            case TickerMsg():
+                return
+            case PositionMsg():
+                self._position_size = msg.size if msg.is_long else -msg.size
 
     def generate_desired_state(self) -> DesiredState:
         """Generate the desired state for plain quoting.
@@ -145,7 +124,9 @@ class PlainPricingEngine(BasePricingEngine):
                         size=bid_size,
                         is_maker=True,
                         reduce_only=False,
-                        client_order_id=f"{self._plain_config.cloid_prefix}{level:02d}B",
+                        client_order_id=ClientOrderId(
+                            f"{self._plain_config.cloid_prefix}{level:02d}B"
+                        ),
                     )
                 )
             if ask_size > 0.0:
@@ -156,7 +137,9 @@ class PlainPricingEngine(BasePricingEngine):
                         size=ask_size,
                         is_maker=True,
                         reduce_only=False,
-                        client_order_id=f"{self._plain_config.cloid_prefix}{level:02d}S",
+                        client_order_id=ClientOrderId(
+                            f"{self._plain_config.cloid_prefix}{level:02d}S"
+                        ),
                     )
                 )
 

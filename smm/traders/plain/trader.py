@@ -37,7 +37,7 @@ class PlainTrader(BaseTrader):
         rounder,
         market_data,
         private_data,
-        producer_queues,
+        producer_buffer,
     ) -> None:
         """Initialize the plain trader.
 
@@ -49,7 +49,7 @@ class PlainTrader(BaseTrader):
             rounder (Rounder): Price/size rounder.
             market_data (MarketDataStream): Market data stream.
             private_data (PrivateDataStream): Private data stream.
-            producer_queues (list[asyncio.Queue[Msg]]): Queues for stream messages.
+            producer_buffer: Ring buffer for stream messages.
         """
         super().__init__(
             config=config,
@@ -59,7 +59,7 @@ class PlainTrader(BaseTrader):
             rounder=rounder,
             market_data=market_data,
             private_data=private_data,
-            producer_queues=producer_queues,
+            producer_buffer=producer_buffer,
         )
 
         self.volatility = VolatilityEstimator(config.volatility)
@@ -84,35 +84,29 @@ class PlainTrader(BaseTrader):
         Args:
             msg (DataMsg): Data message to process.
 
-        Returns:
-            None.
         """
         if self.is_stale(msg, buffer_ms=100):
             return
         match msg:
             case TradeMsg():
-                self.pricing_engine.consume_trade(msg)
+                self.pricing_engine.consume_msg(msg)
             case OrderbookMsg():
-                self.pricing_engine.consume_orderbook(msg)
-                self.risk_engine.consume_orderbook(msg)
+                self.pricing_engine.consume_msg(msg)
+                self.risk_engine.consume_msg(msg)
             case TickerMsg():
-                self.pricing_engine.consume_ticker(msg)
+                self.pricing_engine.consume_msg(msg)
             case PositionMsg():
-                self.pricing_engine.consume_position(msg)
-                self.risk_engine.consume_position(msg)
-                self.oms.consume_position(msg)
+                self.pricing_engine.consume_msg(msg)
+                self.risk_engine.consume_msg(msg)
+                self.oms.consume_msg(msg)
             case OrderMsg():
-                self.oms.consume_order(msg)
-                self.risk_engine.consume_orders(msg)
+                self.oms.consume_msg(msg)
+                self.risk_engine.consume_msg(msg)
             case ExecutionMsg():
-                self.oms.consume_execution(msg)
+                self.oms.consume_msg(msg)
 
     async def update_state(self) -> None:
-        """Generate desired state and update the OMS.
-
-        Returns:
-            None.
-        """
+        """Generate desired state and update the OMS."""
         desired = self.pricing_engine.generate_desired_state()
         if not self.risk_engine.try_approve_desired_state(desired, force=False):
             return

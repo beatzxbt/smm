@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from framework.base.stream.models import OrderMsg, OrderbookMsg, PositionMsg
+from framework.base.stream.models import DataMsg, PositionMsg
 
 from smm.config import RiskConfig
 from smm.traders.base.types import DesiredState
@@ -39,8 +39,6 @@ class BaseRiskEngine(ABC):
         Args:
             mid_price (float): Current mid price.
 
-        Returns:
-            None.
         """
         if mid_price > 0.0:
             self.mid_price = mid_price
@@ -51,8 +49,6 @@ class BaseRiskEngine(ABC):
         Args:
             position (PositionMsg): Latest position message.
 
-        Returns:
-            None.
         """
         signed_size = position.size if position.is_long else -position.size
         self.position_size = signed_size
@@ -68,36 +64,12 @@ class BaseRiskEngine(ABC):
         return self.position_size * self.mid_price
 
     @abstractmethod
-    def consume_orderbook(self, msg: OrderbookMsg) -> None:
-        """Consume an orderbook message.
+    def consume_msg(self, msg: DataMsg) -> None:
+        """Consume a risk-relevant stream message.
 
         Args:
-            msg (OrderbookMsg): Orderbook message from the exchange.
+            msg (DataMsg): Stream message consumed by risk.
 
-        Returns:
-            None.
-        """
-
-    @abstractmethod
-    def consume_orders(self, msg: OrderMsg) -> None:
-        """Consume an order update message.
-
-        Args:
-            msg (OrderMsg): Order message from the exchange.
-
-        Returns:
-            None.
-        """
-
-    @abstractmethod
-    def consume_position(self, msg: PositionMsg) -> None:
-        """Consume a position message.
-
-        Args:
-            msg (PositionMsg): Position message from the exchange.
-
-        Returns:
-            None.
         """
 
     @abstractmethod

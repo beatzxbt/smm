@@ -11,25 +11,25 @@ from abc import ABC, abstractmethod
 from typing import final
 
 from framework.base.common import Instrument, Venue
-from framework.base.stream.market import MarketDataStream
+from framework.base.stream.manager import MarketStreamManager, PrivateStreamManager
 from framework.base.stream.models import (
     ALL_MARKET_DATA_STREAM_TYPES,
     ALL_PRIVATE_DATA_STREAM_TYPES,
     DataMsg,
-    HeartbeatMsg,
-    Msg,
+    DataStreamEvent,
+    DataStreamEventMsg,
 )
-from framework.base.stream.private import PrivateDataStream
-from framework.base.tools.multiq import consume_multiq
 from framework.base.trading.exchange import Exchange
-from framework.base.trading.models import Secret
 from framework.loader import VenueBundle, load_venue_bundle
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.ringbuffer import GenericRingBuffer
 from mm_toolbox.rounding import Rounder, RounderConfig
 from mm_toolbox.time import time_ns, time_s
 
 from smm.config import AppConfig
 from smm.traders.base.oms import BaseOrderManagementSystem
+
+STREAM_MESSAGE_BUFFER_CAPACITY = 2**16  # 16384
 
 
 class BaseTrader(ABC):
@@ -41,9 +41,9 @@ class BaseTrader(ABC):
         exchange (Exchange): Exchange client.
         instrument (Instrument): Resolved instrument.
         rounder (Rounder): Price/size rounder.
-        market_data (MarketDataStream): Market data stream.
-        private_data (PrivateDataStream): Private data stream.
-        producer_queues (list[asyncio.Queue[Msg]]): Stream queues.
+        market_data (MarketStreamManager): Market data stream manager.
+        private_data (PrivateStreamManager): Private data stream manager.
+        producer_buffer (GenericRingBuffer): Stream ring buffer.
         oms (BaseOrderManagementSystem | None): OMS implementation.
     """
 
@@ -54,9 +54,9 @@ class BaseTrader(ABC):
         exchange: Exchange,
         instrument: Instrument,
         rounder: Rounder,
-        market_data: MarketDataStream,
-        private_data: PrivateDataStream,
-        producer_queues: list[asyncio.Queue[Msg]],
+        market_data: MarketStreamManager,
+        private_data: PrivateStreamManager,
+        producer_buffer: GenericRingBuffer,
     ) -> None:
         """Initialize the trader with runtime dependencies.
 
@@ -66,12 +66,10 @@ class BaseTrader(ABC):
             exchange (Exchange): Exchange client.
             instrument (Instrument): Resolved instrument.
             rounder (Rounder): Price/size rounder.
-            market_data (MarketDataStream): Market data stream.
-            private_data (PrivateDataStream): Private data stream.
-            producer_queues (list[asyncio.Queue[Msg]]): Queues for stream messages.
+            market_data (MarketStreamManager): Market data stream manager.
+            private_data (PrivateStreamManager): Private data stream manager.
+            producer_buffer (GenericRingBuffer): Ring buffer for stream messages.
 
-        Returns:
-            None.
         """
         self.config = config
         self.logger = logger
@@ -80,7 +78,7 @@ class BaseTrader(ABC):
         self.rounder = rounder
         self.market_data = market_data
         self.private_data = private_data
-        self.producer_queues = producer_queues
+        self.producer_buffer = producer_buffer
 
         self.oms: BaseOrderManagementSystem | None = None
         self._heartbeat_task: asyncio.Task[None] | None = None
@@ -100,12 +98,12 @@ class BaseTrader(ABC):
         exchange = cls._build_exchange(venue_bundle, config.core.venue, logger)
         instrument = await exchange.resolve_instrument(config.core.symbol)
         rounder = await cls._build_rounder(exchange, instrument)
-        queues = [asyncio.Queue()]
-        market_data = cls._build_market_data(
-            venue_bundle, config.core.venue, logger, queues
+        buffer: GenericRingBuffer = GenericRingBuffer(STREAM_MESSAGE_BUFFER_CAPACITY)
+        market_data = await cls._build_market_data(
+            venue_bundle, config.core.venue, exchange, logger, buffer
         )
-        private_data = cls._build_private_data(
-            venue_bundle, config.core.venue, exchange, logger, queues
+        private_data = await cls._build_private_data(
+            venue_bundle, config.core.venue, exchange, logger, buffer
         )
         return cls(
             config=config,
@@ -115,7 +113,7 @@ class BaseTrader(ABC):
             rounder=rounder,
             market_data=market_data,
             private_data=private_data,
-            producer_queues=queues,
+            producer_buffer=buffer,
         )
 
     @staticmethod
@@ -162,98 +160,89 @@ class BaseTrader(ABC):
         )
 
     @staticmethod
-    def _build_market_data(
+    async def _build_market_data(
         venue_bundle: VenueBundle,
         venue: Venue,
+        exchange: Exchange,
         logger: Logger,
-        queues: list[asyncio.Queue[Msg]],
-    ) -> MarketDataStream:
-        """Build the market data stream for a venue.
+        buffer: GenericRingBuffer,
+    ) -> MarketStreamManager:
+        """Build the market stream manager for a venue.
 
         Args:
             venue_bundle (VenueBundle): Loaded venue bundle for the venue.
             venue (Venue): Venue identifier.
             logger (Logger): Logger instance.
-            queues (list[asyncio.Queue[Msg]]): Producer queues for streaming messages.
+            buffer (GenericRingBuffer): Producer ring buffer for streaming messages.
 
         Returns:
-            MarketDataStream: Market data stream instance.
+            MarketStreamManager: Market stream manager instance.
         """
         if venue in (Venue.BINANCE_USDM, Venue.BINANCE_COINM):
-            return venue_bundle.market_data_stream(
+            return await venue_bundle.market_stream_manager.create(
+                exchange=exchange,
                 logger=logger,
-                consumer_queues=queues,
-                is_usd_margined=venue == Venue.BINANCE_USDM,
+                consumer_buffer=buffer,
             )
         if venue == Venue.BYBIT:
-            return venue_bundle.market_data_stream(
+            return await venue_bundle.market_stream_manager.create(
+                exchange=exchange,
                 logger=logger,
-                consumer_queues=queues,
+                consumer_buffer=buffer,
             )
         raise ValueError(f"Unsupported venue: {venue}")
 
     @staticmethod
-    def _build_private_data(
+    async def _build_private_data(
         venue_bundle: VenueBundle,
         venue: Venue,
         exchange: Exchange,
         logger: Logger,
-        queues: list[asyncio.Queue[Msg]],
-    ) -> PrivateDataStream:
-        """Build the private data stream for a venue.
+        buffer: GenericRingBuffer,
+    ) -> PrivateStreamManager:
+        """Build the private stream manager for a venue.
 
         Args:
             venue_bundle (VenueBundle): Loaded venue bundle for the venue.
             venue (Venue): Venue identifier.
             exchange (Exchange): Exchange client to reuse for streams.
             logger (Logger): Logger instance.
-            queues (list[asyncio.Queue[Msg]]): Producer queues for streaming messages.
+            buffer (GenericRingBuffer): Producer ring buffer for streaming messages.
 
         Returns:
-            PrivateDataStream: Private data stream instance.
+            PrivateStreamManager: Private stream manager instance.
         """
         if venue in (Venue.BINANCE_USDM, Venue.BINANCE_COINM):
-            return venue_bundle.private_data_stream(
-                exchange_client=exchange,
+            return await venue_bundle.private_stream_manager.create(
+                exchange=exchange,
                 logger=logger,
-                consumer_queues=queues,
+                consumer_buffer=buffer,
             )
         if venue == Venue.BYBIT:
-            key = Secret.load("BYBIT_KEY")
-            secret = Secret.load("BYBIT_SECRET")
-            return venue_bundle.private_data_stream(
-                key=key,
-                secret=secret,
+            return await venue_bundle.private_stream_manager.create(
+                exchange=exchange,
                 logger=logger,
-                consumer_queues=queues,
+                consumer_buffer=buffer,
             )
         raise ValueError(f"Unsupported venue: {venue}")
 
     @final
     async def run(self) -> None:
-        """Run the trader event loop and stream tasks.
-
-        Returns:
-            None.
-        """
+        """Run the trader event loop and stream tasks."""
         tasks: list[asyncio.Task[None]] = []
         try:
             await self.exchange.connect_ws_client()
-            tasks = [
-                asyncio.create_task(
-                    self.market_data.run(
-                        instruments=[self.instrument],
-                        stream_types=ALL_MARKET_DATA_STREAM_TYPES,
-                    )
-                ),
-                asyncio.create_task(
-                    self.private_data.run(
-                        instruments=[self.instrument],
-                        stream_types=ALL_PRIVATE_DATA_STREAM_TYPES,
-                    )
-                ),
-                asyncio.create_task(self._consume_loop()),
-            ]
+            await self.market_data.start()
+            await self.private_data.start()
+            await self.market_data.subscribe(
+                instruments=[self.instrument],
+                stream_types=ALL_MARKET_DATA_STREAM_TYPES,
+            )
+            await self.private_data.subscribe(
+                instruments=[self.instrument],
+                stream_types=ALL_PRIVATE_DATA_STREAM_TYPES,
+            )
+            tasks = [asyncio.create_task(self._consume_loop())]
             await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             self.logger.info("Trader cancelled; shutting down.")
@@ -267,42 +256,35 @@ class BaseTrader(ABC):
 
     @final
     async def _consume_loop(self) -> None:
-        """Consume stream messages and update trader state.
-
-        Returns:
-            None.
-        """
-        async for msg in consume_multiq(self.producer_queues):
+        """Consume stream messages and update trader state."""
+        while True:
+            msg = await self.producer_buffer.aconsume()
             match msg:
-                case HeartbeatMsg():
+                case DataStreamEventMsg(event=DataStreamEvent.HEARTBEAT):
                     await self.received_heartbeat(msg)
                 case _:
                     await self.consume_msg(msg)
                     await self.update_state()
 
     @final
-    async def received_heartbeat(self, msg: HeartbeatMsg) -> None:
+    async def received_heartbeat(self, msg: DataStreamEventMsg) -> None:
         """Track a heartbeat message.
 
         Args:
-            msg (HeartbeatMsg): Heartbeat message.
+            msg (DataStreamEventMsg): Heartbeat message.
 
-        Returns:
-            None.
         """
         if self._heartbeat_task is not None:
             self._heartbeat_task.cancel()
         self._heartbeat_task = asyncio.create_task(self._track_heartbeat(msg))
 
     @final
-    async def _track_heartbeat(self, msg: HeartbeatMsg) -> None:
+    async def _track_heartbeat(self, msg: DataStreamEventMsg) -> None:
         """Monitor heartbeat timing to detect stalled streams.
 
         Args:
-            msg (HeartbeatMsg): Heartbeat message to schedule against.
+            msg (DataStreamEventMsg): Heartbeat message to schedule against.
 
-        Returns:
-            None.
         """
         allowed_delay_s = 1.0
         time_next_check_s = msg.time_next_check_ms / 1000.0
@@ -331,17 +313,16 @@ class BaseTrader(ABC):
         return age_ns > buffer_ns
 
     async def shutdown(self) -> None:
-        """Shutdown internal components and close clients.
-
-        Returns:
-            None.
-        """
-        self.market_data.is_running = False
-        self.private_data.is_running = False
+        """Shutdown internal components and close clients."""
+        await asyncio.gather(
+            self.market_data.stop(),
+            self.private_data.stop(),
+            return_exceptions=True,
+        )
         if self.oms is not None:
             await self.oms.kill_switch()
         await self.exchange.close_clients()
-        await self.logger.shutdown()
+        self.logger.shutdown()
 
     @abstractmethod
     async def consume_msg(self, msg: DataMsg) -> None:
@@ -350,14 +331,8 @@ class BaseTrader(ABC):
         Args:
             msg (DataMsg): Data message to process.
 
-        Returns:
-            None.
         """
 
     @abstractmethod
     async def update_state(self) -> None:
-        """Update desired state and send OMS actions.
-
-        Returns:
-            None.
-        """
+        """Update desired state and send OMS actions."""

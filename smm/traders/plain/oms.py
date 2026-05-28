@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import asyncio
 
-from framework.base.common import Instrument
+from framework.base.common import ClientOrderId, Instrument
 from framework.base.stream.models import (
+    DataMsg,
     ExecutionMsg,
     OrderMsg,
-    PositionMsg,
     OrderTimeInForce,
+    PositionMsg,
 )
 from framework.base.trading.models import AmendOrder, CancelOrder, CreateOrder
 from mm_toolbox.logging.standard import Logger
@@ -48,50 +49,32 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
         super().__init__(exchange=exchange, logger=logger, config=config)
         self.instrument = instrument
 
-    def consume_order(self, msg: OrderMsg) -> None:
-        """Consume order updates and track current orders.
+    def consume_msg(self, msg: DataMsg) -> None:
+        """Consume an OMS-relevant stream message.
 
         Args:
-            msg (OrderMsg): Order update message.
+            msg (DataMsg): Stream message consumed by the OMS.
 
-        Returns:
-            None.
         """
-        for order in msg.orders:
-            key = order.client_order_id or order.order_id
-            if order.is_cancelled:
-                self.inflight_orders.pop(key, None)
-                self.current_orders.pop(key, None)
-                continue
+        match msg:
+            case OrderMsg():
+                for order in msg.orders:
+                    key = order.client_order_id or order.order_id
+                    if order.is_cancelled:
+                        self.inflight_orders.pop(key, None)
+                        self.current_orders.pop(key, None)
+                        continue
 
-            self.inflight_orders.pop(key, None)
-            self.current_orders[key] = {
-                "price": order.price,
-                "is_buy": order.is_buy,
-                "size": order.size_remaining,
-            }
-
-    def consume_position(self, msg: PositionMsg) -> None:
-        """Consume position updates.
-
-        Args:
-            msg (PositionMsg): Position update message.
-
-        Returns:
-            None.
-        """
-        return
-
-    def consume_execution(self, msg: ExecutionMsg) -> None:
-        """Consume execution updates.
-
-        Args:
-            msg (ExecutionMsg): Execution update message.
-
-        Returns:
-            None.
-        """
-        return
+                    self.inflight_orders.pop(key, None)
+                    self.current_orders[key] = {
+                        "price": order.price,
+                        "is_buy": order.is_buy,
+                        "size": order.size_remaining,
+                    }
+            case PositionMsg():
+                return
+            case ExecutionMsg():
+                return
 
     async def try_update_state(self, desired_state: DesiredState) -> None:
         """Reconcile live orders against the desired state.
@@ -99,8 +82,6 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
         Args:
             desired_state (DesiredState): Desired state produced by pricing.
 
-        Returns:
-            None.
         """
         tasks: list[asyncio.Task] = []
 
@@ -121,7 +102,8 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
                         asyncio.create_task(
                             self.exchange.cancel_order(
                                 CancelOrder(
-                                    instrument=self.instrument, client_order_id=cloid
+                                    instrument=self.instrument,
+                                    client_order_id=ClientOrderId(str(cloid)),
                                 )
                             )
                         )
@@ -142,7 +124,7 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
                                     instrument=self.instrument,
                                     size=desired_size,
                                     price=desired_price,
-                                    client_order_id=cloid,
+                                    client_order_id=ClientOrderId(str(cloid)),
                                 )
                             )
                         )
@@ -168,7 +150,7 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
                                 tif=OrderTimeInForce.GTC,
                                 reduce_only=False,
                                 price=price,
-                                client_order_id=cloid,
+                                client_order_id=ClientOrderId(str(cloid)),
                             )
                         )
                     )
@@ -183,11 +165,7 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
             await asyncio.gather(*tasks)
 
     async def kill_switch(self) -> None:
-        """Cancel all tracked orders.
-
-        Returns:
-            None.
-        """
+        """Cancel all tracked orders."""
         tasks: list[asyncio.Task] = []
         for cloid in list(self.current_orders.keys()):
             if self.try_acquire_cancel():
@@ -195,7 +173,8 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
                     asyncio.create_task(
                         self.exchange.cancel_order(
                             CancelOrder(
-                                instrument=self.instrument, client_order_id=cloid
+                                instrument=self.instrument,
+                                client_order_id=ClientOrderId(str(cloid)),
                             )
                         )
                     )

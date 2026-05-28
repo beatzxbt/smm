@@ -6,7 +6,7 @@ Components: mid-price tracking and inventory guards.
 
 from __future__ import annotations
 
-from framework.base.stream.models import OrderMsg, OrderbookMsg, PositionMsg
+from framework.base.stream.models import DataMsg, OrderMsg, OrderbookMsg, PositionMsg
 
 from smm.traders.base.risk import BaseRiskEngine
 from smm.traders.base.types import DesiredState
@@ -15,42 +15,24 @@ from smm.traders.base.types import DesiredState
 class PlainRiskEngine(BaseRiskEngine):
     """Risk engine that enforces basic quoting limits."""
 
-    def consume_orderbook(self, msg: OrderbookMsg) -> None:
-        """Consume an orderbook message.
+    def consume_msg(self, msg: DataMsg) -> None:
+        """Consume a risk-relevant stream message.
 
         Args:
-            msg (OrderbookMsg): Orderbook message.
+            msg (DataMsg): Stream message consumed by risk.
 
-        Returns:
-            None.
         """
-        if not msg.bids or not msg.asks:
-            return
-        best_bid = msg.bids[-1].price
-        best_ask = msg.asks[0].price
-        self.update_mid_price((best_bid + best_ask) / 2.0)
-
-    def consume_orders(self, msg: OrderMsg) -> None:
-        """Consume an order update message.
-
-        Args:
-            msg (OrderMsg): Order update message.
-
-        Returns:
-            None.
-        """
-        return
-
-    def consume_position(self, msg: PositionMsg) -> None:
-        """Consume a position update message.
-
-        Args:
-            msg (PositionMsg): Position update message.
-
-        Returns:
-            None.
-        """
-        self.update_position(msg)
+        match msg:
+            case OrderbookMsg():
+                if not msg.bids or not msg.asks:
+                    return
+                best_bid = msg.bids[-1].price
+                best_ask = msg.asks[0].price
+                self.update_mid_price((best_bid + best_ask) / 2.0)
+            case OrderMsg():
+                return
+            case PositionMsg():
+                self.update_position(msg)
 
     def try_approve_desired_state(
         self, desired_state: DesiredState, force: bool = False

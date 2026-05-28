@@ -29,6 +29,23 @@ class VolatilityEstimator:
         self._pending_returns: list[float] = []
         self._ewma_value: float = 0.0
 
+    def _apply_ewma(self, current: float, sample: float, elapsed_s: float) -> float:
+        """Apply a half-life based EWMA update.
+
+        Args:
+            current (float): Current EWMA value.
+            sample (float): New sample value.
+            elapsed_s (float): Seconds since the last update.
+
+        Returns:
+            float: Updated EWMA value.
+        """
+        if elapsed_s <= 0.0:
+            return current
+        decay = math.log(0.5) / self._config.half_life_s
+        alpha = 1.0 - math.exp(decay * elapsed_s)
+        return (1.0 - alpha) * current + alpha * sample
+
     def update_trade(self, trade: Trade) -> None:
         """Update the estimator with a single trade.
 
@@ -63,9 +80,6 @@ class VolatilityEstimator:
 
         Args:
             msg (TradeMsg): Trade message containing one or more trades.
-
-        Returns:
-            None.
         """
         for trade in msg.trades:
             self.update_trade(trade)
@@ -84,29 +98,8 @@ class VolatilityEstimator:
             )
         )
 
-    def _apply_ewma(self, current: float, sample: float, elapsed_s: float) -> float:
-        """Apply a half-life based EWMA update.
-
-        Args:
-            current (float): Current EWMA value.
-            sample (float): New sample value.
-            elapsed_s (float): Seconds since the last update.
-
-        Returns:
-            float: Updated EWMA value.
-        """
-        if elapsed_s <= 0.0:
-            return current
-        decay = math.log(0.5) / self._config.half_life_s
-        alpha = 1.0 - math.exp(decay * elapsed_s)
-        return (1.0 - alpha) * current + alpha * sample
-
     def ensure_fresh(self) -> None:
-        """Push an update tick if no trades arrive for a while.
-
-        Returns:
-            None.
-        """
+        """Push an update tick if no trades arrive for a while."""
         if self._last_update_s is None:
             return
         now_s = time_s()

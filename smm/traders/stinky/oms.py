@@ -9,12 +9,13 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from framework.base.common import Instrument
+from framework.base.common import ClientOrderId, Instrument
 from framework.base.stream.models import (
+    DataMsg,
     ExecutionMsg,
     OrderMsg,
-    PositionMsg,
     OrderTimeInForce,
+    PositionMsg,
 )
 from framework.base.trading.models import AmendOrder, CancelOrder, CreateOrder
 from mm_toolbox.logging.standard import Logger
@@ -71,61 +72,47 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
         self._stinky_config = stinky_config
         self._inventory_positions: list[InventoryPosition] = []
 
-    def consume_order(self, msg: OrderMsg) -> None:
-        """Consume order updates and track current orders.
+    def consume_msg(self, msg: DataMsg) -> None:
+        """Consume an OMS-relevant stream message.
 
         Args:
-            msg (OrderMsg): Order update message.
+            msg (DataMsg): Stream message consumed by the OMS.
 
-        Returns:
-            None.
         """
-        for order in msg.orders:
-            key = order.client_order_id or order.order_id
-            if order.is_cancelled:
-                self.inflight_orders.pop(key, None)
-                self.current_orders.pop(key, None)
-                continue
+        match msg:
+            case OrderMsg():
+                for order in msg.orders:
+                    key = order.client_order_id or order.order_id
+                    if order.is_cancelled:
+                        self.inflight_orders.pop(key, None)
+                        self.current_orders.pop(key, None)
+                        continue
 
-            self.inflight_orders.pop(key, None)
-            self.current_orders[key] = {
-                "price": order.price,
-                "is_buy": order.is_buy,
-                "size": order.size_remaining,
-            }
-
-    def consume_position(self, msg: PositionMsg) -> None:
-        """Consume position updates.
-
-        Args:
-            msg (PositionMsg): Position update message.
-
-        Returns:
-            None.
-        """
-        return
-
-    def consume_execution(self, msg: ExecutionMsg) -> None:
-        """Consume execution updates and track inventory lots.
-
-        Args:
-            msg (ExecutionMsg): Execution update message.
-
-        Returns:
-            None.
-        """
-        for execution in msg.executions:
-            fill_value = execution.price * execution.size
-            is_large = fill_value >= self._stinky_config.large_fill_threshold_quote
-            signed_size = execution.size if execution.is_buy else -execution.size
-            self._inventory_positions.append(
-                InventoryPosition(
-                    size=signed_size,
-                    entry_time_s=execution.exec_time_ms / 1000.0,
-                    is_large=is_large,
-                    remaining_size=abs(signed_size),
-                )
-            )
+                    self.inflight_orders.pop(key, None)
+                    self.current_orders[key] = {
+                        "price": order.price,
+                        "is_buy": order.is_buy,
+                        "size": order.size_remaining,
+                    }
+            case PositionMsg():
+                return
+            case ExecutionMsg():
+                for execution in msg.executions:
+                    fill_value = execution.price * execution.size
+                    is_large = (
+                        fill_value >= self._stinky_config.large_fill_threshold_quote
+                    )
+                    signed_size = (
+                        execution.size if execution.is_buy else -execution.size
+                    )
+                    self._inventory_positions.append(
+                        InventoryPosition(
+                            size=signed_size,
+                            entry_time_s=execution.exec_time_ms / 1000.0,
+                            is_large=is_large,
+                            remaining_size=abs(signed_size),
+                        )
+                    )
 
     async def try_update_state(self, desired_state: DesiredState) -> None:
         """Reconcile live orders and execute liquidations.
@@ -133,8 +120,6 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
         Args:
             desired_state (DesiredState): Desired state produced by pricing.
 
-        Returns:
-            None.
         """
         tasks: list[asyncio.Task] = []
         for order in self._collect_liquidations():
@@ -147,11 +132,7 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
             await asyncio.gather(*tasks)
 
     async def kill_switch(self) -> None:
-        """Cancel all tracked orders.
-
-        Returns:
-            None.
-        """
+        """Cancel all tracked orders."""
         tasks: list[asyncio.Task] = []
         for cloid in list(self.current_orders.keys()):
             if self.try_acquire_cancel():
@@ -159,7 +140,8 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
                     asyncio.create_task(
                         self.exchange.cancel_order(
                             CancelOrder(
-                                instrument=self.instrument, client_order_id=cloid
+                                instrument=self.instrument,
+                                client_order_id=ClientOrderId(str(cloid)),
                             )
                         )
                     )
@@ -204,7 +186,7 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
                     reduce_only=True,
                     price=None,
                     client_order_id=self.exchange.generate_cloid(
-                        start=f"{self._stinky_config.cloid_prefix}L"
+                        prefix=f"{self._stinky_config.cloid_prefix}L"
                     ),
                 )
             )
@@ -240,7 +222,8 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
                         asyncio.create_task(
                             self.exchange.cancel_order(
                                 CancelOrder(
-                                    instrument=self.instrument, client_order_id=cloid
+                                    instrument=self.instrument,
+                                    client_order_id=ClientOrderId(str(cloid)),
                                 )
                             )
                         )
@@ -261,7 +244,7 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
                                     instrument=self.instrument,
                                     size=desired_size,
                                     price=desired_price,
-                                    client_order_id=cloid,
+                                    client_order_id=ClientOrderId(str(cloid)),
                                 )
                             )
                         )
@@ -287,7 +270,7 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
                                 tif=OrderTimeInForce.GTC,
                                 reduce_only=False,
                                 price=price,
-                                client_order_id=cloid,
+                                client_order_id=ClientOrderId(str(cloid)),
                             )
                         )
                     )
