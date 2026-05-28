@@ -12,7 +12,7 @@ from enum import StrEnum
 
 from msgspec import Struct
 
-from framework.base.common import ClientOrderId, Instrument, OrderId, Venue
+from framework.base.common import Asset, ClientOrderId, Instrument, OrderId, Venue
 from framework.base.schema import EnvelopeSchema
 
 
@@ -582,7 +582,7 @@ class Balance(Struct, frozen=True):
         amount: Total balance amount for the currency.
     """
 
-    currency: str
+    currency: Asset
     amount: float
 
 

@@ -34,8 +34,8 @@ class InstrumentType(StrEnum):
     PERPETUAL = "Perpetual"
 
 
-Asset = str
-Symbol = str
+Asset = NewType("Asset", str)
+Symbol = NewType("Symbol", str)
 OrderId = NewType("OrderId", str)
 ClientOrderId = NewType("ClientOrderId", str)
 
@@ -57,11 +57,11 @@ class Instrument(Struct, frozen=True):
         if self.venue != Venue.NULL and self.instrument_type != InstrumentType.NULL:
             if not self.symbol:
                 raise ValueError("symbol must be non-empty for non-NULL instruments")
-            if not self.base or self.base not in self.symbol:
+            if not self.base or self.base not in str(self.symbol):
                 raise ValueError(
                     "base must be present in symbol for non-NULL instruments"
                 )
-            if not self.quote or self.quote not in self.symbol:
+            if not self.quote or self.quote not in str(self.symbol):
                 raise ValueError(
                     "quote must be present in symbol for non-NULL instruments"
                 )
@@ -90,9 +90,9 @@ class Instrument(Struct, frozen=True):
     def empty_with(
         cls,
         venue: Venue = Venue.NULL,
-        base: str = "",
-        quote: str = "",
-        symbol: str = "",
+        base: Asset = Asset(""),
+        quote: Asset = Asset(""),
+        symbol: Symbol = Symbol(""),
         code: int = 0,
         instrument_type: InstrumentType = InstrumentType.NULL,
         tick_size: float = 0.0,
@@ -191,11 +191,11 @@ class InstrumentCollection:
 
     def filter(
         self,
-        bases: Iterable[str] | None = None,
-        quotes: Iterable[str] | None = None,
+        bases: Iterable[Asset] | None = None,
+        quotes: Iterable[Asset] | None = None,
         instrument_types: Iterable[InstrumentType] | None = None,
-        base_blacklist: Iterable[str] | None = None,
-        quote_blacklist: Iterable[str] | None = None,
+        base_blacklist: Iterable[Asset] | None = None,
+        quote_blacklist: Iterable[Asset] | None = None,
     ) -> list[Instrument]:
         """Filters instruments based on provided criteria."""
         base_set = set(bases) if bases else None
