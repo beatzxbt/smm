@@ -56,149 +56,145 @@ def calculate_mid_price(bid: float, ask: float) -> float:
 
 ## Testing
 
-### Philosophy
+Tests should provide confidence in realistic framework behavior, not maximize the
+number of functions, branches, or fields exercised independently.
 
-Tests use **static mock responses** to simulate exchange API behavior. This approach (inspired by [CCXT](https://github.com/ccxt/ccxt)) provides:
+### Scenario-First Testing
 
-- Fast, deterministic test execution
-- No network dependencies or rate limits
-- Ability to test edge cases with crafted responses
-- Reproducible CI builds
+Prefer a small number of substantial behavioral scenarios that exercise the
+largest practical portion of a workflow.
 
-### Directory Structure
+A scenario should begin at a public framework boundary and continue through the
+real components involved in that operation. Mock or simulate only the external
+boundary that the repository does not control, such as an exchange server,
+network transport, clock, or operating system.
 
-Test files mirror the source directory structure:
+For example, a market-feed scenario should normally exercise:
 
-```
-framework/
-├── base/
-│   ├── trading/
-│   │   ├── client.py
-│   │   └── exchange.py
-│   └── stream/
-│       └── market.py
-├── bybit/
-│   └── trading/
-│       └── client.py
-└── binance/
-    └── ...
-
-tests/
-├── conftest.py
-└── framework/
-    ├── base/
-    │   ├── trading/
-    │   │   ├── test_base_client.py
-    │   │   └── test_base_exchange.py
-    │   └── stream/
-    │       └── test_base_stream.py
-    ├── bybit/
-    │   ├── conftest.py
-    │   └── trading/
-    │       └── test_bybit_trading_client.py
-    └── binance/
-        └── ...
+```text
+scripted exchange traffic
+    → WebSocketConnection
+    → stream manager
+    → venue handlers and decoders
+    → normalized models
+    → consumer buffer
 ```
 
-### Mock Responses as Raw Bytes
+A trading scenario should normally exercise:
 
-Mock API responses by capturing the **raw bytes** returned from the exchange. Store these as byte literals or dicts that get encoded, then inject them via dummy session/response classes:
-
-```python
-# Raw bytes captured from actual Bybit API response
-ORDERBOOK_RESPONSE = b'{"retCode":0,"retMsg":"OK","result":{"s":"BTCUSDT","b":[["50000.00","1.5"]],"a":[["50000.50","1.0"]],"ts":1234567890000,"u":12345}}'
-
-# Or as a dict that gets encoded during test
-TICKER_RESPONSE = {
-    "retCode": 0,
-    "retMsg": "OK",
-    "result": {"symbol": "BTCUSDT", "lastPrice": "50000.00"}
-}
-
-
-class DummyResponse:
-    """Mock HTTP response returning raw bytes."""
-
-    def __init__(self, payload: bytes | dict) -> None:
-        self._payload = payload
-
-    async def read(self) -> bytes:
-        if isinstance(self._payload, bytes):
-            return self._payload
-        return msgspec.json.encode(self._payload)
-
-    def raise_for_status(self) -> None:
-        pass
-
-
-class DummySession:
-    """Mock aiohttp session for HTTP client tests."""
-
-    def __init__(self, payload: bytes | dict) -> None:
-        self._payload = payload
-
-    def request(self, **_kwargs):
-        return DummyResponse(self._payload)
+```text
+Exchange operation
+    → venue client and signing
+    → scripted HTTP/WebSocket transport
+    → response decoding
+    → normalized response
 ```
 
-Use in tests:
+Do not replace an internal component with a mock merely because doing so makes
+the test easier to write. Internal mocks can make a test pass while the actual
+components no longer work together.
 
-```python
-class TestBybitHttpClient:
-    """Layer 2: Request/response handling."""
+### Test Realistic Stories
 
-    @pytest.mark.asyncio
-    async def test_fetch_orderbook(self):
-        client = BybitHttpClient(logger=Logger(name="test"), load_secrets=False)
-        client._session = DummySession(ORDERBOOK_RESPONSE)
+Organize tests around user-visible or operational stories rather than source
+files and individual methods.
 
-        result = await client.fetch_orderbook("BTCUSDT")
+Good feed scenarios include:
 
-        assert result.bids[0].price == 50000.00
-```
+- Subscribe, consume sustained traffic, unsubscribe, and shut down cleanly.
+- Process snapshots and deltas while filtering duplicate or stale messages.
+- Lose a connection, reconnect, resubscribe, and resume without corrupting state.
+- Interleave order, execution, position, and account updates on a private stream.
+- Handle control messages and malformed exchange data without losing subsequent
+  valid traffic.
 
-### Layered Test Structure
+Good trading scenarios include:
 
-Tests follow a layered, class-based structure mirroring component dependencies:
+- Synchronize time, authenticate, create, amend, and cancel an order.
+- Fetch market snapshots and normalize them into framework models.
+- Reconcile orders, executions, positions, and account state.
+- Receive an exchange rejection or transport failure and return the correct
+  normalized failure while remaining usable afterward.
 
-**Layer 1 – Primitives**: Test standalone components in isolation (dataclasses, configs, value objects). Each primitive gets its own test class.
+Scenarios may process tens or hundreds of messages when message history,
+deduplication, ordering, reconnects, or accumulated state are relevant. Message
+volume should represent behavior, not serve as an arbitrary stress count.
 
-**Layer 2 – Composites**: Test components that consume primitives. Verify integration and business logic.
+### Simulate the Exchange Boundary
 
-**Layer 3 – Integration**: Exercise realistic usage patterns combining multiple components.
+Tests must remain deterministic and must not depend on live exchange services.
 
-```python
-class TestOrderStruct:
-    """Layer 1: Order dataclass validation."""
+Prefer reusable scripted exchange simulators or captured traffic transcripts.
+The simulator should accept real client requests, record their wire
+representation, and return realistic raw HTTP or WebSocket payloads.
 
-    def test_valid_order(self):
-        ...
+Where practical, use an in-process HTTP/WebSocket server so that connection,
+serialization, signing, routing, decoding, and lifecycle behavior are exercised
+together. A lightweight injected transport is acceptable when using a server
+would obscure the behavior under test.
 
-    def test_invalid_quantity_raises(self):
-        ...
+Captured payloads should preserve the raw shape returned by the exchange.
+Chronological transcripts are preferable to isolated response factories when
+message order matters.
 
+### Assertions
 
-class TestOrderManager:
-    """Layer 2: Order manager using Order structs."""
+Assert externally meaningful outcomes and a few important intermediate
+checkpoints:
 
-    def test_submit_order(self):
-        ...
+- Messages delivered to consumers.
+- Subscription and lifecycle state.
+- Normalized orders, positions, executions, accounts, and market data.
+- Externally transmitted requests or subscription frames.
+- Recovery after failures.
+- Absence of duplicates or stale state.
 
+Avoid assertions against private fields, call counts, or implementation-specific
+method ordering unless those details are themselves part of the required
+contract.
 
-class TestTradingFlow:
-    """Layer 3: Full order lifecycle."""
+A good scenario should continue to pass after internal refactoring that preserves
+observable behavior.
 
-    def test_place_and_cancel(self):
-        ...
-```
+### When Isolated Tests Are Appropriate
 
-### Guidelines
+Use an isolated test only when at least one of these applies:
 
-- Capture real API responses as raw bytes when adding new test cases
-- Test exhaustively: edge cases, boundary values, invalid inputs
-- Skip pointless tests for impossible scenarios
-- Focus on behavior: validation logic, business rules, state transitions
-- Assume the type checker catches type errors; don't test type validation unless runtime checks exist
+- The behavior is a critical invariant that fails at construction time.
+- The logic is algorithmic or has a large input space that scenario tests cannot
+  cover clearly.
+- Exact cryptographic, serialization, timing, or numerical output is required.
+- A rare failure or concurrency condition cannot be reproduced reliably through
+  the public boundary.
+- Testing through the complete workflow would make the failure materially harder
+  to diagnose.
+
+Examples include golden signing vectors, model invariants, time-synchronization
+math, reconnect backoff limits, rate limiting, cache semantics, malformed schema
+rejection, and concurrency races.
+
+Do not add isolated tests solely because a function, property, branch, enum
+value, or response model exists.
+
+### Regression Tests
+
+A bug fix should add the smallest realistic scenario that reproduces the bug at
+the highest useful boundary.
+
+Prefer extending an existing scenario or exchange transcript over creating a new
+test for the specific internal function that happened to contain the defect.
+
+### Test-Suite Maintenance
+
+Tests are production code and carry maintenance cost.
+
+- Prefer extending a coherent scenario over adding another test file.
+- Remove isolated tests whose behavior is already covered by a stronger scenario.
+- Do not pursue line or branch coverage as a goal by itself.
+- Do not test behavior guaranteed entirely by the type checker or a dependency.
+- Keep scenarios deterministic: use bounded waits, controlled clocks, and no
+  arbitrary sleeps.
+- Give scenarios clear checkpoints so failures identify which phase broke.
 
 ## Workflow
 
