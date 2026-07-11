@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from framework.base.common import Symbol, Venue
 from smm.config import (
     AppConfig,
     CoreConfig,
@@ -16,6 +17,7 @@ from smm.config import (
     PricingConfig,
     RiskConfig,
     StinkyConfig,
+    TraderId,
     VolatilityConfig,
 )
 
@@ -27,7 +29,11 @@ def default_core_config() -> CoreConfig:
     Returns:
         CoreConfig: Default core configuration.
     """
-    return CoreConfig()
+    return CoreConfig(
+        venue=Venue.BYBIT,
+        symbol=Symbol("SOLUSDT"),
+        trader=TraderId.PLAIN,
+    )
 
 
 @pytest.fixture
@@ -47,7 +53,12 @@ def default_pricing_config() -> PricingConfig:
     Returns:
         PricingConfig: Default pricing configuration.
     """
-    return PricingConfig()
+    return PricingConfig(
+        levels=5,
+        base_spread_bps=15.0,
+        max_inventory_quote=500.0,
+        inventory_spread_ladder=[(2.0, 0.5), (3.0, 0.8)],
+    )
 
 
 @pytest.fixture
@@ -101,10 +112,16 @@ def default_stinky_config() -> StinkyConfig:
 
 
 @pytest.fixture
-def default_app_config() -> AppConfig:
+def default_app_config(
+    default_core_config: CoreConfig,
+    default_pricing_config: PricingConfig,
+) -> AppConfig:
     """Provide default application configuration for tests.
 
     Returns:
         AppConfig: Default application configuration.
     """
-    return AppConfig()
+    return AppConfig(
+        core=default_core_config,
+        pricing=default_pricing_config,
+    )

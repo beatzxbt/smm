@@ -1,10 +1,10 @@
 # Core settings
 # venue options: "Bybit", "BinanceUsdM", "BinanceCoinM"
-# trader options: "Plain", "Stinky"
+# trader options: "plain", "stinky"
 [core]
 venue = "Bybit"
 symbol = "SOLUSDT"
-trader = "Plain"
+trader = "plain"
 
 # Volatility model (EWMA of trade returns)
 [volatility]

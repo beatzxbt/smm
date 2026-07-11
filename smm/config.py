@@ -254,9 +254,9 @@ class AppConfig(msgspec.Struct):
         stinky (StinkyConfig): Stinky trader overrides.
     """
 
-    core: CoreConfig = msgspec.field(default_factory=CoreConfig)
+    core: CoreConfig
+    pricing: PricingConfig
     volatility: VolatilityConfig = msgspec.field(default_factory=VolatilityConfig)
-    pricing: PricingConfig = msgspec.field(default_factory=PricingConfig)
     risk: RiskConfig = msgspec.field(default_factory=RiskConfig)
     oms: OmsConfig = msgspec.field(default_factory=OmsConfig)
     plain: PlainConfig = msgspec.field(default_factory=PlainConfig)

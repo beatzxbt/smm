@@ -29,6 +29,28 @@ from smm.config import (
 )
 
 
+def make_core_config(
+    *,
+    venue: Venue = Venue.BYBIT,
+    symbol: str = "SOLUSDT",
+    trader: TraderId = TraderId.PLAIN,
+) -> CoreConfig:
+    """Build a core config while allowing one field to vary in a test."""
+    return CoreConfig(venue=venue, symbol=symbol, trader=trader)
+
+
+def make_pricing_config(**overrides: object) -> PricingConfig:
+    """Build a pricing config while allowing selected fields to vary."""
+    values: dict[str, object] = {
+        "levels": 5,
+        "base_spread_bps": 15.0,
+        "max_inventory_quote": 500.0,
+        "inventory_spread_ladder": [(2.0, 0.5), (3.0, 0.8)],
+    }
+    values.update(overrides)
+    return PricingConfig(**values)  # type: ignore[arg-type]
+
+
 class TestTraderId:
     """Layer 1: Tests for TraderId enum."""
 
@@ -80,12 +102,12 @@ class TestCoreConfig:
     def test_empty_symbol_raises(self) -> None:
         """CoreConfig rejects empty symbol."""
         with pytest.raises(ValueError, match="symbol must be non-empty"):
-            CoreConfig(symbol="")
+            make_core_config(symbol="")
 
     def test_whitespace_symbol_raises(self) -> None:
         """CoreConfig rejects whitespace-only symbol."""
         with pytest.raises(ValueError, match="symbol must be non-empty"):
-            CoreConfig(symbol="   ")
+            make_core_config(symbol="   ")
 
 
 class TestVolatilityConfig:
@@ -183,50 +205,50 @@ class TestPricingConfig:
     def test_zero_levels_raises(self) -> None:
         """PricingConfig rejects zero levels."""
         with pytest.raises(ValueError, match="levels must be > 0"):
-            PricingConfig(levels=0)
+            make_pricing_config(levels=0)
 
     def test_negative_base_spread_raises(self) -> None:
         """PricingConfig rejects negative base_spread_bps."""
         with pytest.raises(ValueError, match="base_spread_bps must be >= 0"):
-            PricingConfig(base_spread_bps=-1.0)
+            make_pricing_config(base_spread_bps=-1.0)
 
     def test_zero_max_inventory_raises(self) -> None:
         """PricingConfig rejects zero max_inventory_quote."""
         with pytest.raises(ValueError, match="max_inventory_quote must be > 0"):
-            PricingConfig(max_inventory_quote=0.0)
+            make_pricing_config(max_inventory_quote=0.0)
 
     def test_ladder_entry_wrong_length_raises(self) -> None:
         """PricingConfig rejects ladder entries with wrong length."""
         with pytest.raises(
             ValueError, match="inventory_spread_ladder entries must be length 2"
         ):
-            PricingConfig(inventory_spread_ladder=[(1.5, 0.3, 0.5)])
+            make_pricing_config(inventory_spread_ladder=[(1.5, 0.3, 0.5)])
 
     def test_ladder_zero_multiplier_raises(self) -> None:
         """PricingConfig rejects ladder with zero multiplier."""
         with pytest.raises(ValueError, match="inventory spread multiplier must be > 0"):
-            PricingConfig(inventory_spread_ladder=[(0.0, 0.5)])
+            make_pricing_config(inventory_spread_ladder=[(0.0, 0.5)])
 
     def test_ladder_negative_utilization_raises(self) -> None:
         """PricingConfig rejects ladder with negative utilization."""
         with pytest.raises(ValueError, match="inventory utilization must be within"):
-            PricingConfig(inventory_spread_ladder=[(1.5, -0.1)])
+            make_pricing_config(inventory_spread_ladder=[(1.5, -0.1)])
 
     def test_ladder_utilization_above_one_raises(self) -> None:
         """PricingConfig rejects ladder with utilization > 1."""
         with pytest.raises(ValueError, match="inventory utilization must be within"):
-            PricingConfig(inventory_spread_ladder=[(1.5, 1.1)])
+            make_pricing_config(inventory_spread_ladder=[(1.5, 1.1)])
 
     def test_ladder_sorted_by_utilization(self) -> None:
         """PricingConfig sorts ladder by utilization."""
-        config = PricingConfig(
+        config = make_pricing_config(
             inventory_spread_ladder=[(3.0, 0.9), (1.5, 0.3), (2.0, 0.6)]
         )
         assert config.inventory_spread_ladder == [(1.5, 0.3), (2.0, 0.6), (3.0, 0.9)]
 
     def test_empty_ladder_allowed(self) -> None:
         """PricingConfig allows empty inventory_spread_ladder."""
-        config = PricingConfig(inventory_spread_ladder=[])
+        config = make_pricing_config(inventory_spread_ladder=[])
         assert config.inventory_spread_ladder == []
 
 
@@ -446,8 +468,8 @@ class TestAppConfig:
     def test_custom_nested_configs(self) -> None:
         """AppConfig accepts custom nested configs."""
         config = AppConfig(
-            core=CoreConfig(symbol="ETHUSDT", trader=TraderId.STINKY),
-            pricing=PricingConfig(levels=3),
+            core=make_core_config(symbol="ETHUSDT", trader=TraderId.STINKY),
+            pricing=make_pricing_config(levels=3),
             risk=RiskConfig(max_open_orders=5),
         )
         assert config.core.symbol == "ETHUSDT"
@@ -458,7 +480,8 @@ class TestAppConfig:
     def test_partial_override(self) -> None:
         """AppConfig allows partial overrides, defaulting others."""
         config = AppConfig(
-            core=CoreConfig(symbol="XRPUSDT"),
+            core=make_core_config(symbol="XRPUSDT"),
+            pricing=make_pricing_config(),
         )
         assert config.core.symbol == "XRPUSDT"
         assert config.volatility.half_life_s == 10.0
@@ -472,7 +495,15 @@ class TestLoadConfig:
         """load_config parses minimal TOML with defaults."""
         toml_content = """\
 [core]
+venue = "Bybit"
 symbol = "BTCUSDT"
+trader = "plain"
+
+[pricing]
+levels = 5
+base_spread_bps = 15.0
+max_inventory_quote = 500.0
+inventory_spread_ladder = [[2.0, 0.5], [3.0, 0.8]]
 """
         with tempfile.NamedTemporaryFile(suffix=".toml", delete=False, mode="w") as f:
             f.write(toml_content)
@@ -487,7 +518,7 @@ symbol = "BTCUSDT"
         """load_config parses full TOML with all sections."""
         toml_content = """\
 [core]
-venue = "BinanceUSDM"
+venue = "BinanceUsdM"
 symbol = "ETHUSDT"
 trader = "stinky"
 
@@ -560,7 +591,15 @@ cloid_prefix = "MYSTINKY"
         """load_config accepts Path objects."""
         toml_content = """\
 [core]
+venue = "Bybit"
 symbol = "DOGEUSDT"
+trader = "plain"
+
+[pricing]
+levels = 5
+base_spread_bps = 15.0
+max_inventory_quote = 500.0
+inventory_spread_ladder = [[2.0, 0.5], [3.0, 0.8]]
 """
         with tempfile.NamedTemporaryFile(suffix=".toml", delete=False, mode="w") as f:
             f.write(toml_content)
@@ -568,6 +607,15 @@ symbol = "DOGEUSDT"
             config = load_config(Path(f.name))
 
         assert config.core.symbol == "DOGEUSDT"
+
+    def test_repository_config_loads(self) -> None:
+        """The checked-in runtime configuration matches the typed schema."""
+        config_path = Path(__file__).parents[2] / "smm" / "config.toml"
+
+        config = load_config(config_path)
+
+        assert config.core.venue == Venue.BYBIT
+        assert config.core.trader == TraderId.PLAIN
 
     def test_load_config_file_not_found(self) -> None:
         """load_config raises FileNotFoundError for missing file."""
