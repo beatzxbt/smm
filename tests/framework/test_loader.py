@@ -27,6 +27,13 @@ class TestVenueBundleLoading:
         assert issubclass(bundle.market_stream_manager, MarketStreamManager)
         assert issubclass(bundle.private_stream_manager, PrivateStreamManager)
 
+    def test_load_okx_bundle(self):
+        """Test OKX bundle resolves expected class types."""
+        bundle = load_venue_bundle(Venue.OKX)
+        assert issubclass(bundle.exchange, Exchange)
+        assert issubclass(bundle.market_stream_manager, MarketStreamManager)
+        assert issubclass(bundle.private_stream_manager, PrivateStreamManager)
+
     def test_null_venue_raises_value_error(self):
         """Test NULL venue raises ValueError as invalid input."""
         with pytest.raises(ValueError, match="Venue.NULL is not a valid venue"):

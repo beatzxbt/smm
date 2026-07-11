@@ -1,0 +1,5 @@
+{"kind":"http","method":"GET","path":"/v5/market/time","status":200,"body":{"retCode":0,"result":{"timeMs":"1700000000000"}}}
+{"kind":"ws_response","operation":"auth","body":{"retCode":0,"retMsg":"OK","op":"auth"}}
+{"kind":"ws_response","operation":"order.create","body":{"retCode":0,"retMsg":"OK","result":{"orderId":"order-1","orderLinkId":"client-1"}}}
+{"kind":"ws_response","operation":"order.amend","body":{"retCode":0,"retMsg":"OK","result":{"orderId":"order-1","orderLinkId":"client-1"}}}
+{"kind":"ws_response","operation":"order.cancel","body":{"retCode":0,"retMsg":"OK","result":{"orderId":"order-1","orderLinkId":"client-1"}}}

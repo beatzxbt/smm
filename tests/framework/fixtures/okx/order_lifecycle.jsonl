@@ -1,0 +1,5 @@
+{"kind":"http","method":"GET","path":"/api/v5/public/time","status":200,"body":{"code":"0","msg":"","data":[{"ts":"1700000000000"}]}}
+{"kind":"ws_response","operation":"login","body":{"event":"login","code":"0","msg":""}}
+{"kind":"ws_response","operation":"order","body":{"op":"order","code":"0","msg":"","data":[{"ordId":"order-1","clOrdId":"client-1","sCode":"0","sMsg":""}]}}
+{"kind":"ws_response","operation":"amend-order","body":{"op":"amend-order","code":"0","msg":"","data":[{"ordId":"order-1","clOrdId":"client-1","sCode":"0","sMsg":""}]}}
+{"kind":"ws_response","operation":"cancel-order","body":{"op":"cancel-order","code":"0","msg":"","data":[{"ordId":"order-1","clOrdId":"client-1","sCode":"0","sMsg":""}]}}

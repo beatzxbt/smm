@@ -18,7 +18,7 @@ from mm_toolbox.logging.standard import Logger
 from mm_toolbox.time import time_ns
 from framework.base.stream.models import Trade, Execution
 from framework.base.trading.client import HttpMethod
-from framework.base.trading.exchange import Exchange
+from framework.base.trading.exchange import Exchange, VenueEndpoints
 from framework.base.trading.models import (
     AccountResponse,
     AmendOrder,
@@ -58,10 +58,24 @@ ENDPOINT_GET_ACCOUNT = "/v5/account/wallet-balance"
 ENDPOINT_GET_INSTRUMENTS_INFO = "/v5/market/instruments-info"
 ENDPOINT_POST_CANCEL_ALL = "/v5/order/cancel-all"
 
+BYBIT_ENDPOINTS = VenueEndpoints(
+    http="https://api.bybit.com",
+    trading_ws="wss://stream.bybit.com/v5/private",
+    public_ws="wss://stream.bybit.com/v5/public/linear",
+    private_ws="wss://stream.bybit.com/v5/private",
+    time="https://api.bybit.com/v5/market/time",
+)
+
 
 class BybitExchange(Exchange):
-    def __init__(self, logger: Logger, load_secrets: bool) -> None:
-        time_sync = BybitTimeSync(venue=Venue.BYBIT, logger=logger)
+    def __init__(
+        self,
+        logger: Logger,
+        load_secrets: bool,
+        endpoints: VenueEndpoints | None = None,
+    ) -> None:
+        endpoints = endpoints or BYBIT_ENDPOINTS
+        time_sync = BybitTimeSync(venue=Venue.BYBIT, logger=logger, url=endpoints.time)
         super().__init__(
             venue=Venue.BYBIT,
             logger=logger,
@@ -70,13 +84,16 @@ class BybitExchange(Exchange):
                 logger=logger,
                 time_sync=time_sync,
                 load_secrets=load_secrets,
+                base_url=endpoints.http,
             ),
             ws_client=BybitWsClient(
                 logger=logger,
                 time_sync=time_sync,
                 load_secrets=load_secrets,
+                base_url=endpoints.trading_ws,
             ),
             time_sync=time_sync,
+            endpoints=endpoints,
         )
 
         self._tif_map = EnumMap(

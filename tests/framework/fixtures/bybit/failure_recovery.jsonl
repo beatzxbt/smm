@@ -1,0 +1,2 @@
+{"kind":"http","method":"GET","path":"/v5/market/tickers","status":200,"body":{"retCode":10001,"retMsg":"invalid request","result":{}}}
+{"kind":"http","method":"GET","path":"/v5/market/tickers","status":200,"body":{"retCode":0,"retMsg":"OK","result":{"list":[{"symbol":"BTCUSDT","markPrice":"30000","indexPrice":"29995","fundingRate":"0.0001","nextFundingTime":"1700000000000","openInterest":"1000","volume24h":"50000","price24hPcnt":"0.01"}]}}}

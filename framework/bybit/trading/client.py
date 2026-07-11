@@ -45,6 +45,7 @@ class BybitHttpClient(HttpClient):
         load_secrets: bool = False,
         key: str | None = None,
         secret: str | None = None,
+        base_url: str | None = None,
     ):
         super().__init__(
             venue=Venue.BYBIT,
@@ -53,6 +54,7 @@ class BybitHttpClient(HttpClient):
             time_sync=time_sync,
         )
         self.key, self.secret = _resolve_secrets(self.load_secrets, key, secret)
+        self.base_url = base_url or self.BASE_URL
 
     def sign(self, method: HttpMethod, endpoint: str, body: dict) -> dict:
         """Generate X-BAPI-* headers for signed requests.
@@ -87,7 +89,7 @@ class BybitHttpClient(HttpClient):
         decoder: msgspec.json.Decoder[T],
     ) -> ClientResponse[T]:
         started_ns = time_ns()
-        url = endpoint if endpoint.startswith("http") else self.BASE_URL + endpoint
+        url = endpoint if endpoint.startswith("http") else self.base_url + endpoint
         headers: Optional[dict[str, str]] = None
         json_payload: Optional[str] = None
 
@@ -166,6 +168,7 @@ class BybitWsClient(WsClient):
         load_secrets: bool = False,
         key: str | None = None,
         secret: str | None = None,
+        base_url: str | None = None,
     ):
         super().__init__(
             venue=Venue.BYBIT,
@@ -174,7 +177,7 @@ class BybitWsClient(WsClient):
             time_sync=time_sync,
         )
         self.key, self.secret = _resolve_secrets(self.load_secrets, key, secret)
-        self.base_url = WS_PRIVATE_URL
+        self.base_url = base_url or WS_PRIVATE_URL
 
         self.ws: aiohttp.ClientWebSocketResponse | None = None
         self.is_active = False

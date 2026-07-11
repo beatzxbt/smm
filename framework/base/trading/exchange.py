@@ -7,6 +7,7 @@ Components: connection helpers, instrument caching, and abstract API.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional, final
 
@@ -58,6 +59,21 @@ class AllowedOrderIdChars(IntEnum):
     ALPHANUMERIC = 2
 
 
+@dataclass(frozen=True, slots=True)
+class VenueEndpoints:
+    """Network endpoints used by an exchange adapter.
+
+    Production adapters provide venue defaults. Tests and private deployments may
+    supply an alternate immutable set without patching module globals.
+    """
+
+    http: str
+    trading_ws: str
+    public_ws: str
+    private_ws: str
+    time: str
+
+
 class Exchange(ABC):
     """Base exchange interface with HTTP/WS clients and instrument helpers.
 
@@ -79,6 +95,7 @@ class Exchange(ABC):
         http_client: HttpClient,
         ws_client: WsClient,
         time_sync: TimeSync,
+        endpoints: VenueEndpoints | None = None,
         max_cloid_length: int = 36,
         allowed_cloid_chars: AllowedOrderIdChars = AllowedOrderIdChars.ALPHANUMERIC,
     ) -> None:
@@ -91,6 +108,7 @@ class Exchange(ABC):
             http_client (HttpClient): HTTP client implementation.
             ws_client (WsClient): WebSocket client implementation.
             time_sync (TimeSync): Time sync component for clock-offset tracking.
+            endpoints: Network endpoints used by clients and stream managers.
             max_cloid_length (int): Maximum length for generated order ids.
             allowed_cloid_chars (AllowedOrderIdChars): Character constraints for generated client order ids.
         """
@@ -100,6 +118,7 @@ class Exchange(ABC):
         self.http_client = http_client
         self.ws_client = ws_client
         self.time_sync = time_sync
+        self.endpoints = endpoints or VenueEndpoints("", "", "", "", "")
         self.max_cloid_length = max_cloid_length
         self.allowed_cloid_chars = allowed_cloid_chars
 

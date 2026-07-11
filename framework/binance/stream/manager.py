@@ -55,7 +55,10 @@ class BinanceMarketStreamManager(MarketStreamManager):
             raise ValueError("BinanceMarketStreamManager requires BinanceExchange.")
 
         instrument_collection = await exchange.get_instrument_collection_cached()
-        base_url = BINANCE_PUBLIC_URLS[exchange.venue]
+        endpoints = getattr(exchange, "endpoints", None)
+        base_url = (
+            endpoints.public_ws if endpoints else BINANCE_PUBLIC_URLS[exchange.venue]
+        )
         shared_context = StreamSharedContext()
         ticker_handler = BinanceTickerHandler(
             connection=WebSocketConnection(base_url, logger),
@@ -133,7 +136,11 @@ class BinancePrivateStreamManager(PrivateStreamManager):
                 f"Failed to acquire listen key; {listen_key_resp.err_msg}"
             )
         listen_key = listen_key_resp.data
-        wss_url = f"{BINANCE_PUBLIC_URLS[exchange.venue]}/{listen_key}"
+        endpoints = getattr(exchange, "endpoints", None)
+        private_url = (
+            endpoints.private_ws if endpoints else BINANCE_PUBLIC_URLS[exchange.venue]
+        )
+        wss_url = f"{private_url.rstrip('/')}/{listen_key}"
         shared_context = StreamSharedContext()
 
         handler = BinancePrivateHandler(

@@ -75,18 +75,18 @@ class BybitTickerMsg(Struct, rename="camel", frozen=True):
 
     symbol: str
     tick_direction: str
-    price_24h_pcnt: float
+    price_24h_pcnt: float = field(name="price24hPcnt")
     last_price: float
-    prev_price_24h: float
-    high_price_24h: float
-    low_price_24h: float
-    prev_price_1h: float
+    prev_price_24h: float = field(name="prevPrice24h")
+    high_price_24h: float = field(name="highPrice24h")
+    low_price_24h: float = field(name="lowPrice24h")
+    prev_price_1h: float = field(name="prevPrice1h")
     mark_price: float
     index_price: float
     open_interest: float
     open_interest_value: float
-    turnover_24h: float
-    volume_24h: float
+    turnover_24h: float = field(name="turnover24h")
+    volume_24h: float = field(name="volume24h")
     next_funding_time: int
     funding_rate: float
 

@@ -48,6 +48,7 @@ class OkxHttpClient(HttpClient):
         logger: Logger,
         time_sync: TimeSync,
         load_secrets: bool = False,
+        base_url: str | None = None,
     ):
         """Initialize OKX HTTP client.
 
@@ -70,6 +71,7 @@ class OkxHttpClient(HttpClient):
             self.key = ""
             self.secret = ""
             self.passphrase = ""
+        self.base_url = base_url or self.BASE_URL
 
     def sign(self, method: HttpMethod, endpoint: str, body: dict) -> dict:
         """Generate OK-ACCESS-* headers for signed requests.
@@ -136,7 +138,7 @@ class OkxHttpClient(HttpClient):
             ClientResponse with typed data or error information.
         """
         started_ns = time_ns()
-        url = endpoint if endpoint.startswith("http") else self.BASE_URL + endpoint
+        url = endpoint if endpoint.startswith("http") else self.base_url + endpoint
         headers: Optional[dict[str, str]] = None
         json_payload: Optional[str] = None
 
@@ -216,6 +218,7 @@ class OkxWsClient(WsClient):
         logger: Logger,
         time_sync: TimeSync,
         load_secrets: bool = False,
+        base_url: str | None = None,
     ):
         """Initialize OKX WebSocket client.
 
@@ -238,7 +241,7 @@ class OkxWsClient(WsClient):
             self.key = ""
             self.secret = ""
             self.passphrase = ""
-        self.base_url = WS_PRIVATE_URL
+        self.base_url = base_url or WS_PRIVATE_URL
 
         self.ws: aiohttp.ClientWebSocketResponse | None = None
         self.is_active = False

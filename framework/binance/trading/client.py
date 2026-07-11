@@ -43,6 +43,7 @@ class BinanceHttpClient(HttpClient):
         load_secrets: bool,
         time_sync: TimeSync,
         is_usd_margined: bool = True,
+        base_url: str | None = None,
     ):
         """Initialize the Binance HTTP client."""
         super().__init__(
@@ -57,7 +58,7 @@ class BinanceHttpClient(HttpClient):
         else:
             self.key = ""
             self.secret = ""
-        self.base_url = self.BASE_URLS[self.venue]
+        self.base_url = base_url or self.BASE_URLS[self.venue]
 
     def sign(self, method: HttpMethod, endpoint: str, body: dict) -> dict:
         """Generate authentication signature for Binance API requests."""
@@ -163,6 +164,7 @@ class BinanceWsClient(WsClient):
         is_usd_margined: bool = True,
         key: str | None = None,
         secret: str | None = None,
+        base_url: str | None = None,
     ):
         """Initialize the Binance WebSocket client."""
         super().__init__(
@@ -172,7 +174,7 @@ class BinanceWsClient(WsClient):
             time_sync=time_sync,
         )
         self.key, self.secret = _resolve_secrets(self.load_secrets, key, secret)
-        self.base_url = self.BASE_URLS[self.venue]
+        self.base_url = base_url or self.BASE_URLS[self.venue]
 
         # WebSocket connection state
         self.ws: aiohttp.ClientWebSocketResponse | None = None

@@ -28,7 +28,7 @@ from framework.base.stream.models import (
     Execution,
 )
 from framework.base.trading.client import HttpMethod
-from framework.base.trading.exchange import Exchange
+from framework.base.trading.exchange import Exchange, VenueEndpoints
 from framework.base.trading.models import (
     AccountResponse,
     AmendOrder,
@@ -98,6 +98,7 @@ class BinanceExchange(Exchange):
         logger: Logger,
         load_secrets: bool,
         is_usd_margined: bool,
+        endpoints: VenueEndpoints | None = None,
     ) -> None:
         """Initialize the Binance exchange client.
 
@@ -107,7 +108,16 @@ class BinanceExchange(Exchange):
             is_usd_margined: True for USD-M, False for COIN-M.
         """
         venue = Venue.BINANCE_USDM if is_usd_margined else Venue.BINANCE_COINM
-        time_sync = BinanceTimeSync(venue=venue, logger=logger)
+        default_root = "fapi" if is_usd_margined else "dapi"
+        default_ws = "fstream" if is_usd_margined else "dstream"
+        endpoints = endpoints or VenueEndpoints(
+            http=f"https://{default_root}.binance.com/{default_root}",
+            trading_ws=f"wss://{default_ws}.binance.com/ws",
+            public_ws=f"wss://{default_ws}.binance.com/ws",
+            private_ws=f"wss://{default_ws}.binance.com/ws",
+            time=f"https://{default_root}.binance.com/{default_root}/v1/time",
+        )
+        time_sync = BinanceTimeSync(venue=venue, logger=logger, url=endpoints.time)
         super().__init__(
             venue=venue,
             logger=logger,
@@ -117,14 +127,17 @@ class BinanceExchange(Exchange):
                 load_secrets=load_secrets,
                 time_sync=time_sync,
                 is_usd_margined=is_usd_margined,
+                base_url=endpoints.http,
             ),
             ws_client=BinanceWsClient(
                 logger=logger,
                 time_sync=time_sync,
                 load_secrets=load_secrets,
                 is_usd_margined=is_usd_margined,
+                base_url=endpoints.trading_ws,
             ),
             time_sync=time_sync,
+            endpoints=endpoints,
         )
 
         self._tif_map = EnumMap(

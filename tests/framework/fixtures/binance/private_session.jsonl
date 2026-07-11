@@ -1,0 +1,3 @@
+{"kind":"http","method":"POST","path":"/v1/listenKey","status":200,"body":{"listenKey":"listen-key"}}
+{"kind":"ws_push","name":"order","subscription":"*","body":{"e":"ORDER_TRADE_UPDATE","E":1700000000000,"T":1700000000000,"o":{"s":"BTCUSDT","c":"client-1","S":"BUY","o":"LIMIT","f":"GTC","q":"1.0","p":"30000","ap":"30000","z":"0.1","N":"USDT","t":1,"ps":"BOTH","X":"TRADE","T":1700000000000,"i":1,"L":"30000","l":"0.1","m":true,"n":"0.01","R":false}}}
+{"kind":"ws_push","name":"account","subscription":"*","body":{"e":"ACCOUNT_UPDATE","E":1700000000001,"T":1700000000001,"a":{"B":[{"a":"USDT","wb":"1000.0","cw":"1000.0"}],"P":[{"s":"BTCUSDT","pa":"1.0","ep":"30000","cr":"0.0","up":"10.0","ps":"BOTH"}],"m":"1.0","mm":"0.5","u":"10.0","up":"10.0"}}}

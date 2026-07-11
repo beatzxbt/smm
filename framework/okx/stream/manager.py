@@ -51,30 +51,32 @@ class OkxMarketStreamManager(MarketStreamManager):
             raise ValueError("OkxMarketStreamManager requires OkxExchange.")
 
         instrument_collection = await exchange.get_instrument_collection_cached()
+        endpoints = getattr(exchange, "endpoints", None)
+        public_url = endpoints.public_ws if endpoints else OKX_PUBLIC_URL
 
         ticker_handler = OkxTickerHandler(
-            connection=WebSocketConnection(OKX_PUBLIC_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
             consumer_buffer=consumer_buffer,
         )
         bbo_handler = OkxBBOHandler(
-            connection=WebSocketConnection(OKX_PUBLIC_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
             consumer_buffer=consumer_buffer,
         )
         orderbook_handler = OkxOrderbookHandler(
-            connection=WebSocketConnection(OKX_PUBLIC_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
             consumer_buffer=consumer_buffer,
         )
         trades_handler = OkxTradesHandler(
-            connection=WebSocketConnection(OKX_PUBLIC_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
@@ -117,6 +119,8 @@ class OkxPrivateStreamManager(PrivateStreamManager):
             raise ValueError("OkxPrivateStreamManager requires OkxExchange.")
 
         instrument_collection = await exchange.get_instrument_collection_cached()
+        endpoints = getattr(exchange, "endpoints", None)
+        private_url = endpoints.private_ws if endpoints else OKX_PRIVATE_URL
 
         http_client: OkxHttpClient = exchange.http_client  # type: ignore[assignment]
         api_key = http_client.key
@@ -126,7 +130,7 @@ class OkxPrivateStreamManager(PrivateStreamManager):
         handler = OkxPrivateHandler(
             venue=exchange.venue,
             logger=logger,
-            connection=WebSocketConnection(OKX_PRIVATE_URL, logger),
+            connection=WebSocketConnection(private_url, logger),
             instrument_collection=instrument_collection,
             consumer_buffer=consumer_buffer,
             api_key=api_key,

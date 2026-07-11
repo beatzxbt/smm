@@ -18,14 +18,13 @@ from framework.base.common import (
     InstrumentCollection,
     InstrumentType,
     OrderId,
-    Symbol,
     Venue,
 )
 from framework.base.schema import Moments, MessageId
 from framework.base.stream.models import Execution, Trade
 from framework.base.tools import EnumMap
 from framework.base.trading.client import HttpMethod
-from framework.base.trading.exchange import Exchange
+from framework.base.trading.exchange import Exchange, VenueEndpoints
 from framework.base.trading.models import (
     AccountResponse,
     AmendOrder,
@@ -77,6 +76,14 @@ ENDPOINT_GET_ORDERS = "/api/v5/trade/orders-pending"
 ENDPOINT_GET_FILLS = "/api/v5/trade/fills"
 ENDPOINT_BATCH_CANCEL = "/api/v5/trade/cancel-batch-orders"
 
+OKX_ENDPOINTS = VenueEndpoints(
+    http="https://www.okx.com",
+    trading_ws="wss://ws.okx.com:8443/ws/v5/private",
+    public_ws="wss://ws.okx.com:8443/ws/v5/public",
+    private_ws="wss://ws.okx.com:8443/ws/v5/private",
+    time="https://www.okx.com/api/v5/public/time",
+)
+
 
 class OkxExchange(Exchange):
     """Exchange implementation for OKX V5 API.
@@ -92,14 +99,20 @@ class OkxExchange(Exchange):
         ws_client (OkxWsClient): WebSocket client for trading operations.
     """
 
-    def __init__(self, logger: Logger, load_secrets: bool) -> None:
+    def __init__(
+        self,
+        logger: Logger,
+        load_secrets: bool,
+        endpoints: VenueEndpoints | None = None,
+    ) -> None:
         """Initialize OKX exchange with clients and configuration.
 
         Args:
             logger (Logger): Logger instance for status and error output.
             load_secrets (bool): Whether to load API secrets from environment.
         """
-        time_sync = OkxTimeSync(venue=Venue.OKX, logger=logger)
+        endpoints = endpoints or OKX_ENDPOINTS
+        time_sync = OkxTimeSync(venue=Venue.OKX, logger=logger, url=endpoints.time)
         super().__init__(
             venue=Venue.OKX,
             logger=logger,
@@ -108,13 +121,16 @@ class OkxExchange(Exchange):
                 logger=logger,
                 time_sync=time_sync,
                 load_secrets=load_secrets,
+                base_url=endpoints.http,
             ),
             ws_client=OkxWsClient(
                 logger=logger,
                 time_sync=time_sync,
                 load_secrets=load_secrets,
+                base_url=endpoints.trading_ws,
             ),
             time_sync=time_sync,
+            endpoints=endpoints,
         )
 
         self._tif_map = EnumMap(
@@ -766,7 +782,7 @@ class OkxExchange(Exchange):
                     venue=self.venue,
                     base=Asset(base),
                     quote=Asset(quote),
-                    symbol=Symbol(f"{base}{quote}".upper()),
+                    symbol=item.inst_id,
                     code=0,
                     instrument_type=InstrumentType.PERPETUAL,
                     tick_size=float(item.tick_sz),

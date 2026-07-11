@@ -47,29 +47,31 @@ class BybitMarketStreamManager(MarketStreamManager):
         """
         instrument_collection = await exchange.get_instrument_collection_cached()
         venue = exchange.venue
+        endpoints = getattr(exchange, "endpoints", None)
+        public_url = endpoints.public_ws if endpoints else BYBIT_PUBLIC_STREAM_URL
         ticker_handler = BybitTickerHandler(
-            connection=WebSocketConnection(BYBIT_PUBLIC_STREAM_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
             consumer_buffer=consumer_buffer,
         )
         bbo_handler = BybitBBOHandler(
-            connection=WebSocketConnection(BYBIT_PUBLIC_STREAM_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
             consumer_buffer=consumer_buffer,
         )
         orderbook_handler = BybitOrderbookHandler(
-            connection=WebSocketConnection(BYBIT_PUBLIC_STREAM_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
             consumer_buffer=consumer_buffer,
         )
         trades_handler = BybitTradesHandler(
-            connection=WebSocketConnection(BYBIT_PUBLIC_STREAM_URL, logger),
+            connection=WebSocketConnection(public_url, logger),
             instrument_collection=instrument_collection,
             venue=venue,
             logger=logger,
@@ -110,11 +112,13 @@ class BybitPrivateStreamManager(PrivateStreamManager):
         instrument_collection = await exchange.get_instrument_collection_cached()
         venue = exchange.venue
         key, secret = cls._resolve_credentials(exchange)
+        endpoints = getattr(exchange, "endpoints", None)
+        private_url = endpoints.private_ws if endpoints else BYBIT_PRIVATE_STREAM_URL
 
         handler = BybitPrivateHandler(
             venue=venue,
             logger=logger,
-            connection=WebSocketConnection(BYBIT_PRIVATE_STREAM_URL, logger),
+            connection=WebSocketConnection(private_url, logger),
             instrument_collection=instrument_collection,
             consumer_buffer=consumer_buffer,
             api_key=key,
