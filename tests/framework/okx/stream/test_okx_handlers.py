@@ -127,41 +127,35 @@ def make_collection() -> InstrumentCollection:
 class TestOkxStreamHandlerMixin:
     """Layer 1: Tests for _OkxStreamHandler mixin methods."""
 
-    def test_is_ack_message_subscribe(self) -> None:
-        """Test ACK detection for subscribe events."""
+    def test_handle_control_message_subscribe(self) -> None:
+        """Test subscribe acknowledgements are recognized."""
         handler = ConcreteOkxHandler()
         msg = b'{"event": "subscribe", "arg": {"channel": "tickers"}}'
-        assert handler._is_ack_message(msg) is True
+        payload = handler._handle_control_message(msg, Logger(name="test"))
+        assert payload is not None
+        assert payload["event"] == "subscribe"
 
-    def test_is_ack_message_error(self) -> None:
-        """Test ACK detection for error events."""
+    def test_handle_control_message_error(self) -> None:
+        """Test error acknowledgements are recognized."""
         handler = ConcreteOkxHandler()
         msg = b'{"event": "error", "code": "60001", "msg": "Invalid"}'
-        assert handler._is_ack_message(msg) is True
+        payload = handler._handle_control_message(msg, Logger(name="test"))
+        assert payload is not None
+        assert payload["event"] == "error"
 
-    def test_is_ack_message_login(self) -> None:
-        """Test ACK detection for login events."""
+    def test_handle_control_message_login(self) -> None:
+        """Test login acknowledgements are recognized."""
         handler = ConcreteOkxHandler()
         msg = b'{"event": "login", "code": "0", "msg": ""}'
-        assert handler._is_ack_message(msg) is True
+        payload = handler._handle_control_message(msg, Logger(name="test"))
+        assert payload is not None
+        assert payload["event"] == "login"
 
-    def test_is_ack_message_data_false(self) -> None:
-        """Test ACK detection returns False for data messages."""
+    def test_handle_control_message_ignores_data(self) -> None:
+        """Test data messages are not treated as control acknowledgements."""
         handler = ConcreteOkxHandler()
         msg = b'{"arg": {"channel": "tickers"}, "data": [{}]}'
-        assert handler._is_ack_message(msg) is False
-
-    def test_is_login_response_true(self) -> None:
-        """Test login response detection for login event."""
-        handler = ConcreteOkxHandler()
-        msg = b'{"event": "login", "code": "0", "msg": ""}'
-        assert handler._is_login_response(msg) is True
-
-    def test_is_login_response_false_for_subscribe(self) -> None:
-        """Test login response detection returns False for subscribe."""
-        handler = ConcreteOkxHandler()
-        msg = b'{"event": "subscribe", "arg": {"channel": "tickers"}}'
-        assert handler._is_login_response(msg) is False
+        assert handler._handle_control_message(msg, Logger(name="test")) is None
 
     def test_build_okx_subscribe_args(self) -> None:
         """Test subscription args builder."""

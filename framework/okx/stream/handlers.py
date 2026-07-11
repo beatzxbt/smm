@@ -76,7 +76,7 @@ class _OkxStreamHandler(ABC):
             return None
         code = payload.get("code", "0")
         msg = payload.get("msg", "")
-        if event == "error" or code != "0":
+        if event == "error" or (code != "0" and event != "login"):
             logger.error(
                 f"{self.__class__.__name__}._handle_control_message "
                 f"ACK error; channel={self._channel} event={event} "

@@ -85,6 +85,15 @@ class OkxTickerMsg(Struct, frozen=True):
     """
 
     inst_id: Symbol = field(name="instId")
+    last: str
+    open_24h: str = field(name="open24h")
+    ts: str
+    mark_px: str = field(name="markPx", default="0")
+    idx_px: str = field(name="idxPx", default="0")
+    funding_rate: str = field(name="fundingRate", default="0")
+    next_funding_time: str = field(name="nextFundingTime", default="0")
+    open_interest: str = field(name="openInterest", default="0")
+    vol_24h: str = field(name="vol24h", default="0")
 
     def to_ticker_msg(
         self,
@@ -231,16 +240,30 @@ class OkxOrderbookMsg(Struct, frozen=True):
             instrument=instrument,
             is_snapshot=is_snapshot,
             bids=tuple(
-                OrderbookLevel(
-                    float(level.price), float(level.size), int(level.num_orders)
+                sorted(
+                    (
+                        OrderbookLevel(
+                            float(level.price),
+                            float(level.size),
+                            int(level.num_orders),
+                        )
+                        for level in self.bids
+                    ),
+                    key=lambda level: level.price,
                 )
-                for level in self.bids
             ),
             asks=tuple(
-                OrderbookLevel(
-                    float(level.price), float(level.size), int(level.num_orders)
+                sorted(
+                    (
+                        OrderbookLevel(
+                            float(level.price),
+                            float(level.size),
+                            int(level.num_orders),
+                        )
+                        for level in self.asks
+                    ),
+                    key=lambda level: level.price,
                 )
-                for level in self.asks
             ),
             is_bbo=is_bbo,
         )
