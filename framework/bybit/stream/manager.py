@@ -117,8 +117,8 @@ class BybitPrivateStreamManager(PrivateStreamManager):
             connection=WebSocketConnection(BYBIT_PRIVATE_STREAM_URL, logger),
             instrument_collection=instrument_collection,
             consumer_buffer=consumer_buffer,
-            key=key,
-            secret=secret,
+            api_key=key,
+            api_secret=secret,
         )
 
         return cls(

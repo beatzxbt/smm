@@ -65,7 +65,7 @@ def test_bybit_trade_msg_conversion():
     assert trade.price == 50000.5
     assert trade.is_buy is True
     assert trade.size == 0.1
-    assert trade.value == 5000.05
+    assert trade.notional_size == 5000.05
 
 
 def test_bybit_instrument_to_symbol():

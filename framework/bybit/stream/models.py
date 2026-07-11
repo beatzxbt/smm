@@ -210,8 +210,8 @@ class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
             moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=recv_time_ns),
             instrument=instrument,
             is_snapshot=is_snapshot,
-            bids=tuple(self.bids),
-            asks=tuple(self.asks),
+            bids=tuple(sorted(self.bids, key=lambda level: level.price)),
+            asks=tuple(sorted(self.asks, key=lambda level: level.price)),
             is_bbo=is_bbo,
         )
 
@@ -526,6 +526,9 @@ class BybitPositionMsg(Struct, rename="camel", frozen=True):
         origin_id: MessageId | None = None,
         recv_time_ns: int | None = None,
     ) -> PositionMsg | None:
+        size = abs(float(self.size))
+        if size == 0.0:
+            return None
         if not self.symbol:
             raise ValueError(
                 f"{self.__class__.__name__} data error; empty symbol; raw: {self}"
@@ -552,7 +555,7 @@ class BybitPositionMsg(Struct, rename="camel", frozen=True):
             is_snapshot=is_snapshot,
             price=float(self.entry_price or 0),
             is_long=self.side == "Buy",
-            size=abs(float(self.size)),
+            size=size,
         )
 
 

@@ -1,14 +1,12 @@
 """
 Tests for Bybit stream managers.
 
-Validates manager factories and basic stream type resolution.
+Validates manager factories and handler wiring.
 """
 
 from __future__ import annotations
 
 import asyncio
-
-import msgspec
 
 from framework.base.common import (
     Asset,
@@ -18,10 +16,10 @@ from framework.base.common import (
     Symbol,
     Venue,
 )
-from framework.base.stream.models import PrivateDataStreamType
 from framework.bybit.stream.handlers import (
     BybitBBOHandler,
     BybitOrderbookHandler,
+    BybitPrivateHandler,
     BybitTickerHandler,
     BybitTradesHandler,
 )
@@ -29,7 +27,6 @@ from framework.bybit.stream.manager import (
     BybitMarketStreamManager,
     BybitPrivateStreamManager,
 )
-from framework.bybit.stream.models import BybitPrivateMsg
 from mm_toolbox.logging.standard import Logger
 from mm_toolbox.ringbuffer import GenericRingBuffer
 
@@ -109,10 +106,10 @@ class TestBybitMarketStreamManager:
 
 
 class TestBybitPrivateStreamManager:
-    """Layer 2: Bybit private manager stream resolution."""
+    """Layer 2: Bybit private manager factory behavior."""
 
-    def test_resolves_stream_types(self) -> None:
-        """Test private manager resolves stream types from topics."""
+    def test_create_builds_handler(self) -> None:
+        """Test private manager wires its unified authenticated handler."""
         exchange = FakeBybitExchange(make_collection())
         manager = asyncio.run(
             BybitPrivateStreamManager.create(
@@ -121,8 +118,4 @@ class TestBybitPrivateStreamManager:
                 consumer_buffer=GenericRingBuffer(1),
             )
         )
-        raw_bytes = msgspec.json.encode(
-            {"topic": "order", "type": "UPDATE", "ts": 1, "data": []}
-        )
-        payload = msgspec.json.decode(raw_bytes, type=BybitPrivateMsg)
-        assert manager._resolve_stream_types(payload) == {PrivateDataStreamType.ORDER}
+        assert isinstance(manager._handler, BybitPrivateHandler)
