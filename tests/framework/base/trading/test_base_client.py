@@ -8,10 +8,12 @@ Coverage includes:
 
 from __future__ import annotations
 
+import aiohttp
 import pytest
 
 from framework.base.common import Venue
 from framework.base.trading.client import HttpClient, HttpMethod, WsClient
+from framework.base.trading.time_sync import TimeSync
 from framework.base.trading.models import (
     ClientResponseFailure,
     ClientResponseMeta,
@@ -19,6 +21,16 @@ from framework.base.trading.models import (
     ClientResponseTransport,
 )
 from mm_toolbox.logging.standard import Logger
+
+
+def _dummy_time_sync() -> TimeSync:
+    """Create a no-op TimeSync stub for client tests."""
+
+    class _Dummy(TimeSync):
+        async def fetch_venue_time(self, session: aiohttp.ClientSession) -> int:
+            return 0
+
+    return _Dummy(venue=Venue.BINANCE_USDM, logger=Logger(name="test"))
 
 
 class DummyHttpClient(HttpClient):
@@ -29,7 +41,12 @@ class DummyHttpClient(HttpClient):
     """
 
     def __init__(self, logger: Logger) -> None:
-        super().__init__(venue=Venue.BINANCE_USDM, logger=logger, load_secrets=False)
+        super().__init__(
+            venue=Venue.BINANCE_USDM,
+            logger=logger,
+            load_secrets=False,
+            time_sync=_dummy_time_sync(),
+        )
 
     def sign(self, method: HttpMethod, endpoint: str, body: dict) -> dict:
         """Return empty signature for tests.
@@ -77,7 +94,12 @@ class DummyWsClient(WsClient):
     """
 
     def __init__(self, logger: Logger) -> None:
-        super().__init__(venue=Venue.BINANCE_USDM, logger=logger, load_secrets=False)
+        super().__init__(
+            venue=Venue.BINANCE_USDM,
+            logger=logger,
+            load_secrets=False,
+            time_sync=_dummy_time_sync(),
+        )
 
     async def authenticate(self, ws) -> bool:
         """Return True for authentication in tests.

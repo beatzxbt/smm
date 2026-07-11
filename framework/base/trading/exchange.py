@@ -23,6 +23,7 @@ from framework.base.common import (
     Venue,
 )
 from framework.base.trading.client import HttpClient, WsClient
+from framework.base.trading.time_sync import TimeSync
 from framework.base.trading.models import (
     AccountResponse,
     AmendOrder,
@@ -77,6 +78,7 @@ class Exchange(ABC):
         load_secrets: bool,
         http_client: HttpClient,
         ws_client: WsClient,
+        time_sync: TimeSync,
         max_cloid_length: int = 36,
         allowed_cloid_chars: AllowedOrderIdChars = AllowedOrderIdChars.ALPHANUMERIC,
     ) -> None:
@@ -88,6 +90,7 @@ class Exchange(ABC):
             load_secrets (bool): Whether secrets are loaded for auth calls.
             http_client (HttpClient): HTTP client implementation.
             ws_client (WsClient): WebSocket client implementation.
+            time_sync (TimeSync): Time sync component for clock-offset tracking.
             max_cloid_length (int): Maximum length for generated order ids.
             allowed_cloid_chars (AllowedOrderIdChars): Character constraints for generated client order ids.
         """
@@ -96,6 +99,7 @@ class Exchange(ABC):
         self.load_secrets = load_secrets
         self.http_client = http_client
         self.ws_client = ws_client
+        self.time_sync = time_sync
         self.max_cloid_length = max_cloid_length
         self.allowed_cloid_chars = allowed_cloid_chars
 
@@ -242,12 +246,26 @@ class Exchange(ABC):
         """Connect the WebSocket client if it exists."""
         try:
             if self.ws_client is not None:
+                await self.sync_time()
                 await self.ws_client.connect()
         except Exception as e:
             self.logger.error(
                 f"Failed to connect {self.__class__.__name__}'s WebSocket Client; error: {e}"
             )
             raise e
+
+    @final
+    async def sync_time(self) -> None:
+        """Start periodic clock synchronization with the exchange.
+
+        Fetches server time immediately, then spawns a background task that
+        periodically updates a time-weighted EMA of the clock offset. Signed
+        requests automatically use the synced timestamp thereafter.
+        """
+        await self.time_sync.start(self.unauth_session)
+        self.logger.info(
+            f"Time sync started for {self.venue}; offset={self.time_sync.offset_ms}ms"
+        )
 
     @final
     async def get_instrument_collection_cached(
@@ -310,6 +328,7 @@ class Exchange(ABC):
     @final
     async def close_clients(self) -> None:
         """Close all client connections if they exist."""
+        await self.time_sync.stop()
         if self.ws_client is not None:
             await self.ws_client.close()
         if self.http_client is not None:

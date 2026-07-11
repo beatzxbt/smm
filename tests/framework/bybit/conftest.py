@@ -62,9 +62,11 @@ def bybit_http_client(test_logger):
         BybitHttpClient: HTTP client with test credentials.
     """
     from framework.bybit.trading.client import BybitHttpClient
+    from framework.bybit.trading.time_sync import BybitTimeSync
 
     return BybitHttpClient(
         logger=test_logger,
+        time_sync=BybitTimeSync(venue=Venue.BYBIT, logger=test_logger),
         load_secrets=False,
         key="test_api_key",
         secret="test_api_secret",
@@ -82,9 +84,11 @@ def bybit_ws_client(test_logger):
         BybitWsClient: WebSocket client with test credentials.
     """
     from framework.bybit.trading.client import BybitWsClient
+    from framework.bybit.trading.time_sync import BybitTimeSync
 
     return BybitWsClient(
         logger=test_logger,
+        time_sync=BybitTimeSync(venue=Venue.BYBIT, logger=test_logger),
         load_secrets=False,
         key="test_api_key",
         secret="test_api_secret",

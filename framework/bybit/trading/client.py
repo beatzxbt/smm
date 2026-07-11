@@ -13,6 +13,7 @@ from framework.base.trading.models import (
     ClientResponseTransport,
     Secret,
 )
+from framework.base.trading.time_sync import TimeSync
 from mm_toolbox.logging.standard import Logger
 from mm_toolbox.time import time_ms, time_ns
 
@@ -40,11 +41,17 @@ class BybitHttpClient(HttpClient):
     def __init__(
         self,
         logger: Logger,
+        time_sync: TimeSync,
         load_secrets: bool = False,
         key: str | None = None,
         secret: str | None = None,
     ):
-        super().__init__(venue=Venue.BYBIT, logger=logger, load_secrets=load_secrets)
+        super().__init__(
+            venue=Venue.BYBIT,
+            logger=logger,
+            load_secrets=load_secrets,
+            time_sync=time_sync,
+        )
         self.key, self.secret = _resolve_secrets(self.load_secrets, key, secret)
 
     def sign(self, method: HttpMethod, endpoint: str, body: dict) -> dict:
@@ -53,7 +60,7 @@ class BybitHttpClient(HttpClient):
         Bybit V5 signing: sign = HMAC_SHA256(secret, timestamp + apiKey + recvWindow + body)
         where body is the exact POST body or empty string for GET.
         """
-        timestamp = str(time_ms())
+        timestamp = str(self.time_sync.time_ms)
         recv_window = str(RECV_WINDOW_MS)
         payload = msgspec.json.encode(body).decode() if body else ""
         signature = hmac.new(
@@ -155,11 +162,17 @@ class BybitWsClient(WsClient):
     def __init__(
         self,
         logger: Logger,
+        time_sync: TimeSync,
         load_secrets: bool = False,
         key: str | None = None,
         secret: str | None = None,
     ):
-        super().__init__(venue=Venue.BYBIT, logger=logger, load_secrets=load_secrets)
+        super().__init__(
+            venue=Venue.BYBIT,
+            logger=logger,
+            load_secrets=load_secrets,
+            time_sync=time_sync,
+        )
         self.key, self.secret = _resolve_secrets(self.load_secrets, key, secret)
         self.base_url = WS_PRIVATE_URL
 
@@ -183,7 +196,7 @@ class BybitWsClient(WsClient):
 
     async def authenticate(self, ws: aiohttp.ClientWebSocketResponse) -> bool:
         try:
-            expire = str(int(time_ms() + 60_000))
+            expire = str(int(self.time_sync.time_ms + 60_000))
             signature = hmac.new(
                 key=self.secret.encode("utf-8"),
                 msg=f"GET/realtime{expire}".encode("utf-8"),

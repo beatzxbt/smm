@@ -21,6 +21,7 @@ from framework.base.trading.models import (
     ClientResponseSuccess,
     ClientResponseTransport,
 )
+from framework.base.trading.time_sync import TimeSync
 from mm_toolbox.logging.standard import Logger
 
 
@@ -49,11 +50,14 @@ class HttpMethod(StrEnum):
 class HttpClient(ABC):
     """Base class for HTTP API clients."""
 
-    def __init__(self, venue: Venue, logger: Logger, load_secrets: bool):
+    def __init__(
+        self, venue: Venue, logger: Logger, load_secrets: bool, time_sync: TimeSync
+    ):
         """Initialize the base client."""
         self.venue = venue
         self.logger = logger
         self.load_secrets = load_secrets
+        self.time_sync = time_sync
 
         self._json_encoder = msgspec.json.Encoder()
         self._session: aiohttp.ClientSession | None = None
@@ -194,11 +198,14 @@ class HttpClient(ABC):
 class WsClient(ABC):
     """Base class for WebSocket API clients."""
 
-    def __init__(self, venue: Venue, logger: Logger, load_secrets: bool):
+    def __init__(
+        self, venue: Venue, logger: Logger, load_secrets: bool, time_sync: TimeSync
+    ):
         """Initialize the base client."""
         self.venue = venue
         self.logger = logger
         self.load_secrets = load_secrets
+        self.time_sync = time_sync
 
         self._json_encoder = msgspec.json.Encoder()
         self._session: aiohttp.ClientSession | None = None

@@ -50,6 +50,7 @@ from framework.base.trading.models import (
     is_success,
 )
 from framework.okx.trading.client import OkxHttpClient, OkxWsClient
+from framework.okx.trading.time_sync import OkxTimeSync
 from framework.okx.trading.models import (
     OkxWsOrderResult,
     OkxHttpInstrument,
@@ -98,18 +99,22 @@ class OkxExchange(Exchange):
             logger (Logger): Logger instance for status and error output.
             load_secrets (bool): Whether to load API secrets from environment.
         """
+        time_sync = OkxTimeSync(venue=Venue.OKX, logger=logger)
         super().__init__(
             venue=Venue.OKX,
             logger=logger,
             load_secrets=load_secrets,
             http_client=OkxHttpClient(
                 logger=logger,
+                time_sync=time_sync,
                 load_secrets=load_secrets,
             ),
             ws_client=OkxWsClient(
                 logger=logger,
+                time_sync=time_sync,
                 load_secrets=load_secrets,
             ),
+            time_sync=time_sync,
         )
 
         self._tif_map = EnumMap(

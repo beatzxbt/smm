@@ -15,7 +15,7 @@ from framework.base.common import (
 from framework.base.schema import Moments, MessageId
 from framework.base.tools import EnumMap as EnumMap
 from mm_toolbox.logging.standard import Logger
-from mm_toolbox.time import time_ms, time_ns
+from mm_toolbox.time import time_ns
 from framework.base.stream.models import Trade, Execution
 from framework.base.trading.client import HttpMethod
 from framework.base.trading.exchange import Exchange
@@ -43,6 +43,7 @@ from framework.base.trading.models import (
     is_success,
 )
 from framework.bybit.trading.client import BybitHttpClient, BybitWsClient
+from framework.bybit.trading.time_sync import BybitTimeSync
 
 
 RECV_WINDOW = 5000
@@ -60,18 +61,22 @@ ENDPOINT_POST_CANCEL_ALL = "/v5/order/cancel-all"
 
 class BybitExchange(Exchange):
     def __init__(self, logger: Logger, load_secrets: bool) -> None:
+        time_sync = BybitTimeSync(venue=Venue.BYBIT, logger=logger)
         super().__init__(
             venue=Venue.BYBIT,
             logger=logger,
             load_secrets=load_secrets,
             http_client=BybitHttpClient(
                 logger=logger,
+                time_sync=time_sync,
                 load_secrets=load_secrets,
             ),
             ws_client=BybitWsClient(
                 logger=logger,
+                time_sync=time_sync,
                 load_secrets=load_secrets,
             ),
+            time_sync=time_sync,
         )
 
         self._tif_map = EnumMap(
@@ -128,7 +133,7 @@ class BybitExchange(Exchange):
         payload = {
             "op": "order.create",
             "header": {
-                "X-BAPI-TIMESTAMP": int(time_ms()),
+                "X-BAPI-TIMESTAMP": int(self.time_sync.time_ms),
                 "X-BAPI-RECV-WINDOW": RECV_WINDOW,
             },
             "args": [params],
@@ -180,7 +185,7 @@ class BybitExchange(Exchange):
         payload = {
             "op": "order.amend",
             "header": {
-                "X-BAPI-TIMESTAMP": int(time_ms()),
+                "X-BAPI-TIMESTAMP": int(self.time_sync.time_ms),
                 "X-BAPI-RECV-WINDOW": RECV_WINDOW,
             },
             "args": [params],
@@ -229,7 +234,7 @@ class BybitExchange(Exchange):
         payload = {
             "op": "order.cancel",
             "header": {
-                "X-BAPI-TIMESTAMP": int(time_ms()),
+                "X-BAPI-TIMESTAMP": int(self.time_sync.time_ms),
                 "X-BAPI-RECV-WINDOW": RECV_WINDOW,
             },
             "args": [params],

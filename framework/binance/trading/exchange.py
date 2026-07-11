@@ -50,6 +50,7 @@ from framework.base.trading.models import (
     is_success,
 )
 from framework.binance.trading.client import BinanceHttpClient, BinanceWsClient
+from framework.binance.trading.time_sync import BinanceTimeSync
 from framework.binance.trading.models import (
     BinanceWsOrderResponse,
     BinanceWsCreateOrderResult,
@@ -105,20 +106,25 @@ class BinanceExchange(Exchange):
             load_secrets: Whether to load API secrets.
             is_usd_margined: True for USD-M, False for COIN-M.
         """
+        venue = Venue.BINANCE_USDM if is_usd_margined else Venue.BINANCE_COINM
+        time_sync = BinanceTimeSync(venue=venue, logger=logger)
         super().__init__(
-            venue=Venue.BINANCE_USDM if is_usd_margined else Venue.BINANCE_COINM,
+            venue=venue,
             logger=logger,
             load_secrets=load_secrets,
             http_client=BinanceHttpClient(
                 logger=logger,
                 load_secrets=load_secrets,
+                time_sync=time_sync,
                 is_usd_margined=is_usd_margined,
             ),
             ws_client=BinanceWsClient(
                 logger=logger,
+                time_sync=time_sync,
                 load_secrets=load_secrets,
                 is_usd_margined=is_usd_margined,
             ),
+            time_sync=time_sync,
         )
 
         self._tif_map = EnumMap(

@@ -5,10 +5,14 @@ from __future__ import annotations
 import hmac
 import hashlib
 
+import aiohttp
 import msgspec
 import pytest
 
+from framework.base.common import Venue
+
 from framework.base.trading.client import HttpMethod
+from framework.base.trading.time_sync import TimeSync
 from framework.bybit.trading.client import (
     BybitHttpClient,
     BybitWsClient,
@@ -20,6 +24,16 @@ from framework.base.trading.models import (
     ClientResponseTransport,
 )
 from mm_toolbox.logging.standard import Logger
+
+
+def dummy_time_sync() -> TimeSync:
+    """Create a no-op TimeSync stub for client tests."""
+
+    class _Dummy(TimeSync):
+        async def fetch_venue_time(self, session: aiohttp.ClientSession) -> int:
+            return 0
+
+    return _Dummy(venue=Venue.BYBIT, logger=Logger(name="test"))
 
 
 class DummyResponse:
@@ -102,9 +116,10 @@ class TestBybitHttpClientSign:
         Args:
             monkeypatch: Pytest monkeypatch fixture.
         """
-        monkeypatch.setattr("framework.bybit.trading.client.time_ms", lambda: 1000)
+        monkeypatch.setattr("framework.base.trading.time_sync.time_ms", lambda: 1000)
         client = BybitHttpClient(
             logger=Logger(name="test"),
+            time_sync=dummy_time_sync(),
             load_secrets=False,
             key="key",
             secret="secret",
@@ -129,7 +144,11 @@ class TestBybitHttpClientRequest:
     @pytest.mark.asyncio
     async def test_request_success(self):
         """Test request returns ClientResponseSuccess on retCode 0."""
-        client = BybitHttpClient(logger=Logger(name="test"), load_secrets=False)
+        client = BybitHttpClient(
+            logger=Logger(name="test"),
+            time_sync=dummy_time_sync(),
+            load_secrets=False,
+        )
         client._session = DummySession({"retCode": 0, "result": {"ok": True}})
 
         resp = await client.request(
@@ -149,7 +168,11 @@ class TestBybitHttpClientRequest:
     @pytest.mark.asyncio
     async def test_request_failure_ret_code(self):
         """Test request returns ClientResponseFailure on non-zero retCode."""
-        client = BybitHttpClient(logger=Logger(name="test"), load_secrets=False)
+        client = BybitHttpClient(
+            logger=Logger(name="test"),
+            time_sync=dummy_time_sync(),
+            load_secrets=False,
+        )
         client._session = DummySession({"retCode": 1001, "retMsg": "fail"})
 
         resp = await client.request(
@@ -173,7 +196,11 @@ class TestBybitWsClientSubmit:
     @pytest.mark.asyncio
     async def test_submit_without_connection_fails(self):
         """Test submit returns failure when no active connection exists."""
-        client = BybitWsClient(logger=Logger(name="test"), load_secrets=False)
+        client = BybitWsClient(
+            logger=Logger(name="test"),
+            time_sync=dummy_time_sync(),
+            load_secrets=False,
+        )
         resp = await client.submit(data={}, decoder=msgspec.json.Decoder(dict))
 
         assert isinstance(resp, ClientResponseFailure)

@@ -36,8 +36,8 @@ class OkxWsOrderResult(Struct, frozen=True):
     """
 
     ord_id: str = field(name="ordId")
-    cl_ord_id: str = field(name="clOrdId", default="")
     s_code: str = field(name="sCode")
+    cl_ord_id: str = field(name="clOrdId", default="")
     s_msg: str = field(name="sMsg", default="")
 
 
@@ -357,16 +357,16 @@ class OkxHttpFill(Struct, frozen=True):
 
     inst_id: Symbol = field(name="instId")
     ord_id: str = field(name="ordId")
-    cl_ord_id: str = field(name="clOrdId", default="")
-    trade_id: str = field(name="tradeId", default="")
     fill_px: str = field(name="fillPx")
     fill_sz: str = field(name="fillSz")
     side: str
+    ts: str
+    cl_ord_id: str = field(name="clOrdId", default="")
+    trade_id: str = field(name="tradeId", default="")
     pos_side: str = field(name="posSide", default="net")
     exec_type: str = field(name="execType", default="T")
     fee: str = field(default="0")
     fee_ccy: Asset = field(name="feeCcy", default=Asset(""))
-    ts: str
 
 
 class OkxHttpBatchCancelResult(Struct, frozen=True):
@@ -387,6 +387,6 @@ class OkxHttpBatchCancelResult(Struct, frozen=True):
     """
 
     ord_id: str = field(name="ordId")
-    cl_ord_id: str = field(name="clOrdId", default="")
     s_code: str = field(name="sCode")
+    cl_ord_id: str = field(name="clOrdId", default="")
     s_msg: str = field(name="sMsg", default="")

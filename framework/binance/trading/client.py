@@ -13,6 +13,7 @@ from framework.base.trading.models import (
     ClientResponseTransport,
     Secret,
 )
+from framework.base.trading.time_sync import TimeSync
 from mm_toolbox.logging.standard import Logger
 from mm_toolbox.time import time_ms, time_ns
 
@@ -40,6 +41,7 @@ class BinanceHttpClient(HttpClient):
         self,
         logger: Logger,
         load_secrets: bool,
+        time_sync: TimeSync,
         is_usd_margined: bool = True,
     ):
         """Initialize the Binance HTTP client."""
@@ -47,6 +49,7 @@ class BinanceHttpClient(HttpClient):
             venue=Venue.BINANCE_USDM if is_usd_margined else Venue.BINANCE_COINM,
             logger=logger,
             load_secrets=load_secrets,
+            time_sync=time_sync,
         )
         if self.load_secrets:
             self.key = Secret.load("BINANCE_API_KEY").value
@@ -59,7 +62,7 @@ class BinanceHttpClient(HttpClient):
     def sign(self, method: HttpMethod, endpoint: str, body: dict) -> dict:
         """Generate authentication signature for Binance API requests."""
         params = body.copy()
-        params["timestamp"] = time_ms()
+        params["timestamp"] = self.time_sync.time_ms
         query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
         signature = hmac.new(
             key=self.secret.encode("utf-8"),
@@ -155,6 +158,7 @@ class BinanceWsClient(WsClient):
     def __init__(
         self,
         logger: Logger,
+        time_sync: TimeSync,
         load_secrets: bool = False,
         is_usd_margined: bool = True,
         key: str | None = None,
@@ -165,6 +169,7 @@ class BinanceWsClient(WsClient):
             venue=Venue.BINANCE_USDM if is_usd_margined else Venue.BINANCE_COINM,
             logger=logger,
             load_secrets=load_secrets,
+            time_sync=time_sync,
         )
         self.key, self.secret = _resolve_secrets(self.load_secrets, key, secret)
         self.base_url = self.BASE_URLS[self.venue]
@@ -217,7 +222,7 @@ class BinanceWsClient(WsClient):
         """
         try:
             # Generate authentication parameters
-            timestamp = time_ms()
+            timestamp = self.time_sync.time_ms
             params = {
                 "apiKey": self.key,
                 "timestamp": timestamp,
@@ -453,9 +458,9 @@ class BinanceWsClient(WsClient):
                 err_msg="No active connection",
             )
 
-        # Add request ID and timestamp if not present
+        # Add request ID and use the synchronized exchange timestamp.
         data["id"] = self._generate_request_id()
-        data["timestamp"] = time_ms()
+        data["timestamp"] = self.time_sync.time_ms
 
         req_id = data["id"]
         loop = asyncio.get_running_loop()

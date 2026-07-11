@@ -57,9 +57,11 @@ def binance_http_client(test_logger):
         BinanceHttpClient: HTTP client without loaded secrets.
     """
     from framework.binance.trading.client import BinanceHttpClient
+    from framework.binance.trading.time_sync import BinanceTimeSync
 
     return BinanceHttpClient(
         logger=test_logger,
+        time_sync=BinanceTimeSync(venue=Venue.BINANCE_USDM, logger=test_logger),
         load_secrets=False,
         is_usd_margined=True,
     )
@@ -76,9 +78,11 @@ def binance_ws_client(test_logger):
         BinanceWsClient: WebSocket client with test credentials.
     """
     from framework.binance.trading.client import BinanceWsClient
+    from framework.binance.trading.time_sync import BinanceTimeSync
 
     return BinanceWsClient(
         logger=test_logger,
+        time_sync=BinanceTimeSync(venue=Venue.BINANCE_USDM, logger=test_logger),
         load_secrets=False,
         is_usd_margined=True,
         key="test_api_key",

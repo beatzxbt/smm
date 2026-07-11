@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import pytest
 
+import aiohttp
+
 from framework.base.common import Instrument, InstrumentCollection, Venue
 from framework.base.schema import Moments, MessageId
 from framework.base.trading.client import HttpClient, HttpMethod, WsClient
 from framework.base.trading.exchange import AllowedOrderIdChars, Exchange
+from framework.base.trading.time_sync import TimeSync
 from framework.base.trading.models import (
     AmendOrder,
     AmendOrderResponse,
@@ -30,6 +33,14 @@ from framework.base.trading.models import (
     CreateOrderResponse,
 )
 from mm_toolbox.logging.standard import Logger
+from mm_toolbox.time import time_ms
+
+
+class DummyTimeSync(TimeSync):
+    """TimeSync stub for Exchange tests that only use Exchange utilities."""
+
+    async def fetch_venue_time(self, session: aiohttp.ClientSession) -> int:
+        return time_ms()
 
 
 class DummyHttpClient(HttpClient):
@@ -39,8 +50,13 @@ class DummyHttpClient(HttpClient):
         logger: Logger instance for the client.
     """
 
-    def __init__(self, logger: Logger) -> None:
-        super().__init__(venue=Venue.BINANCE_USDM, logger=logger, load_secrets=False)
+    def __init__(self, logger: Logger, time_sync: TimeSync) -> None:
+        super().__init__(
+            venue=Venue.BINANCE_USDM,
+            logger=logger,
+            load_secrets=False,
+            time_sync=time_sync,
+        )
         self.is_running = True
 
     def sign(self, method: HttpMethod, endpoint: str, body: dict) -> dict:
@@ -88,8 +104,13 @@ class DummyWsClient(WsClient):
         logger: Logger instance for the client.
     """
 
-    def __init__(self, logger: Logger) -> None:
-        super().__init__(venue=Venue.BINANCE_USDM, logger=logger, load_secrets=False)
+    def __init__(self, logger: Logger, time_sync: TimeSync) -> None:
+        super().__init__(
+            venue=Venue.BINANCE_USDM,
+            logger=logger,
+            load_secrets=False,
+            time_sync=time_sync,
+        )
         self.is_running = True
 
     async def authenticate(self, ws) -> bool:
@@ -132,12 +153,14 @@ class DummyExchange(Exchange):
     """
 
     def __init__(self, logger: Logger) -> None:
+        time_sync = DummyTimeSync(venue=Venue.BINANCE_USDM, logger=logger)
         super().__init__(
             venue=Venue.BINANCE_USDM,
             logger=logger,
             load_secrets=False,
-            http_client=DummyHttpClient(logger=logger),
-            ws_client=DummyWsClient(logger=logger),
+            http_client=DummyHttpClient(logger=logger, time_sync=time_sync),
+            ws_client=DummyWsClient(logger=logger, time_sync=time_sync),
+            time_sync=time_sync,
         )
 
     async def get_instrument_collection(self):
@@ -379,6 +402,36 @@ class TestExchangeSessions:
         await exchange.close_clients()
 
         assert exchange._unauthenticated_session is None
+
+    def test_exchange_and_clients_share_time_sync(self, test_logger: Logger) -> None:
+        """Exchange and both clients use the same synchronized clock."""
+        exchange = DummyExchange(logger=test_logger)
+
+        assert exchange.http_client.time_sync is exchange.time_sync
+        assert exchange.ws_client.time_sync is exchange.time_sync
+
+    @pytest.mark.asyncio
+    async def test_connect_syncs_before_websocket_connect(
+        self,
+        test_logger: Logger,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Connecting the trading WebSocket starts an initial time sync first."""
+        exchange = DummyExchange(logger=test_logger)
+        calls: list[str] = []
+
+        async def sync_time() -> None:
+            calls.append("sync")
+
+        async def connect() -> None:
+            calls.append("connect")
+
+        monkeypatch.setattr(exchange, "sync_time", sync_time)
+        monkeypatch.setattr(exchange.ws_client, "connect", connect)
+
+        await exchange.connect_ws_client()
+
+        assert calls == ["sync", "connect"]
 
 
 class TestExchangeCloid:

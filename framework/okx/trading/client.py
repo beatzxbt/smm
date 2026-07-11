@@ -23,6 +23,7 @@ from framework.base.trading.models import (
     ClientResponseTransport,
     Secret,
 )
+from framework.base.trading.time_sync import TimeSync
 from mm_toolbox.logging.standard import Logger
 from mm_toolbox.time import time_ms, time_ns
 
@@ -45,6 +46,7 @@ class OkxHttpClient(HttpClient):
     def __init__(
         self,
         logger: Logger,
+        time_sync: TimeSync,
         load_secrets: bool = False,
     ):
         """Initialize OKX HTTP client.
@@ -52,8 +54,14 @@ class OkxHttpClient(HttpClient):
         Args:
             logger: Logger instance for client events.
             load_secrets: Whether to load credentials from environment.
+            time_sync: Time sync component for synced timestamps.
         """
-        super().__init__(venue=Venue.OKX, logger=logger, load_secrets=load_secrets)
+        super().__init__(
+            venue=Venue.OKX,
+            logger=logger,
+            load_secrets=load_secrets,
+            time_sync=time_sync,
+        )
         if self.load_secrets:
             self.key = Secret.load("OKX_KEY").value
             self.secret = Secret.load("OKX_SECRET").value
@@ -77,8 +85,12 @@ class OkxHttpClient(HttpClient):
         Returns:
             Dict of headers including signature and authentication.
         """
+        ts_s = self.time_sync.time_ms / 1000.0
         timestamp = (
-            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+            datetime.fromtimestamp(ts_s, tz=timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%f"
+            )[:-3]
+            + "Z"
         )
         payload = self._json_encoder.encode(body).decode() if body else ""
 
@@ -202,6 +214,7 @@ class OkxWsClient(WsClient):
     def __init__(
         self,
         logger: Logger,
+        time_sync: TimeSync,
         load_secrets: bool = False,
     ):
         """Initialize OKX WebSocket client.
@@ -209,8 +222,14 @@ class OkxWsClient(WsClient):
         Args:
             logger: Logger instance for client events.
             load_secrets: Whether to load credentials from environment.
+            time_sync: Time sync component for synced timestamps.
         """
-        super().__init__(venue=Venue.OKX, logger=logger, load_secrets=load_secrets)
+        super().__init__(
+            venue=Venue.OKX,
+            logger=logger,
+            load_secrets=load_secrets,
+            time_sync=time_sync,
+        )
         if self.load_secrets:
             self.key = Secret.load("OKX_KEY").value
             self.secret = Secret.load("OKX_SECRET").value
@@ -257,7 +276,7 @@ class OkxWsClient(WsClient):
             True if authentication successful, False otherwise.
         """
         try:
-            timestamp = str(int(time_ms() / 1000))
+            timestamp = str(int(self.time_sync.time_ms / 1000))
             prehash = f"{timestamp}GET/users/self/verify"
             signature = base64.b64encode(
                 hmac.new(
