@@ -100,7 +100,7 @@ class FixedTimeSync(TimeSync):
             Venue.OKX,
             {"data": [{"ts": "1700000000789"}]},
             1_700_000_000_789,
-            "https://www.okx.com/api/v5/public/time",
+            "https://openapi.okx.com/api/v5/public/time",
         ),
     ],
 )

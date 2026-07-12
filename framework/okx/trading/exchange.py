@@ -54,6 +54,10 @@ from framework.okx.trading.models import (
     OkxWsOrderResult,
     OkxHttpInstrument,
     OkxHttpTicker,
+    OkxHttpMarkPrice,
+    OkxHttpIndexTicker,
+    OkxHttpFundingRate,
+    OkxHttpOpenInterest,
     OkxHttpOrderbook,
     OkxHttpOrderbookLevel,
     OkxHttpTrade,
@@ -68,6 +72,10 @@ from mm_toolbox.time import time_ns
 
 ENDPOINT_GET_INSTRUMENTS = "/api/v5/public/instruments"
 ENDPOINT_GET_TICKER = "/api/v5/market/ticker"
+ENDPOINT_GET_MARK_PRICE = "/api/v5/public/mark-price"
+ENDPOINT_GET_INDEX_TICKER = "/api/v5/market/index-tickers"
+ENDPOINT_GET_FUNDING_RATE = "/api/v5/public/funding-rate"
+ENDPOINT_GET_OPEN_INTEREST = "/api/v5/public/open-interest"
 ENDPOINT_GET_ORDERBOOK = "/api/v5/market/books"
 ENDPOINT_GET_TRADES = "/api/v5/market/trades"
 ENDPOINT_GET_ACCOUNT = "/api/v5/account/balance"
@@ -77,11 +85,11 @@ ENDPOINT_GET_FILLS = "/api/v5/trade/fills"
 ENDPOINT_BATCH_CANCEL = "/api/v5/trade/cancel-batch-orders"
 
 OKX_ENDPOINTS = VenueEndpoints(
-    http="https://www.okx.com",
+    http="https://openapi.okx.com",
     trading_ws="wss://ws.okx.com:8443/ws/v5/private",
     public_ws="wss://ws.okx.com:8443/ws/v5/public",
     private_ws="wss://ws.okx.com:8443/ws/v5/private",
-    time="https://www.okx.com/api/v5/public/time",
+    time="https://openapi.okx.com/api/v5/public/time",
 )
 
 
@@ -196,7 +204,7 @@ class OkxExchange(Exchange):
             ord_type = "market"
 
         params: dict[str, str | int | float] = {
-            "instId": self.instrument_to_symbol(create_order.instrument),
+            "instIdCode": create_order.instrument.code,
             "tdMode": "cross",
             "side": "buy" if create_order.is_buy else "sell",
             "ordType": ord_type,
@@ -263,8 +271,8 @@ class OkxExchange(Exchange):
         self.ensure_secrets_loaded()
         self.ensure_running(ws_only=True)
 
-        params: dict[str, str] = {
-            "instId": self.instrument_to_symbol(amend_order.instrument),
+        params: dict[str, str | int] = {
+            "instIdCode": amend_order.instrument.code,
         }
 
         if amend_order.order_id:
@@ -329,8 +337,8 @@ class OkxExchange(Exchange):
         self.ensure_secrets_loaded()
         self.ensure_running(ws_only=True)
 
-        params: dict[str, str] = {
-            "instId": self.instrument_to_symbol(cancel_order.instrument),
+        params: dict[str, str | int] = {
+            "instIdCode": cancel_order.instrument.code,
         }
 
         if cancel_order.order_id:
@@ -667,26 +675,55 @@ class OkxExchange(Exchange):
         started_ns = time_ns()
 
         async def fetch_ticker(instrument: Instrument) -> TickerResponse:
-            params = {
-                "instId": self.instrument_to_symbol(instrument),
-            }
-            decoder = msgspec.json.Decoder(list[OkxHttpTicker])
-            response = await self.http_client.request(
-                method=HttpMethod.GET,
-                endpoint=ENDPOINT_GET_TICKER,
-                params=params,
-                data={},
-                sign=False,
-                decoder=decoder,
+            inst_id = self.instrument_to_symbol(instrument)
+            index_id = f"{instrument.base}-{instrument.quote}"
+
+            async def request[T](
+                endpoint: str,
+                params: dict,
+                decoder: msgspec.json.Decoder[list[T]],
+            ) -> T:
+                response = await self.http_client.request(
+                    method=HttpMethod.GET,
+                    endpoint=endpoint,
+                    params=params,
+                    data={},
+                    sign=False,
+                    decoder=decoder,
+                )
+                if not is_success(response):
+                    raise RuntimeError(f"{endpoint}: {response.err_msg}")
+                if not response.data:
+                    raise RuntimeError(f"{endpoint}: empty response")
+                return response.data[0]
+
+            item, mark, index, funding, interest = await asyncio.gather(
+                request(
+                    ENDPOINT_GET_TICKER,
+                    {"instId": inst_id},
+                    msgspec.json.Decoder(list[OkxHttpTicker]),
+                ),
+                request(
+                    ENDPOINT_GET_MARK_PRICE,
+                    {"instType": "SWAP", "instId": inst_id},
+                    msgspec.json.Decoder(list[OkxHttpMarkPrice]),
+                ),
+                request(
+                    ENDPOINT_GET_INDEX_TICKER,
+                    {"instId": index_id},
+                    msgspec.json.Decoder(list[OkxHttpIndexTicker]),
+                ),
+                request(
+                    ENDPOINT_GET_FUNDING_RATE,
+                    {"instId": inst_id},
+                    msgspec.json.Decoder(list[OkxHttpFundingRate]),
+                ),
+                request(
+                    ENDPOINT_GET_OPEN_INTEREST,
+                    {"instType": "SWAP", "instId": inst_id},
+                    msgspec.json.Decoder(list[OkxHttpOpenInterest]),
+                ),
             )
-            if not is_success(response):
-                raise RuntimeError(response.err_msg)
-
-            items = cast(list[OkxHttpTicker], response.data)
-            if not items:
-                raise RuntimeError("Empty ticker response")
-
-            item = items[0]
             moments = Moments()
             response_id = MessageId(recv_time_ns=moments.recv_time_ns)
             return TickerResponse(
@@ -694,13 +731,13 @@ class OkxExchange(Exchange):
                 origin_id=response_id,
                 moments=moments,
                 instrument=instrument,
-                mark_price=float(item.mark_px),
-                index_price=float(item.idx_px),
-                funding_rate=float(item.funding_rate),
-                next_funding_time_ms=int(item.next_funding_time),
-                open_interest=float(item.open_interest) if item.open_interest else 0.0,
+                mark_price=float(mark.mark_px),
+                index_price=float(index.idx_px),
+                funding_rate=float(funding.funding_rate),
+                next_funding_time_ms=int(funding.next_funding_time),
+                open_interest=float(interest.open_interest),
                 avg_volume_24h=float(item.vol_24h) if item.vol_24h else 0.0,
-                price_chg_24h=0.0,  # OKX doesn't provide 24h % change in ticker endpoint
+                price_chg_24h=float(item.last) - float(item.open_24h),
             )
 
         try:
@@ -783,7 +820,7 @@ class OkxExchange(Exchange):
                     base=Asset(base),
                     quote=Asset(quote),
                     symbol=item.inst_id,
-                    code=0,
+                    code=item.inst_id_code,
                     instrument_type=InstrumentType.PERPETUAL,
                     tick_size=float(item.tick_sz),
                     lot_size=float(item.lot_sz),

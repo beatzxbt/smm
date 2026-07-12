@@ -76,6 +76,7 @@ class OkxHttpInstrument(Struct, frozen=True):
     inst_type: str = field(name="instType")
     tick_sz: str = field(name="tickSz")
     lot_sz: str = field(name="lotSz")
+    inst_id_code: int = field(name="instIdCode", default=0)
     ct_val: str = field(name="ctVal", default="")
     ct_mult: str = field(name="ctMult", default="")
     ct_val_ccy: Asset = field(name="ctValCcy", default=Asset(""))
@@ -87,8 +88,8 @@ class OkxHttpInstrument(Struct, frozen=True):
 class OkxHttpTicker(Struct, frozen=True):
     """Ticker data from /api/v5/market/ticker.
 
-    Provides mark price, index price, funding rate, and open interest
-    for perpetual contracts.
+    Provides last-price and rolling 24-hour statistics. Derivatives reference
+    values are returned by separate OKX public endpoints.
 
     Docs: https://www.okx.com/docs-v5/en/#public-data-rest-api-get-ticker
 
@@ -113,14 +114,35 @@ class OkxHttpTicker(Struct, frozen=True):
     """
 
     inst_id: Symbol = field(name="instId")
-    mark_px: str = field(name="markPx", default="0")
-    idx_px: str = field(name="idxPx", default="0")
-    funding_rate: str = field(name="fundingRate", default="0")
-    next_funding_time: str = field(name="nextFundingTime", default="0")
-    open_interest: str = field(name="openInterest", default="")
     vol_24h: str = field(name="vol24h", default="")
     last: str = field(default="0")
+    open_24h: str = field(name="open24h", default="0")
     ts: str = field(default="0")
+
+
+class OkxHttpMarkPrice(Struct, frozen=True):
+    inst_id: Symbol = field(name="instId")
+    mark_px: str = field(name="markPx")
+    ts: str
+
+
+class OkxHttpIndexTicker(Struct, frozen=True):
+    inst_id: Symbol = field(name="instId")
+    idx_px: str = field(name="idxPx")
+    ts: str
+
+
+class OkxHttpFundingRate(Struct, frozen=True):
+    inst_id: Symbol = field(name="instId")
+    funding_rate: str = field(name="fundingRate")
+    funding_time: str = field(name="fundingTime", default="0")
+    next_funding_time: str = field(name="nextFundingTime", default="0")
+
+
+class OkxHttpOpenInterest(Struct, frozen=True):
+    inst_id: Symbol = field(name="instId")
+    open_interest: str = field(name="oi")
+    ts: str
 
 
 class OkxHttpOrderbookLevel(Struct, frozen=True, array_like=True):

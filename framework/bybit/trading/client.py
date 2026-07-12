@@ -19,7 +19,7 @@ from mm_toolbox.time import time_ms, time_ns
 
 
 RECV_WINDOW_MS = 5000
-WS_PRIVATE_URL = "wss://stream.bybit.com/v5/private"
+WS_PRIVATE_URL = "wss://stream.bybit.com/v5/trade"
 
 
 def _resolve_secrets(

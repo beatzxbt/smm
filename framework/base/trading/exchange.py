@@ -72,6 +72,7 @@ class VenueEndpoints:
     public_ws: str
     private_ws: str
     time: str
+    market_ws: str | None = None
 
 
 class Exchange(ABC):

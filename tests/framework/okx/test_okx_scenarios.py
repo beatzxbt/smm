@@ -18,6 +18,7 @@ from framework.base.stream.models import (
     PositionMsg,
     PrivateDataStreamType,
     TradeMsg,
+    TickerMsg,
 )
 from framework.base.trading.exchange import VenueEndpoints
 from framework.base.trading.models import (
@@ -62,7 +63,7 @@ async def test_public_gateway_session_uses_real_http_client(test_logger) -> None
         )
         assert is_success(ticker) and ticker.data[0].mark_price == 30000.0
         assert is_success(orderbook) and len(orderbook.data[0].bids) == 2
-        assert len(server.http_requests) == 3
+        assert len(server.http_requests) == 7
     finally:
         await exchange.close_clients()
         await server.close()
@@ -94,7 +95,6 @@ async def test_sustained_public_feed_session(test_logger) -> None:
                         "asks": [["30001", "2", "0", "1"]],
                         "bids": [["30000", "1", "0", "1"]],
                         "ts": str(1700000000000 + seq),
-                        "checksum": seq,
                     }
                 ],
             }
@@ -135,6 +135,90 @@ async def test_sustained_public_feed_session(test_logger) -> None:
         assert sum(isinstance(msg, OrderbookMsg) for msg in messages) == 30
         assert sum(isinstance(msg, TradeMsg) for msg in messages) == 15
         assert sum(isinstance(msg, DataStreamEventMsg) for msg in messages) == 4
+    finally:
+        await manager.stop()
+        await exchange.close_clients()
+        await server.close()
+
+
+@pytest.mark.asyncio
+async def test_ticker_composes_distinct_okx_reference_channels(test_logger) -> None:
+    server = ScriptedExchangeServer()
+    await server.start()
+    server.load_jsonl(FIXTURE)
+    exchange = OkxExchange(test_logger, False, endpoints=_endpoints(server))
+    buffer = GenericRingBuffer(32)
+    manager = await OkxMarketStreamManager.create(exchange, test_logger, buffer)
+    try:
+        instrument = manager.instrument_collection.instruments[0]
+        await manager.start()
+        await manager.subscribe([instrument], {MarketDataStreamType.TICKER})
+        await server.wait_for_ws_frames(1)
+        expected = {
+            "tickers:BTC-USDT-SWAP",
+            "mark-price:BTC-USDT-SWAP",
+            "funding-rate:BTC-USDT-SWAP",
+            "open-interest:BTC-USDT-SWAP",
+            "index-tickers:BTC-USDT",
+        }
+        assert server.subscriptions == expected
+
+        pushes = [
+            (
+                "tickers:BTC-USDT-SWAP",
+                "tickers",
+                "BTC-USDT-SWAP",
+                {
+                    "last": "30000",
+                    "open24h": "29500",
+                    "vol24h": "50000",
+                    "ts": "1700000000000",
+                },
+            ),
+            (
+                "mark-price:BTC-USDT-SWAP",
+                "mark-price",
+                "BTC-USDT-SWAP",
+                {"markPx": "30000", "ts": "1700000000001"},
+            ),
+            (
+                "funding-rate:BTC-USDT-SWAP",
+                "funding-rate",
+                "BTC-USDT-SWAP",
+                {
+                    "fundingRate": "0.0001",
+                    "fundingTime": "1700000000000",
+                    "nextFundingTime": "1700028800000",
+                },
+            ),
+            (
+                "open-interest:BTC-USDT-SWAP",
+                "open-interest",
+                "BTC-USDT-SWAP",
+                {"oi": "1000", "ts": "1700000000002"},
+            ),
+            (
+                "index-tickers:BTC-USDT",
+                "index-tickers",
+                "BTC-USDT",
+                {"idxPx": "29995", "ts": "1700000000003"},
+            ),
+        ]
+        for subscription, channel, inst_id, data in pushes:
+            await server.send_to_subscribers(
+                subscription,
+                {
+                    "arg": {"channel": channel, "instId": inst_id},
+                    "data": [{"instId": inst_id, **data}],
+                },
+            )
+
+        messages = await collect_messages(buffer, 3)
+        ticker = next(msg for msg in messages if isinstance(msg, TickerMsg))
+        assert ticker.is_snapshot
+        assert ticker.mark_price == 30000.0
+        assert ticker.index_price == 29995.0
+        assert ticker.funding_period_min == 480
     finally:
         await manager.stop()
         await exchange.close_clients()
@@ -194,6 +278,8 @@ async def test_complete_order_lifecycle_uses_real_websocket_client(test_logger) 
         assert [
             frame.get("op") for frame in server.ws_frames if isinstance(frame, dict)
         ] == ["login", "order", "amend-order", "cancel-order"]
+        requests = [frame for frame in server.ws_frames if frame.get("op") != "login"]
+        assert all(request["args"][0]["instIdCode"] == 1001 for request in requests)
     finally:
         await exchange.close_clients()
         await server.close()

@@ -129,7 +129,7 @@ class TestBinanceExchangeOrderActions:
         assert resp.is_successful
         payload = binance_ws_router["calls"][-1]["data"]["params"]
         assert payload["orderId"] == "order_1"
-        assert payload["qty"] == "2.0"
+        assert payload["quantity"] == "2.0"
 
     @pytest.mark.asyncio
     async def test_cancel_order_maps_fields(

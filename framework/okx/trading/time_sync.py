@@ -12,7 +12,7 @@ from mm_toolbox.logging.standard import Logger
 class OkxTimeSync(TimeSync):
     """Time sync for OKX V5 API."""
 
-    _URL = "https://www.okx.com/api/v5/public/time"
+    _URL = "https://openapi.okx.com/api/v5/public/time"
 
     def __init__(
         self,

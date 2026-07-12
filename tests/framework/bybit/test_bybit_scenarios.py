@@ -113,30 +113,37 @@ async def test_sustained_public_feed_session(test_logger) -> None:
         await server.send_to_subscribers("publicTrade.BTCUSDT", b"not-json")
 
         for seq in range(1, 26):
+            ticker_data = {
+                "symbol": "BTCUSDT",
+                "markPrice": "30000.0",
+            }
+            if seq == 1:
+                ticker_data.update(
+                    {
+                        "tickDirection": "PlusTick",
+                        "price24hPcnt": "0.01",
+                        "lastPrice": "30000.0",
+                        "prevPrice24h": "29700.0",
+                        "highPrice24h": "30500.0",
+                        "lowPrice24h": "29500.0",
+                        "prevPrice1h": "29900.0",
+                        "indexPrice": "29995.0",
+                        "openInterest": "1000.0",
+                        "openInterestValue": "30000000.0",
+                        "turnover24h": "1500000000.0",
+                        "volume24h": "50000.0",
+                        "fundingIntervalHour": "8",
+                        "nextFundingTime": "1700003600000",
+                        "fundingRate": "0.0001",
+                    }
+                )
             await server.send_to_subscribers(
                 "tickers.BTCUSDT",
                 {
                     "topic": "tickers.BTCUSDT",
                     "type": "snapshot" if seq == 1 else "delta",
                     "ts": 1700000000000 + seq,
-                    "data": {
-                        "symbol": "BTCUSDT",
-                        "tickDirection": "PlusTick",
-                        "price24hPcnt": 0.01,
-                        "lastPrice": 30000.0,
-                        "prevPrice24h": 29700.0,
-                        "highPrice24h": 30500.0,
-                        "lowPrice24h": 29500.0,
-                        "prevPrice1h": 29900.0,
-                        "markPrice": 30000.0,
-                        "indexPrice": 29995.0,
-                        "openInterest": 1000.0,
-                        "openInterestValue": 30000000.0,
-                        "turnover24h": 1500000000.0,
-                        "volume24h": 50000.0,
-                        "nextFundingTime": 1700003600000,
-                        "fundingRate": 0.0001,
-                    },
+                    "data": ticker_data,
                 },
             )
             await server.send_to_subscribers(
@@ -147,8 +154,8 @@ async def test_sustained_public_feed_session(test_logger) -> None:
                     "ts": 1700000000000 + seq,
                     "data": {
                         "s": "BTCUSDT",
-                        "b": [{"price": 30000.0, "size": 1.0}],
-                        "a": [{"price": 30001.0, "size": 2.0}],
+                        "b": [["30000.0", "1.0"]],
+                        "a": [["30001.0", "2.0"]],
                         "u": seq,
                         "seq": seq,
                     },
@@ -162,14 +169,8 @@ async def test_sustained_public_feed_session(test_logger) -> None:
                     "ts": 1700000000000 + seq,
                     "data": {
                         "s": "BTCUSDT",
-                        "b": [
-                            {"price": 29999.0, "size": 3.0},
-                            {"price": 30000.0, "size": 1.0},
-                        ],
-                        "a": [
-                            {"price": 30001.0, "size": 2.0},
-                            {"price": 30002.0, "size": 4.0},
-                        ],
+                        "b": [["29999.0", "3.0"], ["30000.0", "1.0"]],
+                        "a": [["30001.0", "2.0"], ["30002.0", "4.0"]],
                         "u": seq,
                         "seq": seq,
                     },
@@ -184,10 +185,10 @@ async def test_sustained_public_feed_session(test_logger) -> None:
                     "data": [
                         {
                             "T": 1700000000000 + seq,
-                            "S": "BTCUSDT",
-                            "s": "Buy",
-                            "v": 0.1,
-                            "p": 30000.0,
+                            "s": "BTCUSDT",
+                            "S": "Buy",
+                            "v": "0.1",
+                            "p": "30000.0",
                             "i": f"trade-{seq}",
                             "seq": seq,
                         }
@@ -204,10 +205,10 @@ async def test_sustained_public_feed_session(test_logger) -> None:
                 "data": [
                     {
                         "T": 1700000000025,
-                        "S": "BTCUSDT",
-                        "s": "Buy",
-                        "v": 0.1,
-                        "p": 30000.0,
+                        "s": "BTCUSDT",
+                        "S": "Buy",
+                        "v": "0.1",
+                        "p": "30000.0",
                         "i": "trade-25",
                         "seq": 25,
                     }
@@ -331,6 +332,7 @@ async def test_interleaved_private_feed_session(test_logger) -> None:
         await manager.start()
         await manager.subscribe([instrument], stream_types)
         await server.wait_for_ws_frames(2)
+        assert server.subscriptions == {"order", "position", "execution", "wallet"}
 
         await server.push("order")
         await server.push("execution")
@@ -374,8 +376,8 @@ async def test_feed_reconnects_and_resubscribes(test_logger) -> None:
             "ts": 1700000000000 + seq,
             "data": {
                 "s": "BTCUSDT",
-                "b": [{"price": 30000.0, "size": 1.0}],
-                "a": [{"price": 30001.0, "size": 2.0}],
+                "b": [["30000.0", "1.0"]],
+                "a": [["30001.0", "2.0"]],
                 "u": seq,
                 "seq": seq,
             },

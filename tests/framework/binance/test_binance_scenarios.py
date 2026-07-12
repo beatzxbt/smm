@@ -18,7 +18,14 @@ from framework.base.stream.models import (
     TradeMsg,
 )
 from framework.base.trading.exchange import VenueEndpoints
-from framework.base.trading.models import is_success
+from framework.base.common import ClientOrderId
+from framework.base.trading.models import (
+    AmendOrder,
+    CancelOrder,
+    CreateOrder,
+    OrderTimeInForce,
+    is_success,
+)
 from framework.binance.stream.manager import (
     BinanceMarketStreamManager,
     BinancePrivateStreamManager,
@@ -38,6 +45,7 @@ def _endpoints(server: ScriptedExchangeServer) -> VenueEndpoints:
         public_ws=server.ws_url,
         private_ws=server.ws_url,
         time=f"{server.http_url}/v1/time",
+        market_ws=server.ws_url,
     )
 
 
@@ -164,5 +172,62 @@ async def test_interleaved_private_feed_session(test_logger) -> None:
         assert any(isinstance(msg, AccountMsg) for msg in messages)
     finally:
         await manager.stop()
+        await exchange.close_clients()
+        await server.close()
+
+
+@pytest.mark.asyncio
+async def test_order_lifecycle_uses_signed_websocket_api_requests(test_logger) -> None:
+    server = ScriptedExchangeServer()
+    await server.start()
+    server.load_jsonl(FIXTURE)
+    server.load_jsonl(
+        Path(__file__).parents[1] / "fixtures" / "binance" / "order_lifecycle.jsonl"
+    )
+    exchange = BinanceExchange(test_logger, False, True, endpoints=_endpoints(server))
+    exchange.load_secrets = True
+    exchange.ws_client.load_secrets = True
+    setattr(exchange.ws_client, "key", "test-key")
+    setattr(exchange.ws_client, "secret", "test-secret")
+    try:
+        instruments = await exchange.get_instrument_collection()
+        assert is_success(instruments)
+        instrument = instruments.data.instruments[0]
+        await exchange.connect_ws_client()
+
+        created = await exchange.create_order(
+            CreateOrder(
+                instrument=instrument,
+                size=1.0,
+                is_buy=True,
+                price=30000.0,
+                is_maker=True,
+                tif=OrderTimeInForce.GTC,
+                reduce_only=False,
+                client_order_id=ClientOrderId("client-1"),
+            )
+        )
+        assert is_success(created) and created.data.order_id == "1"
+        amended = await exchange.amend_order(
+            AmendOrder(instrument=instrument, size=2.0, price=30010.0, order_id="1")
+        )
+        assert is_success(amended)
+        cancelled = await exchange.cancel_order(
+            CancelOrder(instrument=instrument, order_id="1")
+        )
+        assert is_success(cancelled)
+
+        requests = [frame for frame in server.ws_frames if "method" in frame]
+        assert [request["method"] for request in requests] == [
+            "order.place",
+            "order.modify",
+            "order.cancel",
+        ]
+        for request in requests:
+            assert "timestamp" not in request
+            assert request["params"]["apiKey"] == "test-key"
+            assert isinstance(request["params"]["timestamp"], int)
+            assert len(request["params"]["signature"]) == 64
+    finally:
         await exchange.close_clients()
         await server.close()

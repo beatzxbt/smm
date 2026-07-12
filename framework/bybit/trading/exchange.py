@@ -60,7 +60,7 @@ ENDPOINT_POST_CANCEL_ALL = "/v5/order/cancel-all"
 
 BYBIT_ENDPOINTS = VenueEndpoints(
     http="https://api.bybit.com",
-    trading_ws="wss://stream.bybit.com/v5/private",
+    trading_ws="wss://stream.bybit.com/v5/trade",
     public_ws="wss://stream.bybit.com/v5/public/linear",
     private_ws="wss://stream.bybit.com/v5/private",
     time="https://api.bybit.com/v5/market/time",
@@ -532,27 +532,41 @@ class BybitExchange(Exchange):
     ) -> ClientResponse[list[InstrumentInfoResponse]]:
         started_ns = time_ns()
         decoder = msgspec.json.Decoder(dict)
-        response = await self.http_client.request(
-            method=HttpMethod.GET,
-            endpoint=ENDPOINT_GET_INSTRUMENTS_INFO,
-            params={"category": "linear"},
-            data={},
-            sign=False,
-            decoder=decoder,
-        )
-        if not is_success(response):
-            return self.make_failure(
-                meta=self.make_meta(
-                    operation=ENDPOINT_GET_INSTRUMENTS_INFO,
-                    started_ns=started_ns,
-                    finished_ns=time_ns(),
-                    status_code=response.meta.status_code,
-                ),
-                err_no=response.err_no,
-                err_msg=response.err_msg,
+        symbols: list[dict] = []
+        cursor = ""
+        seen_cursors: set[str] = set()
+        status_code: int | None = None
+        while True:
+            params: dict[str, str | int] = {"category": "linear", "limit": 1000}
+            if cursor:
+                params["cursor"] = cursor
+            response = await self.http_client.request(
+                method=HttpMethod.GET,
+                endpoint=ENDPOINT_GET_INSTRUMENTS_INFO,
+                params=params,
+                data={},
+                sign=False,
+                decoder=decoder,
             )
-        payload = response.data
-        symbols = payload.get("list") or payload.get("result", {}).get("list", [])
+            status_code = response.meta.status_code
+            if not is_success(response):
+                return self.make_failure(
+                    meta=self.make_meta(
+                        operation=ENDPOINT_GET_INSTRUMENTS_INFO,
+                        started_ns=started_ns,
+                        finished_ns=time_ns(),
+                        status_code=status_code,
+                    ),
+                    err_no=response.err_no,
+                    err_msg=response.err_msg,
+                )
+            payload = response.data
+            symbols.extend(payload.get("list", []))
+            next_cursor = str(payload.get("nextPageCursor", ""))
+            if not next_cursor or next_cursor in seen_cursors:
+                break
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
 
         results: list[InstrumentInfoResponse] = []
         for s in symbols:
@@ -598,7 +612,7 @@ class BybitExchange(Exchange):
                 operation=ENDPOINT_GET_INSTRUMENTS_INFO,
                 started_ns=started_ns,
                 finished_ns=time_ns(),
-                status_code=response.meta.status_code,
+                status_code=status_code,
             ),
         )
 

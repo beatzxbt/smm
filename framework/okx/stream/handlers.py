@@ -28,6 +28,7 @@ from framework.base.stream.models import (
     ExecutionMsg,
     OrderMsg,
     StreamType,
+    TickerMsg,
     TradeMsg,
 )
 from framework.okx.stream.models import (
@@ -36,7 +37,6 @@ from framework.okx.stream.models import (
     OkxOrderbookPublicMsg,
     OkxOrderMsg,
     OkxPositionMsg,
-    OkxTickerPublicMsg,
     OkxTradesPublicMsg,
 )
 from mm_toolbox.logging.standard import Logger
@@ -101,7 +101,7 @@ class _OkxStreamHandler(ABC):
 
 
 class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
-    """OKX ticker stream handler for mark price, funding, and 24h stats."""
+    """Compose OKX ticker state from its five distinct public channels."""
 
     def __init__(
         self,
@@ -129,7 +129,26 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
             consumer_buffer=consumer_buffer,
         )
         _OkxStreamHandler.__init__(self, channel="tickers")
-        self._decoder = msgspec.json.Decoder(OkxTickerPublicMsg)
+        self._decoder = msgspec.json.Decoder(dict)
+        self._symbol_state: dict[str, dict[str, str]] = {}
+        self._emitted_symbols: set[str] = set()
+
+    @staticmethod
+    def _subscription_args(instruments: list[Instrument]) -> list[dict[str, str]]:
+        args: list[dict[str, str]] = []
+        for instrument in instruments:
+            inst_id = str(instrument.symbol)
+            index_id = f"{instrument.base}-{instrument.quote}"
+            args.extend(
+                [
+                    {"channel": "tickers", "instId": inst_id},
+                    {"channel": "mark-price", "instId": inst_id},
+                    {"channel": "funding-rate", "instId": inst_id},
+                    {"channel": "open-interest", "instId": inst_id},
+                    {"channel": "index-tickers", "instId": index_id},
+                ]
+            )
+        return args
 
     def build_authentication_payload(self) -> bytes:
         """No authentication needed for public market streams.
@@ -153,7 +172,7 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
         Returns:
             bytes: Serialized payload bytes.
         """
-        args = self._build_okx_subscribe_args(instruments)
+        args = self._subscription_args(instruments)
         return msgspec.json.encode({"op": "subscribe", "args": args})
 
     def build_unsubscribe_payload(
@@ -170,7 +189,7 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
         Returns:
             bytes: Serialized payload bytes.
         """
-        args = self._build_okx_subscribe_args(instruments)
+        args = self._subscription_args(instruments)
         return msgspec.json.encode({"op": "unsubscribe", "args": args})
 
     async def decode_and_broadcast(
@@ -185,16 +204,66 @@ class OkxTickerHandler(TickerStreamHandler, _OkxStreamHandler):
             raw_msg: Raw websocket payload bytes.
         """
         try:
-            data = self._decoder.decode(raw_msg)
+            payload = self._decoder.decode(raw_msg)
+            arg = payload.get("arg", {})
+            channel = arg.get("channel", "")
+            if not channel or not payload.get("data"):
+                if self._handle_control_message(raw_msg, self._logger) is not None:
+                    return
+                return
             origin_id = MessageId(recv_time_ns=recv_time_ns)
-            for ticker_data in data.data:
-                ticker_msg = ticker_data.to_ticker_msg(
-                    venue=self.venue,
-                    instrument_collection=self.instrument_collection,
-                    is_snapshot=data.action == "snapshot",
-                    origin_id=origin_id,
-                    recv_time_ns=recv_time_ns,
+            for item in payload["data"]:
+                wire_id = str(item.get("instId", arg.get("instId", "")))
+                symbol = f"{wire_id}-SWAP" if channel == "index-tickers" else wire_id
+                instrument = self.instrument_collection.get(Symbol(symbol))
+                if instrument is None:
+                    continue
+                state = self._symbol_state.setdefault(symbol, {})
+                state.update({key: str(value) for key, value in item.items()})
+                required = {
+                    "last",
+                    "open24h",
+                    "vol24h",
+                    "markPx",
+                    "idxPx",
+                    "fundingRate",
+                    "nextFundingTime",
+                    "oi",
+                }
+                if not required.issubset(state):
+                    continue
+                funding_time = int(state.get("fundingTime", "0"))
+                next_funding_time = int(state["nextFundingTime"])
+                funding_period_min = (
+                    max(0, next_funding_time - funding_time) // 60_000
+                    if funding_time
+                    else 0
                 )
+                ticker_msg = TickerMsg(
+                    id=MessageId(recv_time_ns=recv_time_ns),
+                    origin_id=origin_id,
+                    moments=Moments(
+                        exch_time_ns=int(state.get("ts", "0")) * 1_000_000,
+                        recv_time_ns=recv_time_ns,
+                    ),
+                    instrument=instrument,
+                    is_snapshot=symbol not in self._emitted_symbols,
+                    mark_price=float(state["markPx"]),
+                    index_price=float(state["idxPx"]),
+                    funding_rate=float(state["fundingRate"]),
+                    funding_period_min=int(funding_period_min),
+                    next_funding_time_ms=float(next_funding_time),
+                    open_interest=float(state["oi"]),
+                    avg_volume_24h=float(state["vol24h"]),
+                    price_chg_24h_pct=(
+                        (float(state["last"]) - float(state["open24h"]))
+                        / float(state["open24h"])
+                        * 100.0
+                        if float(state["open24h"]) > 0
+                        else 0.0
+                    ),
+                )
+                self._emitted_symbols.add(symbol)
                 self.broadcast(ticker_msg)
         except msgspec.DecodeError:
             if self._handle_control_message(raw_msg, self._logger) is not None:
@@ -293,7 +362,7 @@ class OkxBBOHandler(BBOStreamHandler, _OkxStreamHandler):
         try:
             data = self._decoder.decode(raw_msg)
             inst_id = data.arg.get("instId", "")
-            is_snapshot = data.action == "snapshot"
+            is_snapshot = data.action in (None, "snapshot")
             origin_id = MessageId(recv_time_ns=recv_time_ns)
             for book_data in data.data:
                 orderbook_msg = book_data.to_orderbook_msg(
@@ -403,7 +472,7 @@ class OkxOrderbookHandler(OrderbookStreamHandler, _OkxStreamHandler):
         try:
             data = self._decoder.decode(raw_msg)
             inst_id = data.arg.get("instId", "")
-            is_snapshot = data.action == "snapshot"
+            is_snapshot = data.action in (None, "snapshot")
             origin_id = MessageId(recv_time_ns=recv_time_ns)
             for book_data in data.data:
                 orderbook_msg = book_data.to_orderbook_msg(

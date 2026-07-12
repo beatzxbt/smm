@@ -52,10 +52,6 @@ from framework.base.trading.models import (
 from framework.binance.trading.client import BinanceHttpClient, BinanceWsClient
 from framework.binance.trading.time_sync import BinanceTimeSync
 from framework.binance.trading.models import (
-    BinanceWsOrderResponse,
-    BinanceWsCreateOrderResult,
-    BinanceWsAmendOrderResult,
-    BinanceWsCancelOrderResult,
     BinanceHttpOrderbookResponse,
     BinanceHttpTicker24hrResponse,
     BinanceHttpMarkPriceResponse,
@@ -110,11 +106,14 @@ class BinanceExchange(Exchange):
         venue = Venue.BINANCE_USDM if is_usd_margined else Venue.BINANCE_COINM
         default_root = "fapi" if is_usd_margined else "dapi"
         default_ws = "fstream" if is_usd_margined else "dstream"
+        ws_api = "ws-fapi" if is_usd_margined else "ws-dapi"
+        ws_api_path = "ws-fapi" if is_usd_margined else "ws-dapi"
         endpoints = endpoints or VenueEndpoints(
             http=f"https://{default_root}.binance.com/{default_root}",
-            trading_ws=f"wss://{default_ws}.binance.com/ws",
-            public_ws=f"wss://{default_ws}.binance.com/ws",
-            private_ws=f"wss://{default_ws}.binance.com/ws",
+            trading_ws=f"wss://{ws_api}.binance.com/{ws_api_path}/v1",
+            public_ws=f"wss://{default_ws}.binance.com/public/ws",
+            market_ws=f"wss://{default_ws}.binance.com/market/ws",
+            private_ws=f"wss://{default_ws}.binance.com/private/ws",
             time=f"https://{default_root}.binance.com/{default_root}/v1/time",
         )
         time_sync = BinanceTimeSync(venue=venue, logger=logger, url=endpoints.time)
@@ -204,9 +203,7 @@ class BinanceExchange(Exchange):
             "params": params,
         }
 
-        decoder = msgspec.json.Decoder(
-            BinanceWsOrderResponse[BinanceWsCreateOrderResult]
-        )
+        decoder = msgspec.json.Decoder(dict)
         response = await self.ws_client.submit(data=payload, decoder=decoder)
 
         if not is_success(response):
@@ -216,7 +213,7 @@ class BinanceExchange(Exchange):
                 err_msg=response.err_msg,
             )
 
-        order_response = response.data
+        order_response = response.data.get("result", response.data)
         moments = Moments()
         response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         return self.make_success(
@@ -226,10 +223,8 @@ class BinanceExchange(Exchange):
                 origin_id=create_order.origin_id or create_order.id,
                 moments=moments,
                 instrument=create_order.instrument,
-                order_id=OrderId(str(order_response.result.order_id)),
-                client_order_id=ClientOrderId(
-                    str(order_response.result.client_order_id)
-                ),
+                order_id=OrderId(str(order_response["orderId"])),
+                client_order_id=ClientOrderId(str(order_response["clientOrderId"])),
             ),
         )
 
@@ -241,7 +236,7 @@ class BinanceExchange(Exchange):
 
         params = {
             "symbol": amend_order.instrument.symbol,
-            "qty": str(amend_order.size),
+            "quantity": str(amend_order.size),
         }
         if amend_order.order_id:
             params["orderId"] = amend_order.order_id
@@ -255,9 +250,7 @@ class BinanceExchange(Exchange):
             "params": params,
         }
 
-        decoder = msgspec.json.Decoder(
-            BinanceWsOrderResponse[BinanceWsAmendOrderResult]
-        )
+        decoder = msgspec.json.Decoder(dict)
         response = await self.ws_client.submit(data=payload, decoder=decoder)
 
         if not is_success(response):
@@ -267,7 +260,7 @@ class BinanceExchange(Exchange):
                 err_msg=response.err_msg,
             )
 
-        amend_response = response.data
+        amend_response = response.data.get("result", response.data)
         moments = Moments()
         response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         return self.make_success(
@@ -277,10 +270,8 @@ class BinanceExchange(Exchange):
                 origin_id=amend_order.origin_id or amend_order.id,
                 moments=moments,
                 instrument=amend_order.instrument,
-                order_id=OrderId(str(amend_response.result.order_id)),
-                client_order_id=ClientOrderId(
-                    str(amend_response.result.client_order_id)
-                ),
+                order_id=OrderId(str(amend_response["orderId"])),
+                client_order_id=ClientOrderId(str(amend_response["clientOrderId"])),
             ),
         )
 
@@ -303,9 +294,7 @@ class BinanceExchange(Exchange):
             "params": params,
         }
 
-        decoder = msgspec.json.Decoder(
-            BinanceWsOrderResponse[BinanceWsCancelOrderResult]
-        )
+        decoder = msgspec.json.Decoder(dict)
         response = await self.ws_client.submit(data=payload, decoder=decoder)
 
         if not is_success(response):
@@ -315,7 +304,7 @@ class BinanceExchange(Exchange):
                 err_msg=response.err_msg,
             )
 
-        cancel_response = response.data
+        cancel_response = response.data.get("result", response.data)
         moments = Moments()
         response_id = MessageId(recv_time_ns=moments.recv_time_ns)
         return self.make_success(
@@ -325,10 +314,8 @@ class BinanceExchange(Exchange):
                 origin_id=cancel_order.origin_id or cancel_order.id,
                 moments=moments,
                 instrument=cancel_order.instrument,
-                order_id=OrderId(str(cancel_response.result.order_id)),
-                client_order_id=ClientOrderId(
-                    str(cancel_response.result.client_order_id)
-                ),
+                order_id=OrderId(str(cancel_response["orderId"])),
+                client_order_id=ClientOrderId(str(cancel_response["clientOrderId"])),
             ),
         )
 

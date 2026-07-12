@@ -183,34 +183,44 @@ class TestOkxTickerHandler:
             logger=Logger(name="test"),
             consumer_buffer=queue,
         )
-        payload = {
-            "arg": {"channel": "tickers", "instId": "BTC-USDT-SWAP"},
-            "data": [
+        messages = [
+            (
+                "tickers",
+                "BTC-USDT-SWAP",
                 {
-                    "instId": "BTC-USDT-SWAP",
                     "last": "30000.5",
-                    "lastSz": "1.0",
-                    "askPx": "30001.0",
-                    "askSz": "10.0",
-                    "bidPx": "30000.0",
-                    "bidSz": "15.0",
-                    "open24h": "29000.0",
-                    "high24h": "31000.0",
-                    "low24h": "28000.0",
-                    "volCcy24h": "5000000000",
+                    "open24h": "29000",
                     "vol24h": "100000",
-                    "sodUtc0": "29500.0",
-                    "sodUtc8": "29800.0",
                     "ts": "1597026383085",
-                    "markPx": "30000.0",
-                    "idxPx": "29995.25",
+                },
+            ),
+            (
+                "mark-price",
+                "BTC-USDT-SWAP",
+                {"markPx": "30000.0", "ts": "1597026383085"},
+            ),
+            (
+                "funding-rate",
+                "BTC-USDT-SWAP",
+                {
                     "fundingRate": "0.0001",
+                    "fundingTime": "1596998400000",
                     "nextFundingTime": "1597027200000",
-                    "openInterest": "100000.5",
-                }
-            ],
-        }
-        await handler.decode_and_broadcast(1, msgspec.json.encode(payload))
+                },
+            ),
+            (
+                "open-interest",
+                "BTC-USDT-SWAP",
+                {"oi": "100000.5", "ts": "1597026383085"},
+            ),
+            ("index-tickers", "BTC-USDT", {"idxPx": "29995.25", "ts": "1597026383085"}),
+        ]
+        for channel, inst_id, data in messages:
+            payload = {
+                "arg": {"channel": channel, "instId": inst_id},
+                "data": [{"instId": inst_id, **data}],
+            }
+            await handler.decode_and_broadcast(1, msgspec.json.encode(payload))
         msg = queue.consume()
         assert isinstance(msg, TickerMsg)
         assert msg.mark_price == 30000.0
@@ -246,8 +256,14 @@ class TestOkxTickerHandler:
         payload = handler.build_subscribe_payload(instruments)
         decoded = msgspec.json.decode(payload)
         assert decoded["op"] == "subscribe"
-        assert len(decoded["args"]) == 1
-        assert decoded["args"][0]["channel"] == "tickers"
+        assert len(decoded["args"]) == 5
+        assert {arg["channel"] for arg in decoded["args"]} == {
+            "tickers",
+            "mark-price",
+            "funding-rate",
+            "open-interest",
+            "index-tickers",
+        }
 
 
 class TestOkxBBOHandler:

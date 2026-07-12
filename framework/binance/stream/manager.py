@@ -26,8 +26,8 @@ from mm_toolbox.logging.standard import Logger
 from mm_toolbox.ringbuffer import GenericRingBuffer
 
 BINANCE_PUBLIC_URLS = {
-    Venue.BINANCE_USDM: "wss://fstream.binance.com/ws",
-    Venue.BINANCE_COINM: "wss://dstream.binance.com/ws",
+    Venue.BINANCE_USDM: "wss://fstream.binance.com/public/ws",
+    Venue.BINANCE_COINM: "wss://dstream.binance.com/public/ws",
 }
 
 
@@ -59,9 +59,14 @@ class BinanceMarketStreamManager(MarketStreamManager):
         base_url = (
             endpoints.public_ws if endpoints else BINANCE_PUBLIC_URLS[exchange.venue]
         )
+        market_url = (
+            (endpoints.market_ws or endpoints.public_ws)
+            if endpoints
+            else base_url.replace("/public/", "/market/")
+        )
         shared_context = StreamSharedContext()
         ticker_handler = BinanceTickerHandler(
-            connection=WebSocketConnection(base_url, logger),
+            connection=WebSocketConnection(market_url, logger),
             instrument_collection=instrument_collection,
             venue=exchange.venue,
             logger=logger,
@@ -140,7 +145,10 @@ class BinancePrivateStreamManager(PrivateStreamManager):
         private_url = (
             endpoints.private_ws if endpoints else BINANCE_PUBLIC_URLS[exchange.venue]
         )
-        wss_url = f"{private_url.rstrip('/')}/{listen_key}"
+        wss_url = (
+            f"{private_url}?listenKey={listen_key}"
+            "&events=ORDER_TRADE_UPDATE/ACCOUNT_UPDATE"
+        )
         shared_context = StreamSharedContext()
 
         handler = BinancePrivateHandler(

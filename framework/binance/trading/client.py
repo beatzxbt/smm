@@ -152,8 +152,8 @@ class BinanceWsClient(WsClient):
     """WebSocket API client for Binance Futures."""
 
     BASE_URLS = {
-        Venue.BINANCE_USDM: "wss://fstream.binance.com/ws",
-        Venue.BINANCE_COINM: "wss://dstream.binance.com/ws",
+        Venue.BINANCE_USDM: "wss://ws-fapi.binance.com/ws-fapi/v1",
+        Venue.BINANCE_COINM: "wss://ws-dapi.binance.com/ws-dapi/v1",
     }
 
     def __init__(
@@ -213,65 +213,14 @@ class BinanceWsClient(WsClient):
         ).hexdigest()
 
     async def authenticate(self, ws: aiohttp.ClientWebSocketResponse) -> bool:
-        """Authenticate the WebSocket connection.
-
-        Args:
-            ws (aiohttp.ClientWebSocketResponse): WebSocket connection.
-
-        Returns:
-            bool: True if authentication successful, False otherwise.
-
-        """
-        try:
-            # Generate authentication parameters
-            timestamp = self.time_sync.time_ms
-            params = {
-                "apiKey": self.key,
-                "timestamp": timestamp,
-            }
-            signature = self._sign_params(params)
-            params["signature"] = signature
-
-            # Send authentication request
-            auth_msg = {
-                "id": self._generate_request_id(),
-                "method": "auth",
-                "params": params,
-            }
-
-            await ws.send_str(self.json_encoder.encode(auth_msg).decode())
-
-            # Wait for authentication response
-            auth_response = await ws.receive()
-            if auth_response.type == aiohttp.WSMsgType.TEXT:
-                resp = self.json_decoder.decode(auth_response.data)
-                if (
-                    resp.get("status") == 200
-                    and resp.get("result", {}).get("status") == "AUTHENTICATED"
-                ):
-                    self.logger.debug("Binance WebSocket authentication successful")
-                    return True
-                else:
-                    self.logger.error(
-                        f"Binance WebSocket authentication failed: {resp}"
-                    )
-                    return False
-            else:
-                self.logger.error(
-                    "Binance WebSocket authentication failed: No valid TEXT response"
-                )
-                return False
-
-        except Exception as e:
-            self.logger.error(f"Binance WebSocket authentication error: {e}")
-            return False
+        """Binance Futures authenticates each WebSocket API request, not the session."""
+        return True
 
     async def heartbeat(self):
-        """Send a heartbeat ping to keep the connection alive."""
+        """Send a WebSocket control-frame ping."""
         if self.is_active and self.ws and not self.ws.closed:
-            ping_msg = {"id": self._generate_request_id(), "method": "ping"}
             try:
-                await self.ws.send_bytes(self.json_encoder.encode(ping_msg))
+                await self.ws.ping()
                 self.logger.debug("Binance WebSocket ping sent")
             except Exception as e:
                 self.logger.error(f"Binance WebSocket ping failed: {e}")
@@ -285,16 +234,7 @@ class BinanceWsClient(WsClient):
 
         """
         try:
-            ws = await self.session.ws_connect(self.base_url)
-            authenticated = await self.authenticate(ws)
-            if authenticated:
-                self.logger.debug(
-                    "Binance WebSocket connection created and authenticated"
-                )
-                return ws
-            else:
-                await ws.close()
-                return None
+            return await self.session.ws_connect(self.base_url)
         except Exception as e:
             self.logger.error(f"Binance WebSocket connection creation failed: {e}")
             return None
@@ -460,9 +400,13 @@ class BinanceWsClient(WsClient):
                 err_msg="No active connection",
             )
 
-        # Add request ID and use the synchronized exchange timestamp.
+        # Binance Futures WebSocket API authenticates each signed request. All
+        # authentication fields belong inside params and are covered by the signature.
         data["id"] = self._generate_request_id()
-        data["timestamp"] = self.time_sync.time_ms
+        params = data.setdefault("params", {})
+        params["apiKey"] = self.key
+        params["timestamp"] = self.time_sync.time_ms
+        params["signature"] = self._sign_params(params)
 
         req_id = data["id"]
         loop = asyncio.get_running_loop()
@@ -484,7 +428,9 @@ class BinanceWsClient(WsClient):
 
             if response.get("status") == 200:
                 return self.make_success(
-                    data=decoder.decode(response.get("result", response)),
+                    data=decoder.decode(
+                        msgspec.json.encode(response.get("result", response))
+                    ),
                     meta=meta,
                 )
             else:

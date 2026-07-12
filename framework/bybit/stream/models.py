@@ -68,27 +68,31 @@ class BybitTickerMsg(Struct, rename="camel", frozen=True):
           "openInterestValue": "3000050000", // open interest value
           "turnover24h": "5000000000",       // 24h turnover
           "volume24h": "100000",             // 24h volume
-          "nextFundingTime": 1568014500000,  // next funding time (ms)
+          "nextFundingTime": "1568014500000",// next funding time (ms)
           "fundingRate": "0.0001"            // current funding rate
         }
     """
 
     symbol: str
-    tick_direction: str
-    price_24h_pcnt: float = field(name="price24hPcnt")
-    last_price: float
-    prev_price_24h: float = field(name="prevPrice24h")
-    high_price_24h: float = field(name="highPrice24h")
-    low_price_24h: float = field(name="lowPrice24h")
-    prev_price_1h: float = field(name="prevPrice1h")
-    mark_price: float
-    index_price: float
-    open_interest: float
-    open_interest_value: float
-    turnover_24h: float = field(name="turnover24h")
-    volume_24h: float = field(name="volume24h")
-    next_funding_time: int
-    funding_rate: float
+    # Bybit encodes decimal values and funding timestamps as strings. Derivatives
+    # ticker deltas contain only changed fields, so every value except symbol is
+    # optional at the wire boundary and is merged by the handler.
+    tick_direction: str = ""
+    price_24h_pcnt: str = field(name="price24hPcnt", default="")
+    last_price: str = ""
+    prev_price_24h: str = field(name="prevPrice24h", default="")
+    high_price_24h: str = field(name="highPrice24h", default="")
+    low_price_24h: str = field(name="lowPrice24h", default="")
+    prev_price_1h: str = field(name="prevPrice1h", default="")
+    mark_price: str = ""
+    index_price: str = ""
+    open_interest: str = ""
+    open_interest_value: str = ""
+    turnover_24h: str = field(name="turnover24h", default="")
+    volume_24h: str = field(name="volume24h", default="")
+    next_funding_time: str = ""
+    funding_rate: str = ""
+    funding_interval_hour: str = "8"
 
     def to_ticker_msg(
         self,
@@ -99,10 +103,15 @@ class BybitTickerMsg(Struct, rename="camel", frozen=True):
         origin_id: MessageId | None = None,
         recv_time_ns: int | None = None,
     ) -> TickerMsg:
-        mark_price = float(self.mark_price)
-        index_price = float(self.index_price)
-        last_price = float(self.last_price)
-        if mark_price <= 0.0 or index_price <= 0.0 or last_price <= 0.0:
+        def decimal(value: str) -> float:
+            return float(value) if value else 0.0
+
+        mark_price = decimal(self.mark_price)
+        index_price = decimal(self.index_price)
+        last_price = decimal(self.last_price)
+        if is_snapshot and (
+            mark_price <= 0.0 or index_price <= 0.0 or last_price <= 0.0
+        ):
             raise ValueError(
                 f"{self.__class__.__name__} data error; nonpositive prices "
                 f"(mark/index/last); raw: {self}"
@@ -127,13 +136,20 @@ class BybitTickerMsg(Struct, rename="camel", frozen=True):
             is_snapshot=is_snapshot,
             mark_price=mark_price,
             index_price=index_price,
-            funding_rate=float(self.funding_rate),
-            funding_period_min=480,
-            next_funding_time_ms=float(self.next_funding_time),
-            open_interest=float(self.open_interest),
-            avg_volume_24h=float(self.volume_24h),
-            price_chg_24h_pct=float(self.price_24h_pcnt),
+            funding_rate=decimal(self.funding_rate),
+            funding_period_min=int(self.funding_interval_hour or "8") * 60,
+            next_funding_time_ms=decimal(self.next_funding_time),
+            open_interest=decimal(self.open_interest),
+            avg_volume_24h=decimal(self.volume_24h),
+            price_chg_24h_pct=decimal(self.price_24h_pcnt),
         )
+
+
+class BybitOrderbookLevel(Struct, frozen=True, array_like=True):
+    """A Bybit orderbook level encoded as ``[price, size]``."""
+
+    price: str
+    size: str
 
 
 class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
@@ -150,12 +166,12 @@ class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
         {
           "s": "BTCUSDT",                   // symbol
           "b": [                            // bids (best to worst)
-            {"price": "30000.00", "size": "1.0"},
-            {"price": "29999.50", "size": "2.0"}
+            ["30000.00", "1.0"],
+            ["29999.50", "2.0"]
           ],
           "a": [                            // asks (best to worst)
-            {"price": "30001.00", "size": "1.5"},
-            {"price": "30002.00", "size": "3.0"}
+            ["30001.00", "1.5"],
+            ["30002.00", "3.0"]
           ],
           "u": 12345,                       // update ID
           "seq": 67890                      // sequence number
@@ -164,12 +180,8 @@ class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
 
     symbol: str = field(name="s")
 
-    # Since OrderbookLevel shares the exact same names for
-    # prize and size, we can get away with using it directly.
-    #
-    # As there is no 'n', the default works and is never decoded.
-    bids: list[OrderbookLevel] = field(name="b")
-    asks: list[OrderbookLevel] = field(name="a")
+    bids: list[BybitOrderbookLevel] = field(name="b")
+    asks: list[BybitOrderbookLevel] = field(name="a")
 
     update_id: int = field(name="u")
     seq: int = field(name="seq")
@@ -189,7 +201,8 @@ class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
                 f"{self.__class__.__name__} data error; empty bids and asks; raw: {self}"
             )
         if any(
-            level.price <= 0.0 or level.size < 0.0 for level in self.bids + self.asks
+            float(level.price) <= 0.0 or float(level.size) < 0.0
+            for level in self.bids + self.asks
         ):
             raise ValueError(
                 f"{self.__class__.__name__} data error; invalid level price/size "
@@ -210,8 +223,18 @@ class BybitOrderbookMsg(Struct, rename="camel", frozen=True):
             moments=Moments(exch_time_ns=exch_time_ns, recv_time_ns=recv_time_ns),
             instrument=instrument,
             is_snapshot=is_snapshot,
-            bids=tuple(sorted(self.bids, key=lambda level: level.price)),
-            asks=tuple(sorted(self.asks, key=lambda level: level.price)),
+            bids=tuple(
+                sorted(
+                    (OrderbookLevel(float(x.price), float(x.size)) for x in self.bids),
+                    key=lambda level: level.price,
+                )
+            ),
+            asks=tuple(
+                sorted(
+                    (OrderbookLevel(float(x.price), float(x.size)) for x in self.asks),
+                    key=lambda level: level.price,
+                )
+            ),
             is_bbo=is_bbo,
         )
 
@@ -276,8 +299,8 @@ class BybitTrade(Struct, frozen=True):
 
         {
           "T": 1568014460891,               // trade time (ms)
-          "S": "BTCUSDT",                   // symbol
-          "s": "Buy",                       // side (Buy/Sell)
+          "s": "BTCUSDT",                   // symbol
+          "S": "Buy",                       // side (Buy/Sell)
           "v": "1.0",                       // volume (quantity)
           "p": "30000.50",                  // price
           "i": "1234567890",                // trade ID
@@ -286,10 +309,10 @@ class BybitTrade(Struct, frozen=True):
     """
 
     time_ms: int = field(name="T")
-    symbol: str = field(name="S")
-    side: str = field(name="s")
-    size: float = field(name="v")
-    price: float = field(name="p")
+    symbol: str = field(name="s")
+    side: str = field(name="S")
+    size: str = field(name="v")
+    price: str = field(name="p")
     id: str = field(name="i")
     seq: int
 
@@ -320,8 +343,8 @@ class BybitTradeMsg(Struct, frozen=True):
           "data": [
             {
               "T": 1568014460891,           // trade time (ms)
-              "S": "BTCUSDT",               // symbol
-              "s": "Buy",                   // side
+              "s": "BTCUSDT",               // symbol
+              "S": "Buy",                   // side
               "v": "1.0",                   // volume
               "p": "30000.50",              // price
               "i": "1234567890",            // trade ID
@@ -416,17 +439,17 @@ class BybitPrivateMsg(Struct, rename="camel", frozen=True):
     Example payload::
 
         {
-          "topic": "order.linear",          // subscription topic
-          "type": "UPDATE",                 // message type (SNAPSHOT/UPDATE)
-          "ts": 1568014460891,              // server timestamp (ms)
+          "id": "message-id",               // message ID
+          "topic": "order",                 // subscription topic
+          "creationTime": 1568014460891,    // server timestamp (ms)
           "data": [...]                     // array of typed data objects
         }
     """
 
     topic: str
-    type: str
-    ts: int
+    creation_time: int = field(name="creationTime")
     data: list[Raw]
+    id: str = ""
 
 
 class BybitPositionMsg(Struct, rename="camel", frozen=True):

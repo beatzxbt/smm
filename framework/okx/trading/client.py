@@ -41,7 +41,7 @@ class OkxHttpClient(HttpClient):
     Docs: https://www.okx.com/docs-v5/en/#rest-api-authentication
     """
 
-    BASE_URL = "https://www.okx.com"
+    BASE_URL = "https://openapi.okx.com"
 
     def __init__(
         self,

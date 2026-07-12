@@ -130,4 +130,6 @@ class TestBinanceWsClientSubmit:
         )
 
         assert response.is_successful
-        assert ws.payload["timestamp"] == 1250
+        assert ws.payload["params"]["timestamp"] == 1250
+        assert "timestamp" not in ws.payload
+        assert "signature" in ws.payload["params"]

@@ -210,7 +210,8 @@ class OkxOrderbookMsg(Struct, frozen=True):
     asks: list[OkxOrderbookLevel]
     bids: list[OkxOrderbookLevel]
     ts: str
-    checksum: int
+    # Snapshot-only books5 and bbo-tbt channels do not carry checksum.
+    checksum: int = 0
 
     def to_orderbook_msg(
         self,

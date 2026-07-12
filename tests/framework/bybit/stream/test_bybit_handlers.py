@@ -127,43 +127,26 @@ class TestBybitTickerHandler:
             "data": {
                 "symbol": "BTCUSDT",
                 "tickDirection": "PlusTick",
-                "price24hPcnt": 0.01,
-                "lastPrice": 30000.0,
-                "prevPrice24h": 29900.0,
-                "highPrice24h": 31000.0,
-                "lowPrice24h": 29000.0,
-                "prevPrice1h": 29500.0,
-                "markPrice": 30000.0,
-                "indexPrice": 29950.0,
-                "openInterest": 10.0,
-                "openInterestValue": 100.0,
-                "turnover24h": 200.0,
-                "volume24h": 50.0,
-                "nextFundingTime": 1700000000000,
-                "fundingRate": 0.0001,
+                "price24hPcnt": "0.01",
+                "lastPrice": "30000.0",
+                "prevPrice24h": "29900.0",
+                "highPrice24h": "31000.0",
+                "lowPrice24h": "29000.0",
+                "prevPrice1h": "29500.0",
+                "markPrice": "30000.0",
+                "indexPrice": "29950.0",
+                "openInterest": "10.0",
+                "openInterestValue": "100.0",
+                "turnover24h": "200.0",
+                "volume24h": "50.0",
+                "nextFundingTime": "1700000000000",
+                "fundingRate": "0.0001",
             },
         }
         delta_payload = {
             "topic": "tickers.BTCUSDT",
             "type": "delta",
-            "data": {
-                "symbol": "BTCUSDT",
-                "tickDirection": "PlusTick",
-                "price24hPcnt": 0.0,
-                "lastPrice": 0.0,
-                "prevPrice24h": 0.0,
-                "highPrice24h": 0.0,
-                "lowPrice24h": 0.0,
-                "prevPrice1h": 0.0,
-                "markPrice": 0.0,
-                "indexPrice": 0.0,
-                "openInterest": 0.0,
-                "openInterestValue": 0.0,
-                "turnover24h": 0.0,
-                "volume24h": 0.0,
-                "nextFundingTime": 0,
-                "fundingRate": 0.0,
-            },
+            "data": {"symbol": "BTCUSDT", "markPrice": "30001.0"},
         }
 
         await handler.decode_and_broadcast(
@@ -179,7 +162,7 @@ class TestBybitTickerHandler:
         while not queue.is_empty():
             last_msg = queue.consume()
         assert isinstance(last_msg, TickerMsg)
-        assert last_msg.mark_price == pytest.approx(30000.0)
+        assert last_msg.mark_price == pytest.approx(30001.0)
         assert last_msg.index_price == pytest.approx(29950.0)
 
 
@@ -210,8 +193,8 @@ class TestBybitOrderbookHandlers:
             "type": "snapshot",
             "data": {
                 "s": "BTCUSDT",
-                "b": [{"price": 30000.0, "size": 1.0}],
-                "a": [{"price": 30001.0, "size": 2.0}],
+                "b": [["30000.0", "1.0"]],
+                "a": [["30001.0", "2.0"]],
                 "u": 1,
                 "seq": 2,
             },
@@ -254,10 +237,10 @@ class TestBybitTradesHandler:
             "data": [
                 {
                     "T": 1700000000000,
-                    "S": "BTCUSDT",
-                    "s": "Buy",
-                    "v": 1.0,
-                    "p": 30000.0,
+                    "s": "BTCUSDT",
+                    "S": "Buy",
+                    "v": "1.0",
+                    "p": "30000.0",
                     "i": "trade_1",
                     "seq": 1,
                 }

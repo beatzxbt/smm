@@ -196,7 +196,7 @@ class BybitTickerHandler(TickerStreamHandler, _BybitStreamHandler):
         """
         try:
             decoded = self._decoder.decode(raw_msg)
-            exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else None
+            exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else recv_time_ns
             origin_id = MessageId(recv_time_ns=recv_time_ns)
             ticker_msg = decoded.data.to_ticker_msg(
                 venue=self.venue,
@@ -357,7 +357,7 @@ class BybitBBOHandler(BBOStreamHandler, _BybitStreamHandler):
         """
         try:
             decoded = self._decoder.decode(raw_msg)
-            exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else None
+            exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else recv_time_ns
             origin_id = MessageId(recv_time_ns=recv_time_ns)
             orderbook_msg = decoded.data.to_orderbook_msg(
                 venue=self.venue,
@@ -469,7 +469,7 @@ class BybitOrderbookHandler(OrderbookStreamHandler, _BybitStreamHandler):
         """
         try:
             decoded = self._decoder.decode(raw_msg)
-            exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else None
+            exch_time_ns = decoded.ts * 1_000_000 if decoded.ts else recv_time_ns
             origin_id = MessageId(recv_time_ns=recv_time_ns)
             orderbook_msg = decoded.data.to_orderbook_msg(
                 venue=self.venue,
@@ -725,7 +725,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
             if not isinstance(payload, BybitPrivateMsg):
                 return
 
-            exch_time_ns = payload.ts * 1_000_000
+            exch_time_ns = payload.creation_time * 1_000_000
             origin_id = MessageId(recv_time_ns=recv_time_ns)
 
             match payload.topic:
@@ -798,7 +798,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
                         recv_time_ns=recv_time_ns,
                     ),
                     instrument=instrument,
-                    is_snapshot=payload.type.upper() == "SNAPSHOT",
+                    is_snapshot=False,
                     orders=tuple(orders),
                 )
             )
@@ -824,7 +824,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
                 venue=self._venue,
                 instrument_collection=self._instrument_collection,
                 exch_time_ns=exch_time_ns,
-                is_snapshot=payload.type.upper() == "SNAPSHOT",
+                is_snapshot=False,
                 origin_id=origin_id,
                 recv_time_ns=recv_time_ns,
             )
@@ -868,7 +868,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
                         recv_time_ns=recv_time_ns,
                     ),
                     instrument=instrument,
-                    is_snapshot=payload.type.upper() == "SNAPSHOT",
+                    is_snapshot=False,
                     executions=tuple(executions),
                 )
             )
@@ -895,7 +895,7 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
             update.to_account_msg(
                 venue=self._venue,
                 exch_time_ns=exch_time_ns,
-                is_snapshot=payload.type.upper() == "SNAPSHOT",
+                is_snapshot=False,
                 origin_id=origin_id,
                 recv_time_ns=recv_time_ns,
             )
