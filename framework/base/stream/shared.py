@@ -37,4 +37,4 @@ class StreamSharedContext(Struct):
         if value is None:
             value = factory()
             self.values[key] = value
-        return value  # type: ignore[return-value]
+        return value

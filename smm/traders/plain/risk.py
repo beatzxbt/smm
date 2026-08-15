@@ -56,9 +56,12 @@ class PlainRiskEngine(BaseRiskEngine):
         for order in desired_state.bids + desired_state.asks:
             if order.price <= 0.0 or order.size <= 0.0:
                 return False
-            distance_pct = abs(order.price - self.mid_price) / self.mid_price * 100.0
-            if distance_pct > self.config.max_order_distance_pct:
-                return False
+            if self.mid_price > 0.0:
+                distance_pct = (
+                    abs(order.price - self.mid_price) / self.mid_price * 100.0
+                )
+                if distance_pct > self.config.max_order_distance_pct:
+                    return False
 
         if abs(self.net_inventory_quote()) > self.config.max_inventory_quote:
             return False

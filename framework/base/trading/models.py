@@ -245,7 +245,7 @@ class CancelAllOrders(Struct):
 type OrderAction = CreateOrder | AmendOrder | CancelOrder | CancelAllOrders
 
 
-class CreateOrderResponse(EnvelopeSchema):
+class CreateOrderResponse(EnvelopeSchema, frozen=True):
     """Represents the response from a create-order action.
 
     Attributes:
@@ -257,7 +257,7 @@ class CreateOrderResponse(EnvelopeSchema):
     client_order_id: Optional[ClientOrderId] = None
 
 
-class AmendOrderResponse(EnvelopeSchema):
+class AmendOrderResponse(EnvelopeSchema, frozen=True):
     """Represents the response from an amend-order action.
 
     Attributes:
@@ -269,7 +269,7 @@ class AmendOrderResponse(EnvelopeSchema):
     client_order_id: Optional[ClientOrderId] = None
 
 
-class CancelOrderResponse(EnvelopeSchema):
+class CancelOrderResponse(EnvelopeSchema, frozen=True):
     """Represents the response from a cancel-order action.
 
     Attributes:
@@ -281,7 +281,7 @@ class CancelOrderResponse(EnvelopeSchema):
     client_order_id: Optional[ClientOrderId] = None
 
 
-class CancelAllOrdersResponse(EnvelopeSchema):
+class CancelAllOrdersResponse(EnvelopeSchema, frozen=True):
     """Represents the response from a cancel-all-orders action.
 
     Attributes:
@@ -296,7 +296,7 @@ class CancelAllOrdersResponse(EnvelopeSchema):
     client_order_ids: Optional[tuple[ClientOrderId, ...]] = None
 
 
-class TradesResponse(EnvelopeSchema):
+class TradesResponse(EnvelopeSchema, frozen=True):
     """Represents a list of trades.
 
     Trades must be provided in ascending order of time.
@@ -332,7 +332,7 @@ class TradesResponse(EnvelopeSchema):
             prev_trade_time_ms = curr_trade_time_ms
 
 
-class OrderbookResponse(EnvelopeSchema):
+class OrderbookResponse(EnvelopeSchema, frozen=True):
     """Represents the current state of the orderbook.
 
     Orderbook levels must be provided in ascending order of price.
@@ -379,7 +379,7 @@ class OrderbookResponse(EnvelopeSchema):
                 prev_ask_price = level.price
 
 
-class TickerResponse(EnvelopeSchema):
+class TickerResponse(EnvelopeSchema, frozen=True):
     """Represents current ticker information for an instrument.
 
     Attributes:
@@ -428,7 +428,7 @@ class TickerResponse(EnvelopeSchema):
             )
 
 
-class InstrumentInfoResponse(EnvelopeSchema):
+class InstrumentInfoResponse(EnvelopeSchema, frozen=True):
     """Represents static instrument metadata.
 
     Attributes:
@@ -463,7 +463,7 @@ class InstrumentInfoResponse(EnvelopeSchema):
             )
 
 
-class OrdersResponse(EnvelopeSchema):
+class OrdersResponse(EnvelopeSchema, frozen=True):
     """Represents a list of order states.
 
     Attributes:
@@ -473,7 +473,7 @@ class OrdersResponse(EnvelopeSchema):
     orders: tuple[Order, ...]
 
 
-class PositionResponse(EnvelopeSchema):
+class PositionResponse(EnvelopeSchema, frozen=True):
     """Represents a trading position.
 
     Attributes:
@@ -507,7 +507,7 @@ class PositionResponse(EnvelopeSchema):
         return self.price * self.size
 
 
-class ExecutionResponse(EnvelopeSchema):
+class ExecutionResponse(EnvelopeSchema, frozen=True):
     """Represents a collection of execution fills.
 
     Attributes:
@@ -517,7 +517,7 @@ class ExecutionResponse(EnvelopeSchema):
     executions: tuple[Execution, ...]
 
 
-class AccountResponse(EnvelopeSchema):
+class AccountResponse(EnvelopeSchema, frozen=True):
     """Represents account balance and margin information.
 
     Attributes:

@@ -28,6 +28,8 @@ from smm.traders.plain.risk import PlainRiskEngine
 class PlainTrader(BaseTrader):
     """Trader for the plain strategy."""
 
+    oms: PlainOrderManagementSystem
+
     def __init__(
         self,
         config: AppConfig,

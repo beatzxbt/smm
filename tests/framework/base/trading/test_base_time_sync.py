@@ -270,7 +270,9 @@ class TestTimeSyncLifecycle:
         ts.fetch_venue_time = intermittently_failing_fetch  # type: ignore[method-assign]
 
         await ts.start(AsyncMock(spec=aiohttp.ClientSession))
-        await asyncio.sleep(0.05)
+        async with asyncio.timeout(2.0):
+            while call_count < 3:
+                await asyncio.sleep(0)
         await ts.stop()
 
         assert call_count >= 3

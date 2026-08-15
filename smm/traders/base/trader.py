@@ -95,7 +95,7 @@ class BaseTrader(ABC):
             BaseTrader: Initialized trader instance.
         """
         venue_bundle = load_venue_bundle(config.core.venue)
-        exchange = cls._build_exchange(venue_bundle, config.core.venue, logger)
+        exchange = cls._build_exchange(config.core.venue, logger)
         instrument = await exchange.resolve_instrument(config.core.symbol)
         rounder = await cls._build_rounder(exchange, instrument)
         buffer: GenericRingBuffer = GenericRingBuffer(STREAM_MESSAGE_BUFFER_CAPACITY)
@@ -117,28 +117,35 @@ class BaseTrader(ABC):
         )
 
     @staticmethod
-    def _build_exchange(
-        venue_bundle: VenueBundle, venue: Venue, logger: Logger
-    ) -> Exchange:
+    def _build_exchange(venue: Venue, logger: Logger) -> Exchange:
         """Build an exchange instance for a venue.
 
         Args:
-            venue_bundle (VenueBundle): Loaded venue bundle for the venue.
             venue (Venue): Venue identifier.
             logger (Logger): Logger instance.
 
         Returns:
             Exchange: Exchange instance for the venue.
         """
-        if venue in (Venue.BINANCE_USDM, Venue.BINANCE_COINM):
-            return venue_bundle.exchange(
-                logger=logger,
-                load_secrets=True,
-                is_usd_margined=venue == Venue.BINANCE_USDM,
-            )
-        if venue == Venue.BYBIT:
-            return venue_bundle.exchange(logger=logger, load_secrets=True)
-        raise ValueError(f"Unsupported venue: {venue}")
+        match venue:
+            case Venue.BINANCE_USDM | Venue.BINANCE_COINM:
+                from framework.binance.trading.exchange import BinanceExchange
+
+                return BinanceExchange(
+                    logger=logger,
+                    load_secrets=True,
+                    is_usd_margined=venue == Venue.BINANCE_USDM,
+                )
+            case Venue.BYBIT:
+                from framework.bybit.trading.exchange import BybitExchange
+
+                return BybitExchange(logger=logger, load_secrets=True)
+            case Venue.OKX:
+                from framework.okx.trading.exchange import OkxExchange
+
+                return OkxExchange(logger=logger, load_secrets=True)
+            case _:
+                raise ValueError(f"Unsupported venue: {venue}")
 
     @staticmethod
     async def _build_rounder(exchange: Exchange, instrument: Instrument) -> Rounder:
@@ -154,6 +161,10 @@ class BaseTrader(ABC):
         response = await exchange.get_instrument_info([instrument])
         if not response.is_successful:
             raise RuntimeError(f"Failed to load instrument info; {response.err_msg}")
+        if response.data is None:
+            raise RuntimeError(
+                "Failed to load instrument info; response contained no data"
+            )
         info = response.data[0]
         return Rounder(
             RounderConfig.default(tick_size=info.tick_size, lot_size=info.lot_size)
@@ -287,6 +298,8 @@ class BaseTrader(ABC):
 
         """
         allowed_delay_s = 1.0
+        if msg.time_next_check_ms is None:
+            raise ValueError("Heartbeat message is missing a next-check timestamp.")
         time_next_check_s = msg.time_next_check_ms / 1000.0
         time_to_next_check_s = time_next_check_s - time_s() + allowed_delay_s
         if time_to_next_check_s <= 0:

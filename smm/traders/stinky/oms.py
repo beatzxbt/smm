@@ -100,15 +100,20 @@ class StinkyOrderManagementSystem(BaseOrderManagementSystem):
                 for execution in msg.executions:
                     fill_value = execution.price * execution.size
                     is_large = (
-                        fill_value >= self._stinky_config.large_fill_threshold_quote
+                        fill_value
+                        >= self._stinky_config.large_fill_threshold_quote
                     )
                     signed_size = (
                         execution.size if execution.is_buy else -execution.size
                     )
+                    # Anchor the liquidation wait on the local receive time.
+                    # Exchange execution timestamps may lag local receive
+                    # time, so the fill is only actionable once we have it.
+                    entry_time_s = msg.moments.recv_time_ns / 1_000_000_000.0
                     self._inventory_positions.append(
                         InventoryPosition(
                             size=signed_size,
-                            entry_time_s=execution.exec_time_ms / 1000.0,
+                            entry_time_s=entry_time_s,
                             is_large=is_large,
                             remaining_size=abs(signed_size),
                         )

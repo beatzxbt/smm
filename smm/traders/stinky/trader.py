@@ -28,6 +28,8 @@ from smm.traders.stinky.risk import StinkyRiskEngine
 class StinkyTrader(BaseTrader):
     """Trader for the stinky strategy."""
 
+    oms: StinkyOrderManagementSystem
+
     def __init__(
         self,
         config: AppConfig,

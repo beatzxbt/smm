@@ -139,9 +139,14 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
             if cloid in self.current_orders or cloid in self.inflight_orders:
                 continue
             if self.try_acquire_create():
+                self.inflight_orders[cloid] = {
+                    "price": price,
+                    "is_buy": is_buy,
+                    "size": size,
+                }
                 tasks.append(
                     asyncio.create_task(
-                        self.exchange.create_order(
+                        self._create_and_track(
                             CreateOrder(
                                 instrument=self.instrument,
                                 size=size,
@@ -155,14 +160,27 @@ class PlainOrderManagementSystem(BaseOrderManagementSystem):
                         )
                     )
                 )
-                self.inflight_orders[cloid] = {
-                    "price": price,
-                    "is_buy": is_buy,
-                    "size": size,
-                }
 
         if tasks:
             await asyncio.gather(*tasks)
+
+    async def _create_and_track(self, create_order: CreateOrder) -> None:
+        """Submit a create order and update inflight tracking on outcome.
+
+        A rejected create is dropped from inflight tracking so the next
+        reconciliation cycle retries it.
+
+        Args:
+            create_order (CreateOrder): Create order to submit.
+        """
+        cloid = str(create_order.client_order_id)
+        response = await self.exchange.create_order(create_order)
+        if not response.is_successful:
+            self.inflight_orders.pop(cloid, None)
+            self.logger.warning(
+                f"Order create rejected for {cloid}; will retry on next "
+                f"cycle; {response.err_msg}"
+            )
 
     async def kill_switch(self) -> None:
         """Cancel all tracked orders."""

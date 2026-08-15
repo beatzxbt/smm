@@ -683,7 +683,11 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
         """
         if not stream_types:
             return b""
-        args = [self._stream_type_topic_map.enum_to_str(st) for st in stream_types]
+        args = [
+            self._stream_type_topic_map.enum_to_str(st)
+            for st in stream_types
+            if isinstance(st, PrivateDataStreamType)
+        ]
         req_id = self._next_req_id()
         return msgspec.json.encode({"op": "subscribe", "args": args, "req_id": req_id})
 
@@ -703,7 +707,11 @@ class BybitPrivateHandler(PrivateStreamHandler, _BybitStreamHandler):
         """
         if not stream_types:
             return b""
-        args = [self._stream_type_topic_map.enum_to_str(st) for st in stream_types]
+        args = [
+            self._stream_type_topic_map.enum_to_str(st)
+            for st in stream_types
+            if isinstance(st, PrivateDataStreamType)
+        ]
         req_id = self._next_req_id()
         return msgspec.json.encode(
             {"op": "unsubscribe", "args": args, "req_id": req_id}
