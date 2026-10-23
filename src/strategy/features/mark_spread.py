@@ -28,4 +28,4 @@ def log_price_difference(follow: float, base: float) -> float:
     >>> log_price_difference(follow=48980, base=49000)
     -0.04082465866049452
     """
-    return np.log(base / follow) * 100
+    return np.log(follow / base) * 100
