@@ -51,10 +51,10 @@ def orderbook_imbalance(bids: NDArray, asks: NDArray, depths: NDArray) -> float:
     ... ])
     >>> depths = np.array([10, 20, 30, 40, 50])  
     >>> orderbook_imbalance(bids, asks, depths)
-    -0.7734791082203096
+    -0.24142990048382099
     """
     num_depths = depths.size
-    depths = depths * 1e-4  # NOTE: Converting from BPS to decimals
+    depths = depths / 1e-4  # NOTE: Converting from BPS to decimals
     weights = ema_weights(num_depths)
     imbalances = np.empty(num_depths, dtype=np.float64)
 

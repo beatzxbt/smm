@@ -19,7 +19,7 @@ async def main():
         )
 
     except Exception as e:
-        print(f"Critical exception occurred: {e}")
+        print(f"Critical exception occured: {e}")
         # TODO: Add shutdown sequence here
         raise e
 
